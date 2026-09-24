@@ -687,7 +687,11 @@ function renderGallery() {
 
     img.addEventListener('click', () => {
       const card = img.closest('.card');
-      openLightbox(card.dataset.folder, Number(card.dataset.index));
+      // Hand the lightbox the exact image the card already loaded (a cache
+      // hit = instant, no re-download, no blur flash) and whether it was
+      // fully revealed. Null = card still loading → start at the sharp tier.
+      openLightbox(card.dataset.folder, Number(card.dataset.index),
+        (img.classList.contains('is-loaded') && img.currentSrc) ? img.currentSrc : null);
     });
   });
   gallery.querySelectorAll('.card-delete').forEach(btn => {
@@ -1114,25 +1118,26 @@ function fileToDataUrl(file) {
 
 /* ── Lightbox ─────────────────────────────────────────────────── */
 
-function openLightbox(folder, index) {
+function openLightbox(folder, index, startSrc) {
   state.lightboxFolder = folder;
   state.lightboxIndex = index;
+  state.lightboxStartSrc = startSrc || null;
   updateLightbox();
   el('lightbox').hidden = false;
 }
 function updateLightbox() {
   const img = state.folders[state.lightboxFolder][state.lightboxIndex];
   const lb = el('lightboxImg');
-  lb.src = thumbSrc(img);                 // blur-up thumb first — instant
-  lb.dataset.full = imgSrc(img);          // full-res swaps in on load
-  lb.classList.remove('is-loaded');       // start blurred
-  lb.onload = () => {
-    if (lb.src !== lb.dataset.full && lb.dataset.full) {
-      lb.src = lb.dataset.full;           // now pull the real one
-    } else {
-      lb.classList.add('is-loaded');      // and only then sharpen
-    }
-  };
+  // Reuse the already-loaded card image when available (no re-download, no
+  // blur). Navigation (prev/next) has no clicked card → start at the same
+  // sharp tier the grid uses (cardSrc). Mark is-loaded immediately so the
+  // lightbox opens clear; the full-res original then swaps in silently.
+  const start = state.lightboxStartSrc || cardSrc(img);
+  state.lightboxStartSrc = null;
+  lb.src = start;
+  lb.dataset.full = imgSrc(img);          // full-res — background upgrade only
+  lb.classList.add('is-loaded');          // open clear, never blurred
+  lb.onload = () => { if (lb.src !== lb.dataset.full && lb.dataset.full) lb.src = lb.dataset.full; };
   lb.onerror = () => { if (lb.src !== lb.dataset.full && lb.dataset.full) lb.src = lb.dataset.full; };
   lb.alt = prettyName(img.name);
   el('lightboxCaption').textContent = `${state.lightboxFolder} / ${prettyName(img.name)}`;
