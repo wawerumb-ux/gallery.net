@@ -1172,7 +1172,7 @@ async function downloadFromLightbox() {
   }
 
   try {
-    const res = await fetch(rawUrl(img.path));
+    const res = await fetch(pageUrl(img.path));
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
@@ -1186,7 +1186,7 @@ async function downloadFromLightbox() {
     setTimeout(() => URL.revokeObjectURL(url), 10000);
     showToast(`Saved ${prettyName(img.name)}`);
   } catch (err) {
-    window.open(rawUrl(img.path), '_blank', 'noopener');
+    window.open(pageUrl(img.path), '_blank', 'noopener');
     showToast('Opened in a new tab — use “Save image as…”', true);
   }
 }
@@ -1213,9 +1213,16 @@ function thumbSrc(img) {
   const rel = img.path.split('/').map(encodeURIComponent).join('/');
   return `https://cdn.jsdelivr.net/gh/${encodeURIComponent(CONFIG.owner)}/${encodeURIComponent(CONFIG.repo)}@${encodeURIComponent(CONFIG.branch)}/${rel}?w=64&q=50&blur=on`;
 }
+function pageUrl(path) {
+  // Same-origin GitHub Pages host: served off Fastly CDN with real
+  // cache headers (unlike raw.githubusercontent which revalidates every
+  // request). Tokenless by construction. Custom domains can set
+  // CONFIG.siteOrigin to override the default <owner>.github.io/repo.
+  const base = CONFIG.siteOrigin || `https://${CONFIG.owner}.github.io/${CONFIG.repo}/`;
+  return base + path.split('/').map(encodeURIComponent).join('/');
+}
 function imgSrc(img) {
-
-  return img.demoSrc || rawUrl(img.path);
+  return img.demoSrc || pageUrl(img.path);
 }
 function prettyName(filename) {
   return filename.replace(/\.[^.]+$/, '').replace(/[-_]+/g, ' ');
