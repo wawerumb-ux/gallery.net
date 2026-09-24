@@ -162,7 +162,10 @@ code{font-family:var(--font-mono);background:var(--panel-raised);padding:.1em .4
   border-color: var(--teal);
   box-shadow: 0 8px 24px rgba(0, 0, 0, .35);
 }
-.card img{aspect-ratio:4/3;object-fit:cover;background:var(--panel-raised);}
+.card img{aspect-ratio:4/3;object-fit:cover;background:var(--panel-raised);
+  transition:opacity .45s ease,filter .6s ease,transform .6s ease;}
+.card img:not(.is-loaded){filter:blur(14px);transform:scale(1.06);opacity:.85;}
+.card img.is-loaded{filter:none;transform:none;opacity:1;}
 .card figcaption{
   font-family:var(--font-mono);font-size:11px;color:var(--text-dim);
   padding:8px 10px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;

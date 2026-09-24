@@ -645,7 +645,7 @@ function renderGallery() {
           const pretty = prettyName(img.name);
           const c = classifyPhoto(img);
           return `<figure class="card ${c.needsReview ? 'card-needs-review' : ''}" data-group="${escapeAttr(c.group || '')}" data-folder="${escapeAttr(folder)}" data-index="${i}">
-            <img src="${imgSrc(img)}" alt="${escapeAttr(pretty)}" loading="${isFirstPaint(img) ? 'eager' : 'lazy'}" fetchpriority="${isFirstPaint(img) ? 'high' : 'auto'}" decoding="async">
+            <img class="card-img" src="${thumbSrc(img)}" data-full="${imgSrc(img)}" alt="${escapeAttr(pretty)}" loading="${isFirstPaint(img) ? 'eager' : 'lazy'}" fetchpriority="${isFirstPaint(img) ? 'high' : 'auto'}" decoding="async">
             ${state.adminMode ? `<button class="card-delete" data-path="${escapeAttr(img.path)}" data-sha="${escapeAttr(img.sha)}" data-name="${escapeAttr(pretty)}" aria-label="Delete ${escapeAttr(pretty)}">×</button>` : ''}
             ${state.adminMode ? `<button class="card-tag" data-path="${escapeAttr(img.path)}" data-name="${escapeAttr(pretty)}" title="Classify this photo">tag</button>` : ''}
             <figcaption>${escapeHtml(pretty)}</figcaption>
@@ -674,6 +674,19 @@ function renderGallery() {
     document.head.appendChild(pre);
   });
   gallery.querySelectorAll('.card img').forEach(img => {
+    // Blur-up: when the tiny thumb finishes, swap in the full-res image and
+    // fade it in (CSS adds the blur + transition). Revisit with SW = instant.
+    img.addEventListener('load', () => {
+      if (img.src !== img.dataset.full && img.dataset.full) {
+        img.src = img.dataset.full;
+      } else {
+        img.classList.add('is-loaded');
+      }
+    });
+    img.addEventListener('error', () => {
+      if (img.src !== img.dataset.full && img.dataset.full) img.src = img.dataset.full;
+    });
+
     img.addEventListener('click', () => {
       const card = img.closest('.card');
       openLightbox(card.dataset.folder, Number(card.dataset.index));
@@ -1180,7 +1193,17 @@ function isFirstPaint(img) {
   return idx >= 0 && idx < 3;
 }
 
+function thumbSrc(img) {
+  // Tiny jsDelivr resize → instant low-res placeholder per card; full-res
+  // loads on top via data-full (Pinterest/Unsplash blur-up pattern).
+  // jsDelivr sends real Cache-Control headers so even the thumbs are cached.
+  if (img.demoSrc) return img.demoSrc;
+  if (!CONFIG.owner || !CONFIG.repo) return imgSrc(img);
+  const rel = img.path.split('/').map(encodeURIComponent).join('/');
+  return `https://cdn.jsdelivr.net/gh/${encodeURIComponent(CONFIG.owner)}/${encodeURIComponent(CONFIG.repo)}@${encodeURIComponent(CONFIG.branch)}/${rel}?w=64&q=50&blur=on`;
+}
 function imgSrc(img) {
+
   return img.demoSrc || rawUrl(img.path);
 }
 function prettyName(filename) {

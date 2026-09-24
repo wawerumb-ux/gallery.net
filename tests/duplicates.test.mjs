@@ -53,7 +53,7 @@ function loadAppPure() {
   const ctx = vm.createContext(sandbox2);
   const expose = `
     globalThis.__X = { journeyFor, classifyPhoto, buildAssets, discoverFromTree,
-      setAssets, summarizeDuplicates, rawUrl, imgSrc, prettyName, sanitizeFilename };
+      setAssets, summarizeDuplicates, rawUrl, imgSrc, thumbSrc, prettyName, sanitizeFilename };
   `;
   vm.runInContext(code + expose, ctx, { filename: 'app.js' });
   return sandbox2.__X;
@@ -145,6 +145,10 @@ describe('D6 — download flow requires no token, no Authorization header', () =
     assert.ok(!/token|authorization|access_token|bearer/i.test(u), 'no token in URL');
     const src = G.imgSrc(img);
     assert.ok(!/token|authorization|access_token|bearer/i.test(src), 'no token in img src');
+    if (G.thumbSrc) {
+      const t = G.thumbSrc(img);
+      assert.ok(!/token|authorization|access_token|bearer/i.test(t), 'no token in blur-up thumb');
+    }
   });
 });
 
