@@ -330,6 +330,12 @@ async function init() {
     console.warn('GitHub PAT present in sessionStorage — do not share screenshots of this console.');
   }
 
+  // Cache-first service worker: makes repeat visits/offline instant.
+  // Fails silently on file:// or older browsers — gallery still works.
+  if (location.protocol !== "file:" && navigator.serviceWorker) {
+    navigator.serviceWorker.register("sw.js").catch(() => {});
+  }
+
   await loadMetadata(false);
   await loadTree(state.adminMode);
 }
