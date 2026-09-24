@@ -53,7 +53,8 @@ function loadAppPure() {
   const ctx = vm.createContext(sandbox2);
   const expose = `
     globalThis.__X = { journeyFor, classifyPhoto, buildAssets, discoverFromTree,
-      setAssets, summarizeDuplicates, rawUrl, pageUrl, imgSrc, cardSrc, thumbSrc, prettyName, sanitizeFilename };
+      setAssets, summarizeDuplicates, rawUrl, pageUrl, imgSrc, cardSrc, thumbSrc, prettyName, sanitizeFilename,
+      setDPR: (v) => { devicePixelRatio = v; } };
   `;
   vm.runInContext(code + expose, ctx, { filename: 'app.js' });
   return sandbox2.__X;
@@ -124,9 +125,13 @@ describe('D4 — responsive variant set in one folder', () => {
     assert.equal(sum.exactDuplicateFiles, 0, 'variants are NOT content duplicates');
     if (G.cardSrc && G.setAssets) {
       G.setAssets(files);
-      const card = G.cardSrc(assets[0].canonical);
-      assert.ok(/peak-800\.webp/.test(card), 'card serves the committed webp variant: ' + card);
-      assert.ok(/^https:\/\/[a-z0-9-]+\.github\.io\//.test(card), 'card variant on Pages host: ' + card);
+      G.setDPR(1);
+      const card1x = G.cardSrc(assets[0].canonical);
+      assert.ok(/peak-480\.webp/.test(card1x), '1x DPR card serves the 480 tier: ' + card1x);
+      assert.ok(/^https:\/\/[a-z0-9-]+\.github\.io\//.test(card1x), 'card variant on Pages host: ' + card1x);
+      G.setDPR(2);
+      const card2x = G.cardSrc(assets[0].canonical);
+      assert.ok(/peak-800\.webp/.test(card2x), '2x DPR card serves the 800 tier: ' + card2x);
       const lb = G.imgSrc(assets[0].canonical);
       assert.ok(/peak\.jpg/.test(lb), 'lightbox keeps the full-res original: ' + lb);
     }

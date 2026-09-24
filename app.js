@@ -660,10 +660,10 @@ function renderGallery() {
      the images the user actually sees first. */
   if (!document.querySelector('link[data-gallery-preconnect]')) {
     const a = document.createElement('link');
-    a.rel = 'preconnect'; a.href = 'https://raw.githubusercontent.com'; a.setAttribute('data-gallery-preconnect','');
+    a.rel = 'preconnect'; a.href = 'https://cdn.jsdelivr.net'; a.setAttribute('data-gallery-preconnect','');
     document.head.appendChild(a);
     const b = document.createElement('link');
-    b.rel = 'dns-prefetch'; b.href = 'https://raw.githubusercontent.com';
+    b.rel = 'dns-prefetch'; b.href = 'https://cdn.jsdelivr.net';
     document.head.appendChild(b);
   }
   const firstFolder = state.order[0];
@@ -1225,13 +1225,19 @@ function imgSrc(img) {
   return img.demoSrc || pageUrl(img.path);
 }
 function cardSrc(img) {
-  // Grid: prefer the smallest committed webp variant (client-ready, ~80 KB)
-  // over the multi-MB original; the full-res original only loads in the
-  // lightbox. Falls back to the original if no variants are committed yet.
+  // Grid: serve a committed webp variant sized for the actual card, never the
+  // multi-MB original (full-res loads only in the lightbox). Cards render at
+  // ~180-300 px, so 1x DPR uses the -480 tier; 2x+ uses -800. Single source,
+  // no redownload — pairs with the blur-up swap (srcset would force a second
+  // fetch through the data-full upgrade, so it's deliberately avoided here).
   if (img.demoSrc) return img.demoSrc;
   const asset = (state.assets || []).find(a => a.canonical.path === img.path);
   const v = asset && asset.variants.filter(x => /\.webp$/i.test(x.name));
-  if (v && v.length) return pageUrl(v[0].path);
+  if (v && v.length) {
+    const dpr = (typeof devicePixelRatio === 'number' && devicePixelRatio) || 1;
+    const pick = dpr >= 2 ? v[0] : v[v.length - 1];
+    return pageUrl(pick.path);
+  }
   return pageUrl(img.path);
 }
 function prettyName(filename) {
