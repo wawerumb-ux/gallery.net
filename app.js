@@ -174,16 +174,16 @@ async function loadTree(auth = false) {
     }
     const data = await imagesRes.json();
 
-    const prefix = `${imagesPath}/`;
+    // The subtree lists paths relative to itself (no "images/" prefix),
+    // so rebuild each full repo path from the raw path here.
     const folders = {};
     for (const item of data.tree) {
-      if (item.type !== 'blob' || !item.path.startsWith(prefix) || !IMG_EXT.test(item.path)) continue;
-      const rest = item.path.slice(prefix.length);
-      const slash = rest.indexOf('/');
-      const folder = slash === -1 ? 'General' : rest.slice(0, slash);
-      const name = slash === -1 ? rest : rest.slice(slash + 1);
+      if (item.type !== 'blob' || !IMG_EXT.test(item.path)) continue;
+      const slash = item.path.indexOf('/');
+      const folder = slash === -1 ? 'General' : item.path.slice(0, slash);
+      const name = slash === -1 ? item.path : item.path.slice(slash + 1);
       if (!folders[folder]) folders[folder] = [];
-      folders[folder].push({ path: item.path, sha: item.sha, name });
+      folders[folder].push({ path: `${imagesPath}/${item.path}`, sha: item.sha, name });
     }
     state.folders = folders;
     state.order = Object.keys(folders).sort((a, b) => a.localeCompare(b, 'en', { numeric: true }));
