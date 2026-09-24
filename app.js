@@ -1124,8 +1124,19 @@ function openLightbox(folder, index) {
 }
 function updateLightbox() {
   const img = state.folders[state.lightboxFolder][state.lightboxIndex];
-  el('lightboxImg').src = imgSrc(img);
-  el('lightboxImg').alt = prettyName(img.name);
+  const lb = el('lightboxImg');
+  lb.src = thumbSrc(img);                 // blur-up thumb first — instant
+  lb.dataset.full = imgSrc(img);          // full-res swaps in on load
+  lb.classList.remove('is-loaded');       // start blurred
+  lb.onload = () => {
+    if (lb.src !== lb.dataset.full && lb.dataset.full) {
+      lb.src = lb.dataset.full;           // now pull the real one
+    } else {
+      lb.classList.add('is-loaded');      // and only then sharpen
+    }
+  };
+  lb.onerror = () => { if (lb.src !== lb.dataset.full && lb.dataset.full) lb.src = lb.dataset.full; };
+  lb.alt = prettyName(img.name);
   el('lightboxCaption').textContent = `${state.lightboxFolder} / ${prettyName(img.name)}`;
 }
 function closeLightbox() { el('lightbox').hidden = true; }

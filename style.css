@@ -232,7 +232,10 @@ code{font-family:var(--font-mono);background:var(--panel-raised);padding:.1em .4
   position:fixed;inset:0;background:rgba(6,7,9,.94);z-index:60;
   display:flex;align-items:center;justify-content:center;flex-direction:column;
 }
-.lightbox-img{max-width:88vw;max-height:78vh;object-fit:contain;border-radius:4px;}
+.lightbox-img{max-width:88vw;max-height:78vh;object-fit:contain;border-radius:4px;
+  transition:opacity .45s ease,filter .6s ease,transform .6s ease;}
+.lightbox-img:not(.is-loaded){filter:blur(14px);transform:scale(1.04);opacity:.85;}
+.lightbox-img.is-loaded{filter:none;transform:none;opacity:1;}
 .lightbox-captionbar{
   display:flex;align-items:center;gap:12px;margin-top:14px;max-width:88vw;flex-wrap:wrap;
   justify-content:center;
