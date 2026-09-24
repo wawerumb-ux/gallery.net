@@ -32,7 +32,7 @@ const PHASE_RULES = [
   { name: 'site-survey',          from: '2026-06-19', to: '2026-06-20' },
   { name: 'cable-pull',           from: '2026-06-21', to: '2026-06-21' },
   { name: 'termination-testing',  from: '2026-06-22', to: '2026-06-24' },
-  { name: 'rack-build',           from: '2026-06-25', to: '2026-07-31' },
+  { name: 'rack-build',           from: '2026-06-25', to: '2026-08-05' },
   { name: 'phase-1',              pattern: /^IMG-\d{8}-WA/i, from: '2026-07-26', to: '2026-07-26' },
 ];
 
