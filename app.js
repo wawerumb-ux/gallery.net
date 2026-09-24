@@ -313,6 +313,7 @@ function wireStaticEvents() {
     if (state.adminMode) signOut();
     else { el('adminModalOverlay').hidden = false; el('tokenInput').focus(); }
   });
+  el('toastClose').addEventListener('click', () => { el('toast').hidden = true; });
   el('tokenCancel').addEventListener('click', closeModal);
   el('tokenSubmit').addEventListener('click', trySignIn);
   el('tokenInput').addEventListener('keydown', e => { if (e.key === 'Enter') trySignIn(); });
