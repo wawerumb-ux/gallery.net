@@ -665,19 +665,21 @@ function renderGallery() {
   const firstFolder = state.order[0];
   const firstImgs = (firstFolder && state.folders[firstFolder]) ? state.folders[firstFolder].slice(0, 6) : [];
   firstImgs.forEach(img => {
+    // Preload the tiny thumb tile (-480 tier) so the first visible cards
+    // paint immediately; the sharper tier rides in behind it after reveal.
     const pre = document.createElement('link');
-    pre.rel = 'preload'; pre.as = 'image'; pre.href = cardSrc(img); pre.fetchPriority = 'high';
+    pre.rel = 'preload'; pre.as = 'image'; pre.href = thumbSrc(img); pre.fetchPriority = 'high';
     document.head.appendChild(pre);
   });
   gallery.querySelectorAll('.card img').forEach(img => {
     // Blur-up: when the tiny thumb finishes, swap in the full-res image and
     // fade it in (CSS adds the blur + transition). Revisit with SW = instant.
     img.addEventListener('load', () => {
-      if (img.src !== img.dataset.full && img.dataset.full) {
-        img.src = img.dataset.full;
-      } else {
-        img.classList.add('is-loaded');
-      }
+      // Reveal the moment the tiny thumb finishes — never gate the blur-clear
+      // on the heavier sharp tier. The upgrade then happens in the background;
+      // on 1x screens src and data-full are the same file, so no 2nd fetch.
+      if (!img.classList.contains('is-loaded')) img.classList.add('is-loaded');
+      if (img.src !== img.dataset.full && img.dataset.full) img.src = img.dataset.full;
     });
     img.addEventListener('error', () => {
       if (img.src !== img.dataset.full && img.dataset.full) img.src = img.dataset.full;
