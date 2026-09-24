@@ -659,12 +659,8 @@ function renderGallery() {
      every visit pays DNS + TLS + a full GET unless we preconnect and preload
      the images the user actually sees first. */
   if (!document.querySelector('link[data-gallery-preconnect]')) {
-    const a = document.createElement('link');
-    a.rel = 'preconnect'; a.href = 'https://cdn.jsdelivr.net'; a.setAttribute('data-gallery-preconnect','');
-    document.head.appendChild(a);
-    const b = document.createElement('link');
-    b.rel = 'dns-prefetch'; b.href = 'https://cdn.jsdelivr.net';
-    document.head.appendChild(b);
+    // All gallery media is same-origin on the Pages host now (thumbnails and
+    // variants both served from it) — no cross-origin preconnect needed.
   }
   const firstFolder = state.order[0];
   const firstImgs = (firstFolder && state.folders[firstFolder]) ? state.folders[firstFolder].slice(0, 6) : [];
@@ -1205,13 +1201,15 @@ function isFirstPaint(img) {
 }
 
 function thumbSrc(img) {
-  // Tiny jsDelivr resize → instant low-res placeholder per card; full-res
-  // loads on top via data-full (Pinterest/Unsplash blur-up pattern).
-  // jsDelivr sends real Cache-Control headers so even the thumbs are cached.
+  // Blur-up placeholder = our smallest committed webp variant (~12 KB), served
+  // from the Pages host (same-origin, SW-cached). jsDelivr ?w was tried first
+  // but empirically serves the FULL original (2720 KB, no resize), silently
+  // adding a multi-MB download at first paint — so it's disabled here.
   if (img.demoSrc) return img.demoSrc;
-  if (!CONFIG.owner || !CONFIG.repo) return imgSrc(img);
-  const rel = img.path.split('/').map(encodeURIComponent).join('/');
-  return `https://cdn.jsdelivr.net/gh/${encodeURIComponent(CONFIG.owner)}/${encodeURIComponent(CONFIG.repo)}@${encodeURIComponent(CONFIG.branch)}/${rel}?w=64&q=50&blur=on`;
+  const asset = (state.assets || []).find(a => a.canonical.path === img.path);
+  const v = asset && asset.variants.filter(x => /\.webp$/i.test(x.name));
+  if (v && v.length) return pageUrl(v[v.length - 1].path); // smallest tier
+  return pageUrl(img.path);
 }
 function pageUrl(path) {
   // Same-origin GitHub Pages host: served off Fastly CDN with real

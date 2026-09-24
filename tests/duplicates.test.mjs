@@ -160,8 +160,15 @@ describe('D6 — download flow requires no token, no Authorization header', () =
     assert.ok(!/token|authorization|access_token|bearer/i.test(src), 'no token in img src');
     assert.ok(/^https:\/\/[a-z0-9-]+\.github\.io\//.test(src), 'imgSrc uses the Pages host (cached CDN): ' + src);
     if (G.thumbSrc) {
+      G.setAssets([
+        { folder: 'Arrivals', name: 'sunset-480.webp', path: 'images/Arrivals/sunset-480.webp', sha: 'sha-t1' },
+        { folder: 'Arrivals', name: 'sunset-800.webp', path: 'images/Arrivals/sunset-800.webp', sha: 'sha-t2' },
+        { folder: 'Arrivals', name: 'sunset.jpg', path: 'images/Arrivals/sunset.jpg', sha: 'sha-1' },
+      ]);
       const t = G.thumbSrc(img);
       assert.ok(!/token|authorization|access_token|bearer/i.test(t), 'no token in blur-up thumb');
+      assert.ok(/^https:\/\/[a-z0-9-]+\.github\.io\//.test(t), 'thumb on Pages host (no jsDelivr full-size leak): ' + t);
+      assert.ok(/sunset-480\.webp/.test(t), 'thumb is the committed smallest variant: ' + t);
     }
   });
 });
