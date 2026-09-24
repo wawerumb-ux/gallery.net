@@ -150,12 +150,21 @@ describe('D6 — download flow requires no token, no Authorization header', () =
 
 /* ── D7 · real live-tree audit (read-only, offline when fixture absent) — mirrors the earlier dry-run of the whole repo ── */
 describe('D7 — full-repo live audit', () => {
-  test('classifies the real tree snapshot with 0 exact duplicates (when fixture present)', () => {
+  test('classifies the real tree snapshot with 0 exact duplicates (fixture or live API)', async () => {
     let tree = null;
     try {
       tree = JSON.parse(readFileSync(new URL('../tree-main.json', import.meta.url), 'utf8'));
     } catch (err) {
-      return test.skip('tree-main.json not bundled in this offline checkout (' + err.code + ')');
+      // No bundled snapshot — fall back to the tokenless live API (read-only,
+      // same call the 320-photo dry-run used). Skip only if truly offline.
+      try {
+        const res = await fetch('https://api.github.com/repos/wawerumb-ux/gallery.net/git/trees/main?recursive=1',
+          { headers: { Accept: 'application/vnd.github+json' } });
+        if (!res.ok) return test.skip('live tree fetch ' + res.status);
+        tree = await res.json();
+      } catch (netErr) {
+        return test.skip('no fixture and no network: ' + (netErr && netErr.code || netErr && netErr.message || netErr));
+      }
     }
     if (!tree || !Array.isArray(tree.tree) || !tree.tree.length) {
       return test.skip('fixture present but has no .tree array');
