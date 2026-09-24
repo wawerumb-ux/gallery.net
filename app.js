@@ -639,7 +639,7 @@ function renderGallery() {
           const pretty = prettyName(img.name);
           const c = classifyPhoto(img);
           return `<figure class="card ${c.needsReview ? 'card-needs-review' : ''}" data-group="${escapeAttr(c.group || '')}" data-folder="${escapeAttr(folder)}" data-index="${i}">
-            <img src="${imgSrc(img)}" alt="${escapeAttr(pretty)}" loading="lazy">
+            <img src="${imgSrc(img)}" alt="${escapeAttr(pretty)}" loading="${isFirstPaint(img) ? 'eager' : 'lazy'}" fetchpriority="${isFirstPaint(img) ? 'high' : 'auto'}" decoding="async">
             ${state.adminMode ? `<button class="card-delete" data-path="${escapeAttr(img.path)}" data-sha="${escapeAttr(img.sha)}" data-name="${escapeAttr(pretty)}" aria-label="Delete ${escapeAttr(pretty)}">×</button>` : ''}
             ${state.adminMode ? `<button class="card-tag" data-path="${escapeAttr(img.path)}" data-name="${escapeAttr(pretty)}" title="Classify this photo">tag</button>` : ''}
             <figcaption>${escapeHtml(pretty)}</figcaption>
@@ -649,6 +649,24 @@ function renderGallery() {
     </section>`;
   }).join('');
 
+  /* First paint: raw.githubusercontent sends Cache-Control: no-cache, so
+     every visit pays DNS + TLS + a full GET unless we preconnect and preload
+     the images the user actually sees first. */
+  if (!document.querySelector('link[data-gallery-preconnect]')) {
+    const a = document.createElement('link');
+    a.rel = 'preconnect'; a.href = 'https://raw.githubusercontent.com'; a.setAttribute('data-gallery-preconnect','');
+    document.head.appendChild(a);
+    const b = document.createElement('link');
+    b.rel = 'dns-prefetch'; b.href = 'https://raw.githubusercontent.com';
+    document.head.appendChild(b);
+  }
+  const firstFolder = state.order[0];
+  const firstImgs = (firstFolder && state.folders[firstFolder]) ? state.folders[firstFolder].slice(0, 6) : [];
+  firstImgs.forEach(img => {
+    const pre = document.createElement('link');
+    pre.rel = 'preload'; pre.as = 'image'; pre.href = imgSrc(img); pre.fetchPriority = 'high';
+    document.head.appendChild(pre);
+  });
   gallery.querySelectorAll('.card img').forEach(img => {
     img.addEventListener('click', () => {
       const card = img.closest('.card');
@@ -1148,6 +1166,14 @@ async function downloadFromLightbox() {
 function rawUrl(path) {
   return `https://raw.githubusercontent.com/${CONFIG.owner}/${CONFIG.repo}/${CONFIG.branch}/${path.split('/').map(encodeURIComponent).join('/')}`;
 }
+function isFirstPaint(img) {
+  if (!state.order || !state.order.length || !state.folders) return false;
+  const first = state.order[0];
+  if (img.folder !== first) return false;
+  const idx = (state.folders[first] || []).findIndex(f => f.path === img.path);
+  return idx >= 0 && idx < 3;
+}
+
 function imgSrc(img) {
   return img.demoSrc || rawUrl(img.path);
 }
