@@ -51,13 +51,19 @@ function cancelRequests() {
   }
 }
 
-// Helper: fetch with timeout and rate limit tracking
+// Helper: fetch with timeout and rate limit tracking.
+// Only unauthenticated requests are throttled — a PAT rides a separate quota,
+// so a stalling public rate limit must never block signing in or uploads.
 async function githubFetch(url, options = {}) {
+  const authHeader = options.headers && (options.headers.Authorization || options.headers.authorization);
+  const authed = !!authHeader;
+
   // Check if we should throttle due to rate limits
-  if (rateLimitReset > Date.now() / 1000) {
+  if (!authed && rateLimitReset > Date.now() / 1000) {
     const waitMs = (rateLimitReset - Date.now() / 1000) * 1000 + 1000;
     showToast(`GitHub rate limit reached — waiting ${Math.round(waitMs / 1000)}s...`, true);
     await new Promise(r => setTimeout(r, waitMs));
+    el('toast').hidden = true;
   }
 
   const controller = new AbortController();
@@ -73,15 +79,23 @@ async function githubFetch(url, options = {}) {
     clearTimeout(timeoutId);
     abortController = null;
 
-    // Track rate limits
+    // Track rate limits. Only arm the auto-wait when an unauthenticated call
+    // is actually exhausted; a healthy response's reset time is the *quota*
+    // reset (up to an hour away) and must not stall the next request.
     const remaining = res.headers.get('X-RateLimit-Remaining');
     const reset = res.headers.get('X-RateLimit-Reset');
     if (remaining !== null) {
-      rateLimitReset = parseInt(reset) || 0;
       const remainingNum = parseInt(remaining);
-      if (remainingNum < RATE_LIMIT_WARNING && remainingNum > 0) {
-        const resetDate = new Date(parseInt(reset) * 1000);
-        console.warn(`GitHub rate limit: ${remainingNum} requests remaining, resets at ${resetDate}`);
+      const resetNum = parseInt(reset) || 0;
+      const exhausted = resetNum > 0 && (remainingNum === 0 || res.status === 403 || res.status === 429);
+      if (exhausted && !authed) {
+        rateLimitReset = resetNum;
+      } else {
+        rateLimitReset = 0;
+        if (remainingNum < RATE_LIMIT_WARNING && remainingNum > 0) {
+          const resetDate = new Date(resetNum * 1000);
+          console.warn(`GitHub rate limit: ${remainingNum} requests remaining, resets at ${resetDate}`);
+        }
       }
     }
 
