@@ -53,7 +53,7 @@ function loadAppPure() {
   const ctx = vm.createContext(sandbox2);
   const expose = `
     globalThis.__X = { journeyFor, classifyPhoto, buildAssets, discoverFromTree,
-      setAssets, summarizeDuplicates, rawUrl, imgSrc, thumbSrc, prettyName, sanitizeFilename };
+      setAssets, summarizeDuplicates, rawUrl, pageUrl, imgSrc, cardSrc, thumbSrc, prettyName, sanitizeFilename };
   `;
   vm.runInContext(code + expose, ctx, { filename: 'app.js' });
   return sandbox2.__X;
@@ -113,15 +113,23 @@ describe('D4 — responsive variant set in one folder', () => {
   test('three files → one logical asset; canonical is the original-size file', () => {
     if (!G) return test.skip();
     const files = [
-      img('Panorama', 'peak.jpg', 'sha-v1'),
-      img('Panorama', 'peak-480.jpg', 'sha-v2'),
-      img('Panorama', 'peak-800.jpg', 'sha-v3'),
+      img('Panorama', 'peak-480.webp', 'sha-v0'),
+      img('Panorama', 'peak-800.webp', 'sha-v1'),
+      img('Panorama', 'peak.jpg', 'sha-v2'),
     ];
     const assets = G.buildAssets(files);
     assert.equal(assets.length, 1);
     assert.equal(assets[0].canonical.name, 'peak.jpg');
     const sum = G.summarizeDuplicates(assets);
     assert.equal(sum.exactDuplicateFiles, 0, 'variants are NOT content duplicates');
+    if (G.cardSrc && G.setAssets) {
+      G.setAssets(files);
+      const card = G.cardSrc(assets[0].canonical);
+      assert.ok(/peak-800\.webp/.test(card), 'card serves the committed webp variant: ' + card);
+      assert.ok(/^https:\/\/[a-z0-9-]+\.github\.io\//.test(card), 'card variant on Pages host: ' + card);
+      const lb = G.imgSrc(assets[0].canonical);
+      assert.ok(/peak\.jpg/.test(lb), 'lightbox keeps the full-res original: ' + lb);
+    }
   });
 });
 

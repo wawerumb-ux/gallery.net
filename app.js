@@ -645,7 +645,7 @@ function renderGallery() {
           const pretty = prettyName(img.name);
           const c = classifyPhoto(img);
           return `<figure class="card ${c.needsReview ? 'card-needs-review' : ''}" data-group="${escapeAttr(c.group || '')}" data-folder="${escapeAttr(folder)}" data-index="${i}">
-            <img class="card-img" src="${thumbSrc(img)}" data-full="${imgSrc(img)}" alt="${escapeAttr(pretty)}" loading="${isFirstPaint(img) ? 'eager' : 'lazy'}" fetchpriority="${isFirstPaint(img) ? 'high' : 'auto'}" decoding="async">
+            <img class="card-img" src="${thumbSrc(img)}" data-full="${cardSrc(img)}" alt="${escapeAttr(pretty)}" loading="${isFirstPaint(img) ? 'eager' : 'lazy'}" fetchpriority="${isFirstPaint(img) ? 'high' : 'auto'}" decoding="async">
             ${state.adminMode ? `<button class="card-delete" data-path="${escapeAttr(img.path)}" data-sha="${escapeAttr(img.sha)}" data-name="${escapeAttr(pretty)}" aria-label="Delete ${escapeAttr(pretty)}">×</button>` : ''}
             ${state.adminMode ? `<button class="card-tag" data-path="${escapeAttr(img.path)}" data-name="${escapeAttr(pretty)}" title="Classify this photo">tag</button>` : ''}
             <figcaption>${escapeHtml(pretty)}</figcaption>
@@ -670,7 +670,7 @@ function renderGallery() {
   const firstImgs = (firstFolder && state.folders[firstFolder]) ? state.folders[firstFolder].slice(0, 6) : [];
   firstImgs.forEach(img => {
     const pre = document.createElement('link');
-    pre.rel = 'preload'; pre.as = 'image'; pre.href = imgSrc(img); pre.fetchPriority = 'high';
+    pre.rel = 'preload'; pre.as = 'image'; pre.href = cardSrc(img); pre.fetchPriority = 'high';
     document.head.appendChild(pre);
   });
   gallery.querySelectorAll('.card img').forEach(img => {
@@ -1223,6 +1223,16 @@ function pageUrl(path) {
 }
 function imgSrc(img) {
   return img.demoSrc || pageUrl(img.path);
+}
+function cardSrc(img) {
+  // Grid: prefer the smallest committed webp variant (client-ready, ~80 KB)
+  // over the multi-MB original; the full-res original only loads in the
+  // lightbox. Falls back to the original if no variants are committed yet.
+  if (img.demoSrc) return img.demoSrc;
+  const asset = (state.assets || []).find(a => a.canonical.path === img.path);
+  const v = asset && asset.variants.filter(x => /\.webp$/i.test(x.name));
+  if (v && v.length) return pageUrl(v[0].path);
+  return pageUrl(img.path);
 }
 function prettyName(filename) {
   return filename.replace(/\.[^.]+$/, '').replace(/[-_]+/g, ' ');
