@@ -37,6 +37,7 @@
         <input type="text" id="newFolderName" placeholder="folder-name" class="text-input">
         <input type="file" id="newFolderFiles" multiple accept="image/*" hidden>
         <button class="btn btn-ghost" id="newFolderBtn">+ Create with photos</button>
+        <button class="btn btn-ghost" id="sortPhotosBtn">Sort photos into phases</button>
       </div>
     </nav>
 
@@ -71,6 +72,30 @@
   <img class="lightbox-img" id="lightboxImg" alt="">
   <button class="lightbox-nav lightbox-next" id="lightboxNext" aria-label="Next photo">›</button>
   <div class="lightbox-caption" id="lightboxCaption"></div>
+</div>
+
+<div class="modal-overlay" id="uploadModalOverlay" hidden>
+  <div class="modal modal-wide" role="dialog" aria-modal="true" aria-labelledby="uploadModalTitle">
+    <h2 id="uploadModalTitle">Confirm upload</h2>
+    <p class="modal-copy">Each file is pre-sorted by phase — adjust any that got it wrong, then upload.</p>
+    <div class="pick-list" id="uploadPickList"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="uploadCancel">Cancel</button>
+      <button class="btn btn-primary" id="uploadConfirm">Upload</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="sortModalOverlay" hidden>
+  <div class="modal modal-wide" role="dialog" aria-modal="true" aria-labelledby="sortModalTitle">
+    <h2 id="sortModalTitle">Sort photos into phases</h2>
+    <p class="modal-copy" id="sortModalCopy"></p>
+    <div class="pick-list" id="sortPickList"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="sortCancel">Cancel</button>
+      <button class="btn btn-primary" id="sortConfirm">Move selected</button>
+    </div>
+  </div>
 </div>
 
 <div class="toast" id="toast" hidden role="alert" aria-live="assertive">

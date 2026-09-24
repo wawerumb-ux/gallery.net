@@ -17,6 +17,57 @@ const CONFIG = {
 // this switches off automatically.
 const DEMO_MODE = !CONFIG.owner || !CONFIG.repo;
 
+/* ── Phase classification rules ──────────────────────────────────
+   Ordered list — the first rule that matches a file wins.
+     name:     the phase folder (must match the folder in the repo)
+     pattern:  RegExp on the file name — strong signal, the sort action
+               trusts it even when the photo already sits in a phase
+     from/to:  'YYYY-MM-DD' photo window — weaker; only used to prefill
+               the upload dialog, never to move a filed photo
+   Photos inside a configured phase are left alone unless a pattern rule
+   overrides them. Strays (General / unknown folders) are filed by the
+   Admin → "Sort photos" action.
+─────────────────────────────────────────────────────────────────── */
+const PHASE_RULES = [
+  { name: 'site-survey',          from: '2026-06-19', to: '2026-06-20' },
+  { name: 'cable-pull',           from: '2026-06-21', to: '2026-06-21' },
+  { name: 'termination-testing',  from: '2026-06-22', to: '2026-06-24' },
+  { name: 'rack-build',           from: '2026-06-25', to: '2026-07-31' },
+  { name: 'phase-1',              pattern: /^IMG-\d{8}-WA/i, from: '2026-07-26', to: '2026-07-26' },
+];
+
+/* YYYYMMDD (phone camera) or IMG-YYYYMMDD- (WhatsApp) → 'YYYY-MM-DD' */
+function extractPhotoDate(name) {
+  const m = name.match(/^(\d{4})(\d{2})(\d{2})/) || name.match(/^IMG-(\d{4})(\d{2})(\d{2})/i);
+  return m ? `${m[1]}-${m[2]}-${m[3]}` : null;
+}
+
+/* Best-guess phase for a file name.
+   Pattern rules are identity signals, so they always win; date windows
+   are weaker and resolve by ordered priority when ranges overlap. */
+function suggestPhase(name) {
+  const patternRule = PHASE_RULES.find(rule => rule.pattern && rule.pattern.test(name));
+  if (patternRule) return patternRule.name;
+  const date = extractPhotoDate(name);
+  for (const rule of PHASE_RULES) {
+    if (date && rule.from && date >= rule.from && date <= rule.to) return rule.name;
+  }
+  return null;
+}
+
+function isConfigPhase(folder) {
+  return PHASE_RULES.some(rule => rule.name === folder);
+}
+
+/* Every folder the upload dropdown should offer. */
+function allPhaseOptions(extra) {
+  const opts = new Set(state.order);
+  PHASE_RULES.forEach(rule => opts.add(rule.name));
+  opts.add('General');
+  if (extra) opts.add(extra);
+  return [...opts];
+}
+
 const IMG_EXT = /\.(png|jpe?g|gif|webp|avif)$/i;
 const TOKEN_KEY = 'sn_gallery_token';
 
@@ -27,6 +78,7 @@ const state = {
   token: null,
   lightboxFolder: null,
   lightboxIndex: 0,
+  pendingUploads: null, // { files: File[], context: folderName|null }
 };
 
 const el = (id) => document.getElementById(id);
@@ -290,7 +342,7 @@ function renderGallery() {
     btn.addEventListener('click', () => {
       const input = document.createElement('input');
       input.type = 'file'; input.multiple = true; input.accept = 'image/*';
-      input.onchange = () => { if (input.files.length) uploadFiles(btn.dataset.folder, input.files); };
+      input.onchange = () => { if (input.files.length) openUploadConfirm(input.files, btn.dataset.folder); };
       input.click();
     });
   });
@@ -337,10 +389,21 @@ function wireStaticEvents() {
     const name = sanitizeFilename(el('newFolderName').value).toLowerCase();
     if (!name) return showToast('Enter a folder name first.');
     el('newFolderFiles').onchange = (e) => {
-      if (e.target.files.length) uploadFiles(name, e.target.files);
+      if (e.target.files.length) openUploadConfirm(e.target.files, name);
       el('newFolderName').value = '';
     };
     el('newFolderFiles').click();
+  });
+
+  el('sortPhotosBtn').addEventListener('click', () => { if (state.adminMode) openSortPreview(); });
+  el('sortCancel').addEventListener('click', () => { el('sortModalOverlay').hidden = true; });
+  el('sortConfirm').addEventListener('click', performSortMoves);
+  el('sortModalOverlay').addEventListener('click', e => { if (e.target.id === 'sortModalOverlay') el('sortModalOverlay').hidden = true; });
+
+  el('uploadCancel').addEventListener('click', () => { el('uploadModalOverlay').hidden = true; state.pendingUploads = null; });
+  el('uploadConfirm').addEventListener('click', performUploads);
+  el('uploadModalOverlay').addEventListener('click', e => {
+    if (e.target.id === 'uploadModalOverlay') { el('uploadModalOverlay').hidden = true; state.pendingUploads = null; }
   });
 
   el('lightboxClose').addEventListener('click', closeLightbox);
@@ -404,6 +467,7 @@ function signOut() {
 function updateAdminUI() {
   el('adminToggle').textContent = state.adminMode ? 'Sign out' : 'Admin';
   el('newFolderPanel').hidden = !state.adminMode;
+  el('sortPhotosBtn').hidden = !state.adminMode;
 }
 
 function closeModal() {
@@ -414,37 +478,132 @@ function closeModal() {
 
 /* ── Admin: upload / delete via the GitHub Contents API ─────────── */
 
-async function uploadFiles(folder, fileList) {
-  const files = Array.from(fileList);
-  if (DEMO_MODE) {
-    if (!state.folders[folder]) { state.folders[folder] = []; state.order = Object.keys(state.folders).sort(); }
-    for (const file of files) {
-      const src = await fileToDataUrl(file);
-      state.folders[folder].push({
-        path: `${CONFIG.imagesPath || 'images'}/${folder}/${file.name}`,
-        sha: `demo-${Date.now()}-${Math.random().toString(36).slice(2)}`,
-        name: file.name,
-        demoSrc: src,
-      });
-    }
-    render();
-    showToast(`Added ${files.length} photo${files.length > 1 ? 's' : ''} (demo — not saved to GitHub).`);
-    return;
-  }
+/* Classify-and-confirm upload flow: every file row gets a phase dropdown
+   prefilled with the algorithm's best guess so you can override per file. */
+function openUploadConfirm(fileList, contextFolder) {
+  state.pendingUploads = { files: Array.from(fileList), context: contextFolder };
+  const options = allPhaseOptions(contextFolder);
+  const optsHtml = name => options
+    .map(o => `<option value="${escapeAttr(o)}" ${o === name ? 'selected' : ''}>${escapeHtml(o)}</option>`)
+    .join('');
+  el('uploadPickList').innerHTML = state.pendingUploads.files.map((file, i) => {
+    const guess = suggestPhase(file.name);
+    const prefill = contextFolder || guess || 'General';
+    const hint = guess && guess !== contextFolder
+      ? `<span class="pick-hint">suggested: ${escapeHtml(guess)}</span>` : '';
+    return `<div class="pick-row">
+      <span class="pick-name" title="${escapeAttr(file.name)}">${escapeHtml(file.name)}</span>
+      <span class="pick-control">
+        <select class="pick-select" data-idx="${i}">${optsHtml(prefill)}</select>${hint}
+      </span>
+    </div>`;
+  }).join('');
+  el('uploadConfirm').textContent = `Upload ${state.pendingUploads.files.length}`;
+  el('uploadModalOverlay').hidden = false;
+}
+
+async function performUploads() {
+  const groups = {};
+  state.pendingUploads.files.forEach((file, i) => {
+    const sel = el('uploadPickList').querySelector(`select[data-idx="${i}"]`);
+    const folder = sel ? sel.value : (state.pendingUploads.context || 'General');
+    (groups[folder] = groups[folder] || []).push(file);
+  });
+  el('uploadModalOverlay').hidden = true;
+  state.pendingUploads = null;
+
+  let total = Object.values(groups).reduce((a, g) => a + g.length, 0);
   let done = 0;
-  showToast(`Uploading 0/${files.length}…`, true);
-  for (const file of files) {
+  showToast(`Uploading 0/${total}…`, true);
+  for (const [folder, files] of Object.entries(groups)) {
+    if (DEMO_MODE) {
+      if (!state.folders[folder]) { state.folders[folder] = []; state.order = Object.keys(state.folders).sort(); }
+      for (const file of files) {
+        const src = await fileToDataUrl(file);
+        state.folders[folder].push({
+          path: `${CONFIG.imagesPath || 'images'}/${folder}/${file.name}`,
+          sha: `demo-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          name: file.name,
+          demoSrc: src,
+        });
+        done++;
+        showToast(`Uploading ${done}/${total}…`, true);
+      }
+      continue;
+    }
+    for (const file of files) {
+      try {
+        const base64 = await fileToBase64(file);
+        const safeName = sanitizeFilename(file.name);
+        await githubPut(`${CONFIG.imagesPath}/${folder}/${safeName}`, base64, `Add ${safeName} via gallery admin`);
+      } catch (err) {
+        showToast(`Failed: ${file.name} — ${err.message}`);
+      }
+      done++;
+      showToast(`Uploading ${done}/${total}…`, true);
+    }
+  }
+  showToast(`Added ${total} photo${total === 1 ? '' : 's'}.`);
+  if (DEMO_MODE) { render(); return; }
+  await loadTree(true);
+}
+
+/* Admin → Sort photos: propose moves for strays, let you untick any, then act.
+   Uses blob SHAs already fetched from the tree, so no re-download of content. */
+function buildSortProposals() {
+  const proposals = [];
+  for (const folder of state.order) {
+    for (const img of state.folders[folder]) {
+      const patternRule = PHASE_RULES.find(rule => rule.pattern && rule.pattern.test(img.name));
+      const to = suggestPhase(img.name);
+      if (!to || folder === to) continue;
+      // Pattern rules can re-file anything; date rules only file strays.
+      if (!patternRule && isConfigPhase(folder)) continue;
+      proposals.push({ img, from: folder, to });
+    }
+  }
+  return proposals;
+}
+
+function openSortPreview() {
+  const proposals = buildSortProposals();
+  el('sortModalCopy').textContent = proposals.length
+    ? `${proposals.length} photo${proposals.length === 1 ? '' : 's'} to move:`
+    : 'All photos are already filed in their configured phases.';
+  el('sortPickList').innerHTML = proposals.map((p, i) => `
+    <label class="pick-row pick-check">
+      <input type="checkbox" data-idx="${i}" checked>
+      <span class="pick-name" title="${escapeAttr(p.img.name)}">${escapeHtml(p.img.name)}</span>
+      <span class="pick-move">${escapeHtml(p.from)} → ${escapeHtml(p.to)}</span>
+    </label>`).join('') || '<p class="modal-copy">Nothing to do.</p>';
+  el('sortConfirm').disabled = proposals.length === 0;
+  el('sortModalOverlay').hidden = false;
+}
+
+async function performSortMoves() {
+  const checked = new Set([...el('sortPickList').querySelectorAll('input:checked')].map(c => Number(c.dataset.idx)));
+  const proposals = buildSortProposals().filter((_, i) => checked.has(i));
+  el('sortModalOverlay').hidden = true;
+  if (!proposals.length) return;
+  let done = 0;
+  showToast(`Moving 0/${proposals.length}…`, true);
+  for (const p of proposals) {
     try {
-      const base64 = await fileToBase64(file);
-      const safeName = sanitizeFilename(file.name);
-      await githubPut(`${CONFIG.imagesPath}/${folder}/${safeName}`, base64, `Add ${safeName} via gallery admin`);
+      const src = await githubFetch(
+        `https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/git/blobs/${p.img.sha}`,
+        { headers: { Authorization: `Bearer ${state.token}` } }
+      );
+      if (!src.ok) throw new Error('could not read source blob');
+      const content = (await src.json()).content;
+      await githubPut(`${CONFIG.imagesPath}/${p.to}/${p.img.name}`, content, `Sort ${p.img.name} into ${p.to} via gallery admin`);
+      await githubDelete(p.img.path, p.img.sha, `Sort ${p.img.name} out of ${p.from} via gallery admin`);
     } catch (err) {
-      showToast(`Failed: ${file.name} — ${err.message}`);
+      showToast(`Failed: ${p.img.name} — ${err.message}`);
     }
     done++;
-    showToast(`Uploading ${done}/${files.length}…`, true);
+    showToast(`Moving ${done}/${proposals.length}…`, true);
   }
-  showToast(`Added ${files.length} photo${files.length > 1 ? 's' : ''}.`);
+  showToast(`Moved ${proposals.length} photo${proposals.length === 1 ? '' : 's'}.`);
   await loadTree(true);
 }
 
