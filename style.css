@@ -186,6 +186,24 @@ code{font-family:var(--font-mono);background:var(--panel-raised);padding:.1em .4
 .card:hover .card-tag,.card-tag:focus-visible{opacity:1;}
 .card-tag:hover{color:var(--teal);border-color:var(--teal);}
 
+/* Batch select */
+.card.card-selectable{cursor:pointer;}
+.card.card-selected{border-color:var(--teal);box-shadow:0 0 0 1px var(--teal) inset;}
+.card-pick{
+  position:absolute;top:6px;right:6px;width:24px;height:24px;border-radius:50%;
+  background:rgba(11,13,16,.85);border:1px solid var(--border);color:var(--teal);
+  font-size:13px;line-height:1;display:flex;align-items:center;justify-content:center;
+}
+.batch-bar{
+  position:fixed;bottom:16px;left:50%;transform:translateX(-50%);
+  display:flex;align-items:center;gap:10px;z-index:80;
+  background:var(--panel-raised);border:1px solid var(--border);border-radius:var(--radius);
+  box-shadow:0 8px 24px rgba(0,0,0,.4);padding:10px 14px;
+}
+.batch-count{font-family:var(--font-mono);font-size:12px;color:var(--text-dim);}
+.batch-bar .btn-sm{width:auto;}
+#batchSortBtn[disabled]{opacity:.5;cursor:default;}
+
 /* Modal */
 .modal-overlay{
   position:fixed;inset:0;background:rgba(6,7,9,.72);z-index:50;

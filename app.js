@@ -224,6 +224,8 @@ const state = {
   duplicateSummary: { totalFiles: 0, uniqueAssets: 0, exactDuplicateFiles: 0, visualDuplicateCandidates: 0 },
   adminMode: false,
   token: null,
+  batchSelect: false,
+  batchSelected: new Set(),
   lightboxFolder: null,
   lightboxIndex: 0,
   pendingUploads: null, // { files: File[], context: folderName|null }
@@ -597,6 +599,7 @@ function demoImage(label, n) {
 /* ── Rendering ─────────────────────────────────────────────────── */
 
 function render() {
+  updateBatchBar();
   el('loadingState').hidden = true;
   const totalPhotos = Object.values(state.folders).reduce((a, f) => a + f.length, 0);
   el('emptyState').hidden = totalPhotos !== 0;
@@ -644,10 +647,12 @@ function renderGallery() {
         ${items.map((img, i) => {
           const pretty = prettyName(img.name);
           const c = classifyPhoto(img);
-          return `<figure class="card ${c.needsReview ? 'card-needs-review' : ''}" data-group="${escapeAttr(c.group || '')}" data-folder="${escapeAttr(folder)}" data-index="${i}">
+          const selected = state.batchSelect && state.batchSelected.has(img.path);
+          return `<figure class="card ${c.needsReview ? 'card-needs-review' : ''}${state.batchSelect ? ' card-selectable' : ''}${selected ? ' card-selected' : ''}" data-group="${escapeAttr(c.group || '')}" data-folder="${escapeAttr(folder)}" data-index="${i}" data-path="${escapeAttr(img.path)}">
             <img class="card-img" src="${thumbSrc(img)}" data-full="${cardSrc(img)}" alt="${escapeAttr(pretty)}" loading="${isFirstPaint(img) ? 'eager' : 'lazy'}" fetchpriority="${isFirstPaint(img) ? 'high' : 'auto'}" decoding="async">
-            ${state.adminMode ? `<button class="card-delete" data-path="${escapeAttr(img.path)}" data-sha="${escapeAttr(img.sha)}" data-name="${escapeAttr(pretty)}" aria-label="Delete ${escapeAttr(pretty)}">×</button>` : ''}
-            ${state.adminMode ? `<button class="card-tag" data-path="${escapeAttr(img.path)}" data-name="${escapeAttr(pretty)}" title="Classify this photo">tag</button>` : ''}
+            ${state.adminMode && !state.batchSelect ? `<button class="card-delete" data-path="${escapeAttr(img.path)}" data-sha="${escapeAttr(img.sha)}" data-name="${escapeAttr(pretty)}" aria-label="Delete ${escapeAttr(pretty)}">×</button>` : ''}
+            ${state.adminMode && !state.batchSelect ? `<button class="card-tag" data-path="${escapeAttr(img.path)}" data-name="${escapeAttr(pretty)}" title="Classify this photo">tag</button>` : ''}
+            ${state.adminMode && state.batchSelect ? `<span class="card-pick">${selected ? '✓' : ''}</span>` : ''}
             <figcaption>${escapeHtml(pretty)}</figcaption>
           </figure>`;
         }).join('')}
@@ -687,6 +692,7 @@ function renderGallery() {
 
     img.addEventListener('click', () => {
       const card = img.closest('.card');
+      if (state.adminMode && state.batchSelect) return; // figure-level listener toggles selection
       // Hand the lightbox the exact image the card already loaded (a cache
       // hit = instant, no re-download, no blur flash) and whether it was
       // fully revealed. Null = card still loading → start at the sharp tier.
@@ -706,6 +712,11 @@ function renderGallery() {
       openTagModal(btn.dataset.path, btn.dataset.name);
     });
   });
+  if (state.adminMode && state.batchSelect) {
+    gallery.querySelectorAll('.card[data-path]').forEach(fig => {
+      fig.addEventListener('click', () => toggleBatchSelect(fig.dataset.path));
+    });
+  }
   gallery.querySelectorAll('.add-photos-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const input = document.createElement('input');
@@ -767,6 +778,13 @@ function wireStaticEvents() {
   el('sortCancel').addEventListener('click', () => { el('sortModalOverlay').hidden = true; });
   el('sortConfirm').addEventListener('click', performSortMoves);
   el('sortModalOverlay').addEventListener('click', e => { if (e.target.id === 'sortModalOverlay') el('sortModalOverlay').hidden = true; });
+
+  el('batchSelectBtn').addEventListener('click', () => { if (state.adminMode) toggleBatchSelectMode(); });
+  el('batchClearBtn').addEventListener('click', () => { state.batchSelected.clear(); updateBatchBar(); render(); });
+  el('batchSortBtn').addEventListener('click', openBatchSortModal);
+  el('batchCancel').addEventListener('click', () => { el('batchModalOverlay').hidden = true; });
+  el('batchConfirm').addEventListener('click', performBatchMove);
+  el('batchModalOverlay').addEventListener('click', e => { if (e.target.id === 'batchModalOverlay') el('batchModalOverlay').hidden = true; });
 
   el('uploadCancel').addEventListener('click', () => { el('uploadModalOverlay').hidden = true; state.pendingUploads = null; });
   el('uploadConfirm').addEventListener('click', performUploads);
@@ -835,6 +853,8 @@ async function trySignIn() {
 function signOut() {
   state.token = null;
   state.adminMode = false;
+  state.batchSelect = false;
+  state.batchSelected.clear();
   sessionStorage.removeItem(TOKEN_KEY);
   updateAdminUI();
   render();
@@ -1046,6 +1066,85 @@ async function performSortMoves() {
     showToast(`Moving ${done}/${proposals.length}…`, true);
   }
   showToast(`Moved ${proposals.length} photo${proposals.length === 1 ? '' : 's'}.`);
+  await loadTree(true);
+}
+
+function toggleBatchSelectMode() {
+  state.batchSelect = !state.batchSelect;
+  if (!state.batchSelect) state.batchSelected.clear();
+  el('batchSelectBtn').textContent = state.batchSelect ? 'Done selecting' : 'Select photos to sort';
+  render();
+}
+
+function toggleBatchSelect(path) {
+  const on = !state.batchSelected.has(path);
+  if (on) state.batchSelected.add(path);
+  else state.batchSelected.delete(path);
+  const card = document.querySelector(`.card[data-path="${CSS.escape(path)}"]`);
+  if (card) {
+    card.classList.toggle('card-selected', on);
+    const pick = card.querySelector('.card-pick');
+    if (pick) pick.textContent = on ? '✓' : '';
+  }
+  updateBatchBar();
+}
+
+function updateBatchBar() {
+  const n = state.batchSelected.size;
+  el('batchBar').hidden = !(state.adminMode && state.batchSelect);
+  el('batchCount').textContent = `${n} selected`;
+  el('batchSortBtn').disabled = n === 0;
+}
+
+function openBatchSortModal() {
+  if (!state.batchSelected.size) return;
+  el('batchCategory').innerHTML = allPhaseOptions().map(folder => {
+    const j = journeyFor(folder);
+    const label = j ? `${j.stage}` + (folder !== 'General' ? ` (${folder})` : '') : folder;
+    return `<option value="${escapeAttr(folder)}">${escapeHtml(label)}</option>`;
+  }).join('');
+  const n = state.batchSelected.size;
+  el('batchModalCopy').textContent = `${n} photo${n === 1 ? '' : 's'} selected. Move them all into:`;
+  el('batchPickList').innerHTML = [...state.batchSelected].map(path =>
+    `<div class="pick-row"><span class="pick-name" title="${escapeAttr(path)}">${escapeHtml(path)}</span></div>`
+  ).join('');
+  el('batchModalOverlay').hidden = false;
+}
+
+async function performBatchMove() {
+  const to = el('batchCategory').value;
+  const paths = [...state.batchSelected];
+  el('batchModalOverlay').hidden = true;
+  if (!paths.length) return;
+  let done = 0;
+  showToast(`Moving 0/${paths.length}\u2026`, true);
+  for (const path of paths) {
+    const asset = state.assets.find(a => a.canonical.path === path);
+    const items = asset ? [asset.canonical, ...asset.variants] : [];
+    const from = items[0] ? items[0].path.split('/').slice(-2, -1)[0] : '';
+    if (!items.length || from === to) { done++; continue; }
+    try {
+      for (const item of items) {
+        const src = await githubFetch(
+          `https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/git/blobs/${item.sha}`,
+          { headers: { Authorization: `Bearer ${state.token}` } }
+        );
+        if (!src.ok) throw new Error('could not read source blob');
+        const content = (await src.json()).content;
+        await githubPut(`${CONFIG.imagesPath}/${to}/${item.name}`, content, `Sort ${item.name} into ${to} via gallery admin`);
+        await githubDelete(item.path, item.sha, `Sort ${item.name} out of ${from} via gallery admin`);
+      }
+    } catch (err) {
+      showToast(`Failed: ${path.split('/').pop()} — ${err.message}`);
+    }
+    done++;
+    showToast(`Moving ${done}/${paths.length}\u2026`, true);
+  }
+  showToast(`Moved ${done} into ${to}.`);
+  state.batchSelect = false;
+  state.batchSelected.clear();
+  el('batchSelectBtn').textContent = 'Select photos to sort';
+  el('batchBar').hidden = true;
   await loadTree(true);
 }
 
