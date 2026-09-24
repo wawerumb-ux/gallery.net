@@ -5,8 +5,8 @@
    imagesPath: the folder in the repo that holds one subfolder per phase
 ──────────────────────────────────────────────────────────────── */
 const CONFIG = {
-  owner: '',
-  repo: '',
+  owner: 'wawerumb-ux',
+  repo: 'gallery.net',
   branch: 'main',
   imagesPath: 'images',
 };
@@ -62,7 +62,7 @@ async function githubFetch(url, options = {}) {
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT);
-  
+
   abortController = controller;
 
   try {
@@ -104,15 +104,15 @@ async function init() {
   state.adminMode = DEMO_MODE ? false : !!state.token;
   updateAdminUI();
   wireStaticEvents();
-  
+
   // Add unload handler to cancel requests
   window.addEventListener('beforeunload', cancelRequests);
-  
+
   // Warn about PAT in console
   if (state.token && !DEMO_MODE) {
     console.warn('GitHub PAT present in sessionStorage — do not share screenshots of this console.');
   }
-  
+
   await loadTree(state.adminMode);
 }
 
@@ -123,7 +123,7 @@ async function loadTree(auth = false) {
   try {
     const headers = {};
     if (auth && state.token) headers.Authorization = `Bearer ${state.token}`;
-    
+
     // Get the root tree (non-recursive)
     const rootRes = await githubFetch(
       `https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/git/trees/${CONFIG.branch}?recursive=0`,
