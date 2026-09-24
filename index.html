@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Structured Cabling — Project Archive</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app">
+
+  <header class="header">
+    <div class="header-left">
+      <span class="header-title">Structured Cabling — Project Archive</span>
+      <span class="demo-badge" id="demoBadge" hidden>demo data — repo not set</span>
+      <span class="header-stats" id="headerStats">
+        <span class="stat"><strong id="statPhotos">0</strong> photos</span>
+        <span class="stat-sep">·</span>
+        <span class="stat"><strong id="statFolders">0</strong> phases</span>
+      </span>
+    </div>
+    <div class="header-right">
+      <button class="admin-link" id="adminToggle">Admin</button>
+    </div>
+    <div class="trace-line" id="traceLine"></div>
+  </header>
+
+  <div class="body">
+    <nav class="sidebar" id="sidebar">
+      <div class="sidebar-label">phases</div>
+      <ul class="phase-list" id="phaseList"></ul>
+      <div class="admin-panel" id="newFolderPanel" hidden>
+        <div class="sidebar-label">new phase</div>
+        <input type="text" id="newFolderName" placeholder="folder-name" class="text-input">
+        <input type="file" id="newFolderFiles" multiple accept="image/*" hidden>
+        <button class="btn btn-ghost" id="newFolderBtn">+ Create with photos</button>
+      </div>
+    </nav>
+
+    <main class="main" id="main">
+      <div class="loading" id="loadingState" aria-live="polite">Reading repository…</div>
+      <div class="empty" id="emptyState" hidden aria-live="polite">
+        <p>No images found yet.</p>
+        <p class="empty-sub">Add photos under <code id="emptyPath">images/</code> in the repo, grouped into subfolders by phase.</p>
+      </div>
+      <div id="gallery"></div>
+    </main>
+  </div>
+</div>
+
+<div class="modal-overlay" id="adminModalOverlay" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="adminModalTitle">
+    <h2 id="adminModalTitle">Admin sign-in</h2>
+    <p class="modal-copy">Enter a GitHub personal access token scoped only to this repository, with contents read-and-write permission.</p>
+    <input type="password" id="tokenInput" class="text-input" placeholder="github_pat_..." autocomplete="off">
+    <p class="modal-error" id="tokenError" hidden></p>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="tokenCancel" style="width:auto;">Cancel</button>
+      <button class="btn btn-primary" id="tokenSubmit">Sign in</button>
+    </div>
+    <p class="modal-note">The token stays only in this browser tab's session storage. It's never written to the repo and never sent anywhere but api.github.com.</p>
+  </div>
+</div>
+
+<div class="lightbox" id="lightbox" hidden>
+  <button class="lightbox-close" id="lightboxClose" aria-label="Close">×</button>
+  <button class="lightbox-nav lightbox-prev" id="lightboxPrev" aria-label="Previous photo">‹</button>
+  <img class="lightbox-img" id="lightboxImg" alt="">
+  <button class="lightbox-nav lightbox-next" id="lightboxNext" aria-label="Next photo">›</button>
+  <div class="lightbox-caption" id="lightboxCaption"></div>
+</div>
+
+<div class="toast" id="toast" hidden role="alert" aria-live="assertive"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
