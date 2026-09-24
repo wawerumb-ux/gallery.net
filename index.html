@@ -71,7 +71,10 @@
   <button class="lightbox-nav lightbox-prev" id="lightboxPrev" aria-label="Previous photo">‹</button>
   <img class="lightbox-img" id="lightboxImg" alt="">
   <button class="lightbox-nav lightbox-next" id="lightboxNext" aria-label="Next photo">›</button>
-  <div class="lightbox-caption" id="lightboxCaption"></div>
+  <div class="lightbox-captionbar">
+    <span class="lightbox-caption" id="lightboxCaption"></span>
+    <button class="lightbox-download" id="lightboxDownload" type="button">⭳ Download</button>
+  </div>
 </div>
 
 <div class="modal-overlay" id="uploadModalOverlay" hidden>
@@ -91,9 +94,26 @@
     <h2 id="sortModalTitle">Sort photos into phases</h2>
     <p class="modal-copy" id="sortModalCopy"></p>
     <div class="pick-list" id="sortPickList"></div>
+    <div class="pick-list pick-list-sub" id="sortReviewList"></div>
     <div class="modal-actions">
       <button class="btn btn-ghost" id="sortCancel">Cancel</button>
       <button class="btn btn-primary" id="sortConfirm">Move selected</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="tagModalOverlay" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="tagModalTitle">
+    <h2 id="tagModalTitle">Classify photo</h2>
+    <p class="modal-copy" id="tagName" title=""></p>
+    <p class="modal-note">Currently: <code id="tagAuto"></code></p>
+    <label class="tag-field" for="tagStage">Journey stage</label>
+    <select id="tagStage" class="text-input"></select>
+    <label class="tag-field" for="tagActivity">Activity (optional)</label>
+    <input type="text" id="tagActivity" class="text-input" placeholder="e.g. Rack assembly, Patch panel punch-down">
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="tagCancel">Cancel</button>
+      <button class="btn btn-primary" id="tagSave">Save</button>
     </div>
   </div>
 </div>

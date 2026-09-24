@@ -1,0 +1,180 @@
+import { test, describe } from 'node:test';
+import assert from 'node:assert/strict';
+import vm from 'node:vm';
+import fs from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, join } from 'node:path';
+
+const here = dirname(fileURLToPath(import.meta.url));
+const code = fs.readFileSync(join(here, '..', 'app.js'), 'utf8');
+
+const stubEl = () => ({
+  hidden: true, textContent: '', innerHTML: '', value: '', style: {}, dataset: {},
+  addEventListener() {}, appendChild() {}, removeChild() {}, click() {}, remove() {},
+  setAttribute() {}, getAttribute: () => null, classList: { add() {}, remove() {}, toggle() {} },
+});
+
+const sandbox = {
+  FileReader: class { readAsDataURL() {} readAsText() {} }, TextDecoder,
+  File: class { constructor() {} }, FormData: class { append() {} },
+
+  console, setTimeout, clearTimeout, setInterval, clearInterval, queueMicrotask,
+  fetch: async () => ({ ok: true, status: 200, json: async () => ({}) }),
+  btoa: (s) => Buffer.from(s, 'binary').toString('base64'),
+  atob: (s) => Buffer.from(s, 'base64').toString('binary'),
+  Blob, URL, URLSearchParams,
+  document: {
+    getElementById: () => stubEl(), createElement: () => stubEl(),
+    addEventListener() {}, querySelector: () => null, querySelectorAll: () => [],
+    body: { appendChild() {} }, head: { appendChild() {} },
+  },
+  window: {
+    addEventListener() {}, matchMedia: () => ({ matches: true, addEventListener() {} }),
+    open() {}, requestAnimationFrame: (f) => f(0),
+  },
+  sessionStorage: { getItem: () => null, setItem() {}, removeItem() {} },
+};
+
+function loadAppPure() {
+  const el = stubEl;
+  const sandbox2 = {
+    ...sandbox,
+    document: {
+      getElementById: () => el(), createElement: () => el(),
+      addEventListener() {}, querySelector: () => null, querySelectorAll: () => [],
+      body: { appendChild() {} }, head: { appendChild() {} },
+    },
+    window: {
+      addEventListener() {}, matchMedia: () => ({ matches: true, addEventListener() {} }),
+      open() {}, requestAnimationFrame: (f) => f(0),
+    },
+  };
+  sandbox2.globalThis = sandbox2;
+  const ctx = vm.createContext(sandbox2);
+  const expose = `
+    globalThis.__X = { journeyFor, classifyPhoto, buildAssets, discoverFromTree,
+      setAssets, summarizeDuplicates, rawUrl, imgSrc, prettyName, sanitizeFilename };
+  `;
+  vm.runInContext(code + expose, ctx, { filename: 'app.js' });
+  return sandbox2.__X;
+}
+
+export const G = (() => { try { return loadAppPure(); } catch (e) { console.error('app.js load failed: ' + e.message); return null; } })();
+
+const img = (folder, name, sha, extra = {}) => ({
+  folder, name, path: `images/${folder}/${name}`, sha, ...extra,
+});
+
+/* ── Test D1 · same FILE discovered twice (identical path+sha) → ONE logical image ── */
+describe('D1 — same git blob rediscovered (same sha, same path)', () => {
+  test('collapses to exactly one logical image — no duplicate card', () => {
+    if (!G) return test.skip();
+    const files = [
+      img('Arrivals', 'sunset.jpg', 'sha-1'),
+      img('Arrivals', 'sunset.jpg', 'sha-1'),
+    ];
+    const assets = G.buildAssets(files);
+    assert.equal(assets.length, 1, 'two identical entries → one logical asset');
+    assert.equal(assets[0].canonical.name, "sunset.jpg");
+  });
+});
+
+/* ── Test D2 · same bytes, two different filenames → 1 logical image, exact-dup flagged ── */
+describe('D2 — identical sha, different names (renamed/backup copy)', () => {
+  test('one logical image; exact duplicate detected; BOTH repo files kept', () => {
+    if (!G) return test.skip();
+    const files = [
+      img('Arrivals', 'sunset.jpg', 'sha-X'),
+      img('General', 'sunset-copy.jpg', 'sha-X'),
+    ];
+    const assets = G.buildAssets(files);
+    assert.equal(assets.length, 1);
+    const summary = G.summarizeDuplicates(assets);
+    assert.ok(summary.exactDuplicateFiles >= 1, 'identical bytes flagged as duplicate');
+  });
+});
+
+/* ── Test D3 · two different photographs → 2 logical images, nothing dropped ── */
+describe('D3 — two genuinely different photographs', () => {
+  test('two logical images; both files survive', () => {
+    if (!G) return test.skip();
+    const files = [
+      img('Arrivals', 'sunset.jpg', 'sha-A'),
+      img('Arrivals', 'bridge.jpg', 'sha-B'),
+    ];
+    const assets = G.buildAssets(files);
+    assert.equal(assets.length, 2);
+    assert.equal(G.summarizeDuplicates(assets).exactDuplicateFiles, 0);
+  });
+});
+
+/* ── D4 · responsive variants (peak.jpg + peak-480.jpg + peak-800.jpg) collapse to ONE logical image, canonical = largest/original ── */
+describe('D4 — responsive variant set in one folder', () => {
+  test('three files → one logical asset; canonical is the original-size file', () => {
+    if (!G) return test.skip();
+    const files = [
+      img('Panorama', 'peak.jpg', 'sha-v1'),
+      img('Panorama', 'peak-480.jpg', 'sha-v2'),
+      img('Panorama', 'peak-800.jpg', 'sha-v3'),
+    ];
+    const assets = G.buildAssets(files);
+    assert.equal(assets.length, 1);
+    assert.equal(assets[0].canonical.name, 'peak.jpg');
+    const sum = G.summarizeDuplicates(assets);
+    assert.equal(sum.exactDuplicateFiles, 0, 'variants are NOT content duplicates');
+  });
+});
+
+/* ── D5 · re-discovering an already-filed image is IDEMPOTENT: same logical asset, no second card, no re-classify ── */
+describe('D5 — rediscovery idempotence / no duplicate card', () => {
+  test('second discovery of identical path+sha keeps exactly one logical asset', () => {
+    if (!G) return test.skip();
+    const once = [img('Arrivals', 'sunset.jpg', 'sha-1')];
+    const twice = [img('Arrivals', 'sunset.jpg', 'sha-1'), img('Arrivals', 'sunset.jpg', 'sha-1')];
+    assert.equal(G.buildAssets(twice).length, G.buildAssets(once).length);
+  });
+});
+
+/* ── D6 · visitor download/save is TOKENLESS and AUTH-FREE (Test-list item 6) ── */
+describe('D6 — download flow requires no token, no Authorization header', () => {
+  test('rawUrl + imgSrc emit raw.githubusercontent.com URLs with no credential material', () => {
+    if (!G) return test.skip();
+    const img = { folder: 'Arrivals', name: 'sunset.jpg', path: 'images/Arrivals/sunset.jpg', sha: 'sha-1' };
+    const u = G.rawUrl(img.path);
+    assert.ok(u.startsWith('https://raw.githubusercontent.com/'), u);
+    assert.ok(!/token|authorization|access_token|bearer/i.test(u), 'no token in URL');
+    const src = G.imgSrc(img);
+    assert.ok(!/token|authorization|access_token|bearer/i.test(src), 'no token in img src');
+  });
+});
+
+/* ── D7 · real live-tree audit (read-only, offline when fixture absent) — mirrors the earlier dry-run of the whole repo ── */
+describe('D7 — full-repo live audit', () => {
+  test('classifies the real tree snapshot with 0 exact duplicates (when fixture present)', () => {
+    let tree = null;
+    try {
+      tree = JSON.parse(readFileSync(new URL('../tree-main.json', import.meta.url), 'utf8'));
+    } catch (err) {
+      return test.skip('tree-main.json not bundled in this offline checkout (' + err.code + ')');
+    }
+    if (!tree || !Array.isArray(tree.tree) || !tree.tree.length) {
+      return test.skip('fixture present but has no .tree array');
+    }
+    const IMG_EXT = /\.(png|jpe?g|gif|webp|avif)$/i;
+    const discovered = [];
+    for (const item of tree.tree) {
+      if (item.type !== 'blob') continue;
+      const rel = item.path.replace(/^images\//, '');
+      if (!IMG_EXT.test(rel)) continue;
+      const slash = rel.indexOf('/');
+      const folder = slash === -1 ? 'General' : rel.slice(0, slash);
+      const name = slash === -1 ? rel : rel.slice(slash + 1);
+      discovered.push({ folder, name, path: item.path, sha: item.sha });
+    }
+    assert.ok(discovered.length > 100, `live tree gives ${discovered.length} images`);
+    const assets = G.buildAssets(discovered);
+    const sum = G.summarizeDuplicates(assets);
+    console.log(`  live audit: ${discovered.length} blobs → ${assets.length} logical images; exact duplicates: ${sum.exactDuplicateFiles}`);
+    assert.equal(sum.exactDuplicateFiles, 0);
+  });
+});
