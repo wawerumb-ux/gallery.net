@@ -1128,11 +1128,9 @@ function openLightbox(folder, index, startSrc) {
 function updateLightbox() {
   const img = state.folders[state.lightboxFolder][state.lightboxIndex];
   const lb = el('lightboxImg');
-  // Reuse the already-loaded card image when available (no re-download, no
-  // blur). Navigation (prev/next) has no clicked card → start at the same
-  // sharp tier the grid uses (cardSrc). Mark is-loaded immediately so the
-  // lightbox opens clear; the full-res original then swaps in silently.
-  const start = state.lightboxStartSrc || cardSrc(img);
+  // Always open crisp: the LARGEST committed variant (cached once the card
+  // revealed, ~66KB if nav); full-res original layers in silently after.
+  const start = state.lightboxStartSrc || lightboxSrc(img);
   state.lightboxStartSrc = null;
   lb.src = start;
   lb.dataset.full = imgSrc(img);          // full-res — background upgrade only
@@ -1228,6 +1226,18 @@ function pageUrl(path) {
 }
 function imgSrc(img) {
   return img.demoSrc || pageUrl(img.path);
+}
+function lightboxSrc(img) {
+  // Lightbox: show the LARGEST committed webp variant (crisp in the big pane,
+  // already cached once the card revealed), never the 12KB blur or the multi-MB
+  // original on open. variants[0] is the highest-res webp tier (sorted by
+  // variantScore ascending, original excluded). Full-res still layers in
+  // silently afterwards via data-full.
+  if (img.demoSrc) return img.demoSrc;
+  const asset = (state.assets || []).find(a => a.canonical.path === img.path);
+  const v = asset && asset.variants.filter(x => /\.webp$/i.test(x.name));
+  if (v && v.length) return pageUrl(v[0].path);
+  return pageUrl(img.path);
 }
 function cardSrc(img) {
   // Grid: serve a committed webp variant sized for the actual card, never the

@@ -53,7 +53,7 @@ function loadAppPure() {
   const ctx = vm.createContext(sandbox2);
   const expose = `
     globalThis.__X = { journeyFor, classifyPhoto, buildAssets, discoverFromTree,
-      setAssets, summarizeDuplicates, rawUrl, pageUrl, imgSrc, cardSrc, thumbSrc, prettyName, sanitizeFilename,
+      setAssets, summarizeDuplicates, rawUrl, pageUrl, imgSrc, cardSrc, lightboxSrc, thumbSrc, prettyName, sanitizeFilename,
       setDPR: (v) => { devicePixelRatio = v; } };
   `;
   vm.runInContext(code + expose, ctx, { filename: 'app.js' });
@@ -133,7 +133,12 @@ describe('D4 — responsive variant set in one folder', () => {
       const card2x = G.cardSrc(assets[0].canonical);
       assert.ok(/peak-800\.webp/.test(card2x), '2x DPR card serves the 800 tier: ' + card2x);
       const lb = G.imgSrc(assets[0].canonical);
-      assert.ok(/peak\.jpg/.test(lb), 'lightbox keeps the full-res original: ' + lb);
+      assert.ok(/peak\.jpg/.test(lb), 'download still reaches the full-res original: ' + lb);
+      if (G.lightboxSrc) {
+        const lx = G.lightboxSrc(assets[0].canonical);
+        assert.ok(/peak-800\.webp/.test(lx), 'lightbox opens crisp on the largest variant: ' + lx);
+        assert.ok(!/token|authorization|access_token|bearer/i.test(lx), 'lightbox src tokenless');
+      }
     }
   });
 });
