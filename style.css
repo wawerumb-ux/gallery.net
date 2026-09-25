@@ -166,7 +166,7 @@ code{font-family:var(--font-mono);background:var(--panel-raised);padding:.1em .4
   border-color: var(--teal);
   box-shadow: 0 8px 24px rgba(0, 0, 0, .35);
 }
-.card img{aspect-ratio:4/3;object-fit:cover;background:var(--panel-raised);
+.card img{width:100%;aspect-ratio:4/3;object-fit:contain;background:var(--panel-raised);
   transition:opacity .45s ease,filter .6s ease,transform .6s ease;}
 .card img:not(.is-loaded){filter:blur(14px);transform:scale(1.06);opacity:.85;}
 .card img.is-loaded{filter:none;transform:none;opacity:1;}
@@ -193,7 +193,6 @@ code{font-family:var(--font-mono);background:var(--panel-raised);padding:.1em .4
 /* Sort flow */
 .sort-modal .modal{max-width:520px;width:100%;}
 .sort-list .pick-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;}
-.sort-note{font-size:11px;color:var(--text-dim);}
 
 /* Batch select */
 .card.card-selectable{cursor:pointer;}
@@ -203,7 +202,6 @@ code{font-family:var(--font-mono);background:var(--panel-raised);padding:.1em .4
 .batch-count{font-family:var(--font-mono);font-size:12px;color:var(--text-dim);}
 .batch-bar .btn-sm{width:auto;}
 #batchSortBtn[disabled]{opacity:.5;cursor:default;}
-.sort-note{font-size:11px;color:var(--text-dim);}
 
 /* Modal */
 .modal-overlay{
@@ -238,13 +236,6 @@ code{font-family:var(--font-mono);background:var(--panel-raised);padding:.1em .4
   font-family:var(--font-mono);font-size:12.5px;padding:5px 8px;border-radius:var(--radius);
 }
 .pick-hint{color:var(--copper);font-size:11.5px;font-family:var(--font-mono);}
-.pick-move{color:var(--teal);font-family:var(--font-mono);font-size:12px;white-space:nowrap;}
-.pick-sub{
-  color:var(--text-faint);font-family:var(--font-mono);font-size:11px;
-  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:42%;
-}
-.pick-list-sub{margin-top:14px;}
-.needs-review-note{color:var(--copper);}
 
 /* Lightbox */
 .lightbox{
@@ -319,14 +310,9 @@ code{font-family:var(--font-mono);background:var(--panel-raised);padding:.1em .4
   .header{padding:12px 14px;align-items:center;}
   .header-stats{font-size:12px;}
   .main{padding:16px 12px 56px;}
-  .sort-toolbar{flex-wrap:wrap;}
-  .sort-toolbar #sortFilter{flex:1 1 100%;}
-  .sort-toolbar #sortQty{flex:1 1 auto;min-width:0;}
   .pick-row{flex-wrap:wrap;}
   .pick-row .pick-control{flex:1 1 100%;justify-content:flex-start;flex-wrap:wrap;}
   .pick-hint{width:100%;}
-  .sort-list .sort-row .pick-name{flex:1 1 100%;}
-  .sort-list .sort-row select.sort-target{width:100%;margin-left:0;}
   .modal-copy{font-size:12.5px;}
 }
 
