@@ -243,6 +243,45 @@ const state = {
 
 const el = (id) => document.getElementById(id);
 
+// Loading status: "loading images..." + Arch-style ASCII progress bar.
+const LOAD_PROG_WIDTH = 24;
+const loadProg = {
+  _pct: 0,
+  _images: 0,
+  _loaded: 0,
+  _scheduled: false,
+  set(pct) {
+    this._pct = Math.max(0, Math.min(100, Math.round(pct)));
+    this._draw();
+  },
+  imageCount(n) { this._images = n; },
+  imageLoaded() {
+    this._loaded++;
+    const pct = this._images ? 74 + Math.min(24, Math.round((this._loaded / this._images) * 24)) : 98;
+    if (pct >= 98) this.finish();
+    else this.set(pct);
+  },
+  _draw() {
+    const bar = el('loadingBar');
+    const gate = el('loadingState');
+    if (!bar || !gate || gate.hidden) return;
+    const fill = Math.round((LOAD_PROG_WIDTH * this._pct) / 100);
+    const chars = (this._pct >= 100 ? '=' : '#').repeat(fill) + '-'.repeat(LOAD_PROG_WIDTH - fill);
+    bar.textContent = `[${chars}] ${String(this._pct).padStart(3, ' ')}%`;
+  },
+  finish(delay = 0) {
+    if (this._scheduled) return;
+    this.set(100);
+    this._scheduled = true;
+    setTimeout(() => {
+      const gate = el('loadingState');
+      if (!gate || gate.hidden) return;
+      gate.style.opacity = '0';
+      setTimeout(() => { gate.hidden = true; gate.style.opacity = ''; }, 320);
+    }, delay);
+  },
+};
+
 // Fetch timeout in milliseconds
 const FETCH_TIMEOUT = 10000;
 
@@ -345,7 +384,9 @@ async function init() {
     navigator.serviceWorker.register("sw.js").catch(() => {});
   }
 
+  loadProg.set(4);
   await loadMetadata(false);
+  loadProg.set(10);
   await loadTree(state.adminMode);
 }
 
@@ -528,12 +569,13 @@ function setAssets(discovered) {
 }
 
 async function loadTree(auth = false) {
-  if (DEMO_MODE) { loadDemoData(); return; }
+  if (DEMO_MODE) { loadProg.set(74); loadDemoData(); return; }
   try {
     const headers = {};
     if (auth && state.token) headers.Authorization = `Bearer ${state.token}`;
 
     // Get the root tree (non-recursive)
+    loadProg.set(14);
     const rootRes = await githubFetch(
       `https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/git/trees/${CONFIG.branch}?recursive=0`,
       { headers }
@@ -543,6 +585,7 @@ async function loadTree(auth = false) {
       throw new Error(errData.message || `GitHub API error (${rootRes.status})`);
     }
     const rootData = await rootRes.json();
+    loadProg.set(32);
 
     // Find the images folder in the root tree
     const imagesPath = CONFIG.imagesPath;
@@ -554,6 +597,7 @@ async function loadTree(auth = false) {
       const folders = {};
       state.folders = folders;
       state.order = [];
+      loadProg.set(74);
       render();
       return;
     }
@@ -567,11 +611,14 @@ async function loadTree(auth = false) {
       const errData = await imagesRes.json().catch(() => ({}));
       throw new Error(errData.message || `GitHub API error (${imagesRes.status})`);
     }
+    loadProg.set(58);
     const data = await imagesRes.json();
+    loadProg.set(64);
 
     // Files → logical assets → canonical card per asset. Exact duplicates
     // and responsive variants all collapse into ONE representation.
     setAssets(discoverFromTree(data.tree));
+    loadProg.set(74);
     render();
   } catch (err) {
     el('loadingState').textContent = 'Could not read the repository — check owner/repo/branch in app.js.';
@@ -615,13 +662,20 @@ function demoImage(label, n) {
 /* ── Rendering ─────────────────────────────────────────────────── */
 
 function render() {
-  el('loadingState').hidden = true;
   const totalPhotos = Object.values(state.folders).reduce((a, f) => a + f.length, 0);
   el('emptyState').hidden = totalPhotos !== 0;
   el('emptyPath').textContent = CONFIG.imagesPath + '/';
   renderSidebar();
   renderGallery();
   animateIntro(totalPhotos, state.order.length);
+  applyAdminFilter();
+  const gate = el('loadingState');
+  if (gate && !gate.hidden) {
+    const eager = document.querySelectorAll('#gallery .card img[loading="eager"]').length;
+    loadProg.imageCount(eager);
+    if (!eager) loadProg.finish();
+    else setTimeout(() => loadProg.finish(), 6000);
+  }
 }
 
 function renderSidebar() {
@@ -635,6 +689,51 @@ function renderSidebar() {
       el(`section-${cssSafe(btn.dataset.folder)}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
   });
+}
+
+/* Admin quick-find: hide phases/cards that don't match the query, in the
+   sidebar (phase buttons) and the gallery (sections + cards). */
+function applyAdminFilter() {
+  const input = el('adminSearch');
+  if (!input || el('sidebarSearch').hidden) return;
+  const q = input.value.trim().toLowerCase();
+  const scope = el('adminSearchFilter').value;
+  const shown = new Set();
+  let visible = 0, total = 0;
+  for (const folder of state.order) {
+    const section = el(`section-${cssSafe(folder)}`);
+    if (!section) continue;
+    const cards = section.querySelectorAll('.card[data-path]');
+    total += cards.length;
+    if (!q) {
+      section.hidden = false;
+      cards.forEach(c => { c.hidden = false; visible++; });
+      shown.add(folder);
+      continue;
+    }
+    const phaseHit = folder.toLowerCase().includes(q);
+    if (scope === 'phase') {
+      section.hidden = !phaseHit;
+      if (phaseHit) { shown.add(folder); cards.forEach(c => { c.hidden = false; visible++; }); }
+      else cards.forEach(c => { c.hidden = true; });
+      continue;
+    }
+    let sec = 0;
+    for (const c of cards) {
+      const nameHit = ((c.dataset.path || '') + ' ' + (c.textContent || ' ')).toLowerCase().includes(q);
+      let show;
+      if (scope === 'image') show = nameHit;
+      else show = phaseHit || nameHit;
+      c.hidden = !show;
+      if (show) { visible++; sec++; }
+    }
+    section.hidden = scope === 'image' ? sec === 0 : !(phaseHit || sec > 0);
+    if (sec > 0 || phaseHit) shown.add(folder);
+  }
+  el('phaseList').querySelectorAll('.phase-btn').forEach(btn => {
+    btn.hidden = !shown.has(btn.dataset.folder);
+  });
+  el('adminSearchCount').textContent = q ? `${visible}/${total}` : '';
 }
 
 function renderGallery() {
@@ -699,6 +798,7 @@ function renderGallery() {
       // on 1x screens src and data-full are the same file, so no 2nd fetch.
       if (!img.classList.contains('is-loaded')) img.classList.add('is-loaded');
       if (img.src !== img.dataset.full && img.dataset.full) img.src = img.dataset.full;
+      loadProg.imageLoaded();
     });
     img.addEventListener('error', () => {
       if (img.src !== img.dataset.full && img.dataset.full) img.src = img.dataset.full;
@@ -771,6 +871,11 @@ function animateCount(node, target) {
 /* ── Admin: sign in / out ─────────────────────────────────────── */
 
 function wireStaticEvents() {
+  el('adminSearch').addEventListener('input', applyAdminFilter);
+  el('adminSearch').addEventListener('keydown', e => {
+    if (e.key === 'Escape') { e.target.value = ''; applyAdminFilter(); }
+  });
+  el('adminSearchFilter').addEventListener('change', applyAdminFilter);
   el('adminToggle').addEventListener('click', () => {
     if (state.adminMode) signOut();
     else { el('adminModalOverlay').hidden = false; el('tokenInput').focus(); }
@@ -889,6 +994,12 @@ function updateAdminUI() {
   el('settingsBtn').hidden = !state.adminMode;
   el('newFolderPanel').hidden = !state.adminMode;
   el('sortPhotosBtn').hidden = !state.adminMode;
+  el('sidebarSearch').hidden = !state.adminMode;
+  if (!state.adminMode && el('adminSearch').value) {
+    el('adminSearch').value = '';
+    el('adminSearchCount').textContent = '';
+  }
+  applyAdminFilter();
 }
 
 function closeModal() {

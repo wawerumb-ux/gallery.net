@@ -33,6 +33,17 @@
 
   <div class="body">
     <nav class="sidebar" id="sidebar">
+      <div class="sidebar-search" id="sidebarSearch" hidden>
+        <input type="search" id="adminSearch" class="text-input" placeholder="find image or phase" autocomplete="off" aria-label="Search images and phases">
+        <div class="search-meta">
+          <select id="adminSearchFilter" aria-label="Search scope">
+            <option value="all">all</option>
+            <option value="image">images</option>
+            <option value="phase">phases</option>
+          </select>
+          <span class="search-count" id="adminSearchCount"></span>
+        </div>
+      </div>
       <div class="sidebar-label">phases</div>
       <ul class="phase-list" id="phaseList"></ul>
       <div class="admin-panel" id="newFolderPanel" hidden>
@@ -45,7 +56,13 @@
     </nav>
 
     <main class="main" id="main">
-      <div class="loading" id="loadingState" aria-live="polite">Reading repository…</div>
+      <div class="loading" id="loadingState" aria-live="polite">
+        <div class="loading-caption">loading images...</div>
+        <div class="load-bar-wrap">
+          <pre class="load-bar" id="loadingBar" aria-hidden="true">[------------------------]   0%</pre>
+          <span class="load-cursor" aria-hidden="true">█</span>
+        </div>
+      </div>
       <div class="empty" id="emptyState" hidden aria-live="polite">
         <p>No images found yet.</p>
         <p class="empty-sub">Add photos under <code id="emptyPath">images/</code> in the repo, grouped into subfolders by phase.</p>
