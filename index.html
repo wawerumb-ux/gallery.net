@@ -93,17 +93,16 @@
 
 <div class="modal-overlay" id="sortModalOverlay" hidden>
   <div class="modal modal-wide sort-modal" role="dialog" aria-modal="true" aria-labelledby="sortModalTitle">
-    <h2 id="sortModalTitle">Sort photos</h2>
+    <h2 id="sortModalTitle">Move photos to a category</h2>
     <p class="modal-copy" id="sortModalCopy"></p>
-    <div class="sort-toolbar">
-      <input type="search" id="sortFilter" class="text-input" placeholder="Filter by filename…">
-      <select id="sortQty" class="text-input"></select>
-      <button class="btn btn-ghost btn-sm" id="sortQuickBtn">Apply to all filtered</button>
-    </div>
+    <label class="tag-field" for="categoryInput">Category</label>
+    <input type="text" id="categoryInput" class="text-input" list="categoryDatalist" placeholder="Pick a category or type a new one…" autocomplete="off">
+    <datalist id="categoryDatalist"></datalist>
+    <p class="modal-note">Typing a new name adds a new category on save.</p>
     <div class="pick-list sort-list" id="sortPickList"></div>
     <div class="modal-actions">
       <button class="btn btn-ghost" id="sortCancel">Cancel</button>
-      <button class="btn btn-primary" id="sortConfirm">Move selected</button>
+      <button class="btn btn-primary" id="sortConfirm">Move photos</button>
     </div>
   </div>
 </div>
@@ -122,6 +121,12 @@
       <button class="btn btn-primary" id="tagSave">Save</button>
     </div>
   </div>
+</div>
+
+<div class="batch-bar" id="batchBar" hidden>
+  <span class="batch-count" id="batchCount">0 selected</span>
+  <button class="btn btn-ghost btn-sm" id="batchClearBtn">Clear</button>
+  <button class="btn btn-primary btn-sm" id="batchSortBtn" disabled>Done</button>
 </div>
 
 <div class="toast" id="toast" hidden role="alert" aria-live="assertive">
