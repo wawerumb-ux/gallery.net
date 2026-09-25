@@ -53,7 +53,8 @@ function loadAppPure() {
   const ctx = vm.createContext(sandbox2);
   const expose = `
     globalThis.__X = { journeyFor, classifyPhoto, buildAssets, discoverFromTree,
-      setAssets, summarizeDuplicates, rawUrl, pageUrl, imgSrc, cardSrc, lightboxSrc, thumbSrc, prettyName, sanitizeFilename,
+      setAssets, summarizeDuplicates, buildSortRows, rawUrl, pageUrl, imgSrc, cardSrc,
+      lightboxSrc, thumbSrc, prettyName, sanitizeFilename,
       setDPR: (v) => { devicePixelRatio = v; } };
   `;
   vm.runInContext(code + expose, ctx, { filename: 'app.js' });
@@ -215,5 +216,33 @@ describe('D7 — full-repo live audit', () => {
     const sum = G.summarizeDuplicates(assets);
     console.log(`  live audit: ${discovered.length} blobs → ${assets.length} logical images; exact duplicates: ${sum.exactDuplicateFiles}`);
     assert.equal(sum.exactDuplicateFiles, 0);
+  });
+});
+
+/* ── D8 · sort-flow rows: pre-check follows a proposed (classifier-approved) move,
+   and only that — manual state must not depend on re-renders ── */
+describe('D8 — sort rows pre-check proposed moves, and only approved moves', () => {
+  test('stray (date-matched) photo gets suggested+checked; filed photo stays unchecked', () => {
+    if (!G || !G.buildSortRows || !G.setAssets) return test.skip();
+    // General/ stray dated inside the site-survey window → classifier proposes filing it there.
+    // An already-filed dated photo (a date window that lists another folder) is NOT proposed.
+    const files = [
+      { folder: 'General',  name: '20260619_130000.jpg', path: 'images/General/20260619_130000.jpg', sha: 's-stray' },
+      { folder: 'site-survey', name: '20260621_130000.jpg', path: 'images/site-survey/20260621_130000.jpg', sha: 's-filed' },
+      { folder: 'rack-build', name: 'IMG-20260726-WA0001.jpg', path: 'images/rack-build/IMG-20260726-WA0001.jpg', sha: 's-identity' },
+      { folder: 'rack-build', name: '20260727_130000.jpg', path: 'images/rack-build/20260727_130000.jpg', sha: 's-stay' },
+    ];
+    G.setAssets(files);
+    const rows = G.buildSortRows();
+    const by = (n) => rows.find(r => r.img.name === n);
+    const stray = by('20260619_130000.jpg');
+    assert.ok(stray.suggested === 'site-survey', 'stray is proposed into site-survey, got ' + stray.suggested);
+    assert.equal(stray.checked, true, 'proposed stray arrives pre-checked');
+    assert.equal(by('20260621_130000.jpg').suggested, '', 'already-filed photo is not proposed');
+    assert.equal(by('20260621_130000.jpg').checked, false, 'filed photo is not pre-checked');
+    const identity = by('IMG-20260726-WA0001.jpg');
+    assert.equal(identity.suggested, 'phase-1', 'identity re-file proposed into phase-1');
+    assert.equal(identity.checked, true);
+    assert.equal(by('20260727_130000.jpg').suggested, '', 'already in rack-build stays put');
   });
 });

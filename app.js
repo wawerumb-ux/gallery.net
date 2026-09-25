@@ -134,16 +134,22 @@ function classifyPhoto(img) {
   const md = state.metadata[img.path];
   if (md && md.phase) {
     const j = JOURNEY.find(s => s.stage === md.phase);
-    return {
-      stage: md.phase,
-      group: j ? j.group : null,
-      sequence: j ? j.sequence : null,
-      activity: md.activity || null,
-      reason: 'manual assignment',
-      rule: 'gallery.json override',
-      confidence: 'explicit',
-      needsReview: false,
-    };
+    // Only a real journey stage counts as an explicit classification. A
+    // legacy/non-journey label (e.g. an old "General" entry) falls through so
+    // the photo can still surface as Needs Review rather than being locked
+    // into a label that isn't a project stage.
+    if (j) {
+      return {
+        stage: md.phase,
+        group: j.group,
+        sequence: j.sequence,
+        activity: md.activity || null,
+        reason: 'manual assignment',
+        rule: 'gallery.json override',
+        confidence: 'explicit',
+        needsReview: false,
+      };
+    }
   }
   const identity = IDENTITY_RULES.find(rule => rule.pattern.test(img.name));
   if (identity) {
@@ -224,8 +230,8 @@ const state = {
   duplicateSummary: { totalFiles: 0, uniqueAssets: 0, exactDuplicateFiles: 0, visualDuplicateCandidates: 0 },
   adminMode: false,
   token: null,
-  batchSelect: false,
-  batchSelected: new Set(),
+  sortRows: null, // openSortFlow working set: [{path,folder,name,img,suggested,proposed,checked,needsReview,target}]
+
   lightboxFolder: null,
   lightboxIndex: 0,
   pendingUploads: null, // { files: File[], context: folderName|null }
@@ -504,7 +510,16 @@ function setAssets(discovered) {
   state.duplicateSummary = summarizeDuplicates(assets);
   const folders = {};
   for (const a of assets) (folders[a.folder] = folders[a.folder] || []).push(a.canonical);
-  for (const folder of Object.keys(folders)) folders[folder].sort((x, y) => photoTs(x.name) - photoTs(y.name));
+  for (const folder of Object.keys(folders)) {
+    // Chronological within a phase: dated photos first (by camera/WhatsApp
+    // timestamp), untimestamped photos after, sorted by name. An untimed file
+    // must never jump ahead of dated evidence.
+    folders[folder].sort((x, y) => {
+      const tx = photoTs(x.name), ty = photoTs(y.name);
+      if (tx === ty) return x.name.localeCompare(y.name, 'en', { numeric: true });
+      return (tx || Number.MAX_SAFE_INTEGER) - (ty || Number.MAX_SAFE_INTEGER);
+    });
+  }
   state.folders = folders;
   state.order = Object.keys(folders).sort((a, b) =>
     (folderSequence(a) - folderSequence(b)) || a.localeCompare(b, 'en', { numeric: true })
@@ -599,7 +614,6 @@ function demoImage(label, n) {
 /* ── Rendering ─────────────────────────────────────────────────── */
 
 function render() {
-  updateBatchBar();
   el('loadingState').hidden = true;
   const totalPhotos = Object.values(state.folders).reduce((a, f) => a + f.length, 0);
   el('emptyState').hidden = totalPhotos !== 0;
@@ -647,12 +661,10 @@ function renderGallery() {
         ${items.map((img, i) => {
           const pretty = prettyName(img.name);
           const c = classifyPhoto(img);
-          const selected = state.batchSelect && state.batchSelected.has(img.path);
-          return `<figure class="card ${c.needsReview ? 'card-needs-review' : ''}${state.batchSelect ? ' card-selectable' : ''}${selected ? ' card-selected' : ''}" data-group="${escapeAttr(c.group || '')}" data-folder="${escapeAttr(folder)}" data-index="${i}" data-path="${escapeAttr(img.path)}">
+          return `<figure class="card ${c.needsReview ? 'card-needs-review' : ''}" data-group="${escapeAttr(c.group || '')}" data-folder="${escapeAttr(folder)}" data-index="${i}">
             <img class="card-img" src="${thumbSrc(img)}" data-full="${cardSrc(img)}" alt="${escapeAttr(pretty)}" loading="${isFirstPaint(img) ? 'eager' : 'lazy'}" fetchpriority="${isFirstPaint(img) ? 'high' : 'auto'}" decoding="async">
-            ${state.adminMode && !state.batchSelect ? `<button class="card-delete" data-path="${escapeAttr(img.path)}" data-sha="${escapeAttr(img.sha)}" data-name="${escapeAttr(pretty)}" aria-label="Delete ${escapeAttr(pretty)}">×</button>` : ''}
-            ${state.adminMode && !state.batchSelect ? `<button class="card-tag" data-path="${escapeAttr(img.path)}" data-name="${escapeAttr(pretty)}" title="Classify this photo">tag</button>` : ''}
-            ${state.adminMode && state.batchSelect ? `<span class="card-pick">${selected ? '✓' : ''}</span>` : ''}
+            ${state.adminMode ? `<button class="card-delete" data-path="${escapeAttr(img.path)}" data-sha="${escapeAttr(img.sha)}" data-name="${escapeAttr(pretty)}" aria-label="Delete ${escapeAttr(pretty)}">×</button>` : ''}
+            ${state.adminMode ? `<button class="card-tag" data-path="${escapeAttr(img.path)}" data-name="${escapeAttr(pretty)}" title="Classify this photo">tag</button>` : ''}
             <figcaption>${escapeHtml(pretty)}</figcaption>
           </figure>`;
         }).join('')}
@@ -660,22 +672,22 @@ function renderGallery() {
     </section>`;
   }).join('');
 
-  /* First paint: raw.githubusercontent sends Cache-Control: no-cache, so
-     every visit pays DNS + TLS + a full GET unless we preconnect and preload
-     the images the user actually sees first. */
-  if (!document.querySelector('link[data-gallery-preconnect]')) {
-    // All gallery media is same-origin on the Pages host now (thumbnails and
-    // variants both served from it) — no cross-origin preconnect needed.
+  // First paint: raw.githubusercontent sends Cache-Control: no-cache, so
+  // every visit pays DNS + TLS + a full GET unless we preconnect and preload
+  // the images the user actually sees first. Gallery media is same-origin on
+  // the Pages host now, so the preload links below are all that's needed.
+  if (!state._preloadedFirstPaint) {
+    state._preloadedFirstPaint = true;
+    const firstFolder = state.order[0];
+    const firstImgs = (firstFolder && state.folders[firstFolder]) ? state.folders[firstFolder].slice(0, 6) : [];
+    firstImgs.forEach(img => {
+      // Preload the tiny thumb tile (-480 tier) so the first visible cards
+      // paint immediately; the sharper tier rides in behind it after reveal.
+      const pre = document.createElement('link');
+      pre.rel = 'preload'; pre.as = 'image'; pre.href = thumbSrc(img); pre.fetchPriority = 'high';
+      document.head.appendChild(pre);
+    });
   }
-  const firstFolder = state.order[0];
-  const firstImgs = (firstFolder && state.folders[firstFolder]) ? state.folders[firstFolder].slice(0, 6) : [];
-  firstImgs.forEach(img => {
-    // Preload the tiny thumb tile (-480 tier) so the first visible cards
-    // paint immediately; the sharper tier rides in behind it after reveal.
-    const pre = document.createElement('link');
-    pre.rel = 'preload'; pre.as = 'image'; pre.href = thumbSrc(img); pre.fetchPriority = 'high';
-    document.head.appendChild(pre);
-  });
   gallery.querySelectorAll('.card img').forEach(img => {
     // Blur-up: when the tiny thumb finishes, swap in the full-res image and
     // fade it in (CSS adds the blur + transition). Revisit with SW = instant.
@@ -692,7 +704,6 @@ function renderGallery() {
 
     img.addEventListener('click', () => {
       const card = img.closest('.card');
-      if (state.adminMode && state.batchSelect) return; // figure-level listener toggles selection
       // Hand the lightbox the exact image the card already loaded (a cache
       // hit = instant, no re-download, no blur flash) and whether it was
       // fully revealed. Null = card still loading → start at the sharp tier.
@@ -712,11 +723,6 @@ function renderGallery() {
       openTagModal(btn.dataset.path, btn.dataset.name);
     });
   });
-  if (state.adminMode && state.batchSelect) {
-    gallery.querySelectorAll('.card[data-path]').forEach(fig => {
-      fig.addEventListener('click', () => toggleBatchSelect(fig.dataset.path));
-    });
-  }
   gallery.querySelectorAll('.add-photos-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       const input = document.createElement('input');
@@ -744,7 +750,9 @@ function animateCount(node, target) {
   if (target === 0) { node.textContent = '0'; return; }
   const duration = 700, start = performance.now();
   (function tick(now) {
-    const p = Math.min((now - start) / duration, 1);
+    // Clamp so a timer that lags its own start (e.g. a paused/hibernated tab
+    // where rAF timestamps can precede `start`) never shows a negative count.
+    const p = Math.max(Math.min((now - start) / duration, 1), 0);
     const eased = 1 - Math.pow(1 - p, 3); // Ease-out cubic
     node.textContent = Math.round(eased * target);
     if (p < 1) requestAnimationFrame(tick);
@@ -774,17 +782,20 @@ function wireStaticEvents() {
     el('newFolderFiles').click();
   });
 
-  el('sortPhotosBtn').addEventListener('click', () => { if (state.adminMode) openSortPreview(); });
-  el('sortCancel').addEventListener('click', () => { el('sortModalOverlay').hidden = true; });
+  el('sortPhotosBtn').addEventListener('click', () => { if (state.adminMode) openSortFlow(); });
+  el('sortCancel').addEventListener('click', () => { el('sortModalOverlay').hidden = true; state.sortRows = null; });
   el('sortConfirm').addEventListener('click', performSortMoves);
-  el('sortModalOverlay').addEventListener('click', e => { if (e.target.id === 'sortModalOverlay') el('sortModalOverlay').hidden = true; });
-
-  el('batchSelectBtn').addEventListener('click', () => { if (state.adminMode) toggleBatchSelectMode(); });
-  el('batchClearBtn').addEventListener('click', () => { state.batchSelected.clear(); updateBatchBar(); render(); });
-  el('batchSortBtn').addEventListener('click', openBatchSortModal);
-  el('batchCancel').addEventListener('click', () => { el('batchModalOverlay').hidden = true; });
-  el('batchConfirm').addEventListener('click', performBatchMove);
-  el('batchModalOverlay').addEventListener('click', e => { if (e.target.id === 'batchModalOverlay') el('batchModalOverlay').hidden = true; });
+  el('sortFilter').addEventListener('input', renderSortList);
+  el('sortQuickBtn').addEventListener('click', applyPhaseToFiltered);
+  el('sortPickList').addEventListener('change', e => {
+    if (e.target.matches('select.sort-target') || e.target.matches('input[type=checkbox]')) {
+      const r = state.sortRows[Number(e.target.dataset.idx)];
+      if (!r) return;
+      if (e.target.matches('select.sort-target')) r.target = e.target.value;
+      else r.checked = e.target.checked;
+    }
+  });
+  el('sortModalOverlay').addEventListener('click', e => { if (e.target.id === 'sortModalOverlay') { el('sortModalOverlay').hidden = true; state.sortRows = null; } });
 
   el('uploadCancel').addEventListener('click', () => { el('uploadModalOverlay').hidden = true; state.pendingUploads = null; });
   el('uploadConfirm').addEventListener('click', performUploads);
@@ -853,8 +864,7 @@ async function trySignIn() {
 function signOut() {
   state.token = null;
   state.adminMode = false;
-  state.batchSelect = false;
-  state.batchSelected.clear();
+  state.sortRows = null;
   sessionStorage.removeItem(TOKEN_KEY);
   updateAdminUI();
   render();
@@ -910,7 +920,14 @@ async function performUploads() {
   state.pendingUploads = null;
 
   let total = Object.values(groups).reduce((a, g) => a + g.length, 0);
-  let done = 0;
+  let done = 0, skipped = 0, failed = 0;
+
+  // Paths already in the gallery → same-name uploads are skipped (a blind PUT
+  // would 422 "sha wasn't supplied" and stall the whole batch). Cheap, no API
+  // calls; the tree was just fetched.
+  const existing = new Set();
+  for (const folder of state.order) for (const f of state.folders[folder]) existing.add(f.path);
+
   showToast(`Uploading 0/${total}…`, true);
   for (const [folder, files] of Object.entries(groups)) {
     if (DEMO_MODE) {
@@ -921,13 +938,16 @@ async function performUploads() {
         );
       }
       for (const file of files) {
+        const path = `${CONFIG.imagesPath || 'images'}/${folder}/${file.name}`;
+        if (existing.has(path)) { skipped++; done++; continue; }
         const src = await fileToDataUrl(file);
         state.folders[folder].push({
-          path: `${CONFIG.imagesPath || 'images'}/${folder}/${file.name}`,
+          path,
           sha: `demo-${Date.now()}-${Math.random().toString(36).slice(2)}`,
           name: file.name,
           demoSrc: src,
         });
+        existing.add(path);
         done++;
         showToast(`Uploading ${done}/${total}…`, true);
       }
@@ -938,17 +958,27 @@ async function performUploads() {
         const base64 = await fileToBase64(file);
         const safeName = sanitizeFilename(file.name);
         const path = `${CONFIG.imagesPath}/${folder}/${safeName}`;
-        await githubPut(path, base64, `Add ${safeName} via gallery admin`);
+        if (existing.has(path)) { skipped++; done++; continue; }
+        await githubPut(path, base64, `Add ${safeName} via gallery admin`, { overwrite: false });
+        existing.add(path);
         const j = journeyFor(folder);
-        state.metadata[path] = { phase: j ? j.stage : folder, activity: '' };
+        // Only an upload into a real journey stage is an explicit
+        // classification. Uploads into unmapped folders (General, or a
+        // brand-new phase folder) stay unclassified on purpose so the photo
+        // surfaces as "Needs Review" until an admin sorts or tags it.
+        if (j) state.metadata[path] = { phase: j.stage, activity: '' };
       } catch (err) {
+        failed++;
         showToast(`Failed: ${file.name} — ${err.message}`);
       }
       done++;
       showToast(`Uploading ${done}/${total}…`, true);
     }
   }
-  showToast(`Added ${total} photo${total === 1 ? '' : 's'}.`);
+  const added = total - skipped - failed;
+  showToast(skipped || failed
+    ? `Added ${added} photo${added === 1 ? '' : 's'}${skipped ? ` (${skipped} skipped — already in the gallery)` : ''}${failed ? ` (${failed} failed)` : ''}.`
+    : `Added ${total} photo${total === 1 ? '' : 's'}.`);
   if (DEMO_MODE) { render(); return; }
   try {
     await persistMetadata();
@@ -993,136 +1023,160 @@ async function saveTagModal() {
   }
 }
 
-/* Admin → Sort photos: propose moves only for strays and identity-pattern
-   re-files. Date windows never touch a filed photo; manual metadata overrides
-   never move files. Uses blob SHAs already fetched from the tree, so no
-   re-download of content. */
-function buildSortProposals() {
-  const proposals = [];
-  for (const folder of state.order) {
-    for (const img of state.folders[folder]) {
-      const identity = IDENTITY_RULES.find(rule => rule.pattern.test(img.name));
-      const to = suggestPhase(img.name);
-      if (!to || folder === to) continue;
-      // Identity rules can re-file anything; date rules only file strays.
-      if (!identity && isConfigPhase(folder)) continue;
-      proposals.push({ img, from: folder, to, cls: classifyPhoto(img) });
-    }
-  }
-  return proposals;
-}
-
-function openSortPreview() {
-  const proposals = buildSortProposals();
-  const needsReview = [];
+/* Admin → Sort: ONE flow for bulk sorting. Every photo becomes a row with a
+   category dropdown; photos the classifier wants re-filed (strays + identity
+   re-files) arrive pre-checked with their suggested phase. The toolbar lets
+   you filter by filename and bulk-apply one phase to every filtered row, so
+   a whole batch lands in a phase in one click. Moving a photo moves its
+   canonical file AND its committed webp variants together. */
+function buildSortRows() {
+  const rows = [];
   for (const folder of state.order) {
     for (const img of state.folders[folder]) {
       const c = classifyPhoto(img);
-      if (c.needsReview) needsReview.push({ img, folder, cls: c });
+      const identity = IDENTITY_RULES.find(rule => rule.pattern.test(img.name));
+      const to = suggestPhase(img.name);
+      let proposed = false;
+      if (to && to !== folder) proposed = identity || !isConfigPhase(folder);
+      rows.push({
+        img,
+        from: folder,
+        name: img.name,
+        suggested: proposed ? to : '',        // phase if the classifier proposes a move
+        target: proposed ? to : folder,       // where it will actually go (editable)
+        checked: !!proposed,                  // pre-checked = a suggested move is sanctioned
+        needsReview: !!c.needsReview,
+        cls: c
+      });
     }
   }
-  el('sortModalCopy').textContent = proposals.length
-    ? `${proposals.length} photo${proposals.length === 1 ? '' : 's'} to move:`
-    : 'All photos are already filed in their classified stage folders.';
-  el('sortPickList').innerHTML = proposals.map((p, i) => `
-    <label class="pick-row pick-check">
-      <input type="checkbox" data-idx="${i}" checked>
-      <span class="pick-name" title="${escapeAttr(p.img.name)}">${escapeHtml(p.img.name)}</span>
-      <span class="pick-move">${escapeHtml(p.from)} → ${escapeHtml(p.to)}</span>
-      <span class="pick-sub">${escapeHtml(clsLabel(p.cls))}</span>
-    </label>`).join('') || (needsReview.length ? '' : '<p class="modal-copy">Nothing to do.</p>');
-  el('sortReviewList').innerHTML = needsReview.length
-    ? `<p class="modal-copy needs-review-note">Needs Review — ${needsReview.length} photo${needsReview.length === 1 ? '' : 's'} with no stage. No move is proposed; classify them from the gallery.</p>
-       ${needsReview.map(r =>
-         `<div class="pick-row"><span class="pick-name" title="${escapeAttr(r.img.name)}">${escapeHtml(r.img.name)}</span>
-          <span class="pick-move">${escapeHtml(r.folder)}</span><span class="pick-sub">${escapeHtml(clsLabel(r.cls))}</span></div>`
-       ).join('')}`
-    : '';
-  el('sortConfirm').disabled = proposals.length === 0;
-  el('sortModalOverlay').hidden = false;
+  rows.sort((a, b) => (b.needsReview - a.needsReview) || a.name.localeCompare(b.name));
+  return rows;
 }
 
-async function performSortMoves() {
-  const checked = new Set([...el('sortPickList').querySelectorAll('input:checked')].map(c => Number(c.dataset.idx)));
-  const proposals = buildSortProposals().filter((_, i) => checked.has(i));
-  el('sortModalOverlay').hidden = true;
-  if (!proposals.length) return;
-  let done = 0;
-  showToast(`Moving 0/${proposals.length}…`, true);
-  for (const p of proposals) {
-    try {
-      const src = await githubFetch(
-        `https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/git/blobs/${p.img.sha}`,
-        { headers: { Authorization: `Bearer ${state.token}` } }
-      );
-      if (!src.ok) throw new Error('could not read source blob');
-      const content = (await src.json()).content;
-      await githubPut(`${CONFIG.imagesPath}/${p.to}/${p.img.name}`, content, `Sort ${p.img.name} into ${p.to} via gallery admin`);
-      await githubDelete(p.img.path, p.img.sha, `Sort ${p.img.name} out of ${p.from} via gallery admin`);
-    } catch (err) {
-      showToast(`Failed: ${p.img.name} — ${err.message}`);
-    }
-    done++;
-    showToast(`Moving ${done}/${proposals.length}…`, true);
-  }
-  showToast(`Moved ${proposals.length} photo${proposals.length === 1 ? '' : 's'}.`);
-  await loadTree(true);
+function renderSortList() {
+  const q = el('sortFilter').value.trim().toLowerCase();
+  const rows = state.sortRows.filter(r => !q || r.name.toLowerCase().includes(q));
+  el('sortPickList').innerHTML = rows.length
+    ? rows.map(r => `
+    <label class="pick-row sort-row${r.needsReview ? ' sort-row-review' : ''}${r.suggested ? ' sort-proposed' : ''}">
+      <input type="checkbox" data-idx="${state.sortRows.indexOf(r)}" ${r.checked ? 'checked' : ''}>
+      <span class="pick-name" title="${escapeAttr(r.img.path)}">${escapeHtml(r.name)}</span>
+      <span class="pick-move sort-from">${escapeHtml(r.from)}</span>
+      <span class="sort-arrow">${r.suggested ? '→' : ''}</span>
+      <select class="sort-target" data-idx="${state.sortRows.indexOf(r)}">
+        ${phaseOptionsHtml()}
+      </select>
+      ${r.needsReview ? '<span class="needs-review-chip sort-chip">Needs Review</span>' : ''}
+      ${r.suggested ? `<span class="pick-sub sort-note">suggested: ${escapeHtml(r.suggested)}</span>` : ''}
+    </label>`).join('')
+    : '<p class="modal-copy">No photos match that filter.</p>';
+  // Sync each row's select to its persisted target (suggested or current folder).
+  state.sortRows.forEach((r, i) => {
+    const sel = el('sortPickList').querySelector(`select[data-idx="${i}"]`);
+    if (sel) sel.value = r.target;
+  });
+  updateSortCopy();
 }
 
-function toggleBatchSelectMode() {
-  state.batchSelect = !state.batchSelect;
-  if (!state.batchSelect) state.batchSelected.clear();
-  el('batchSelectBtn').textContent = state.batchSelect ? 'Done selecting' : 'Select photos to sort';
-  render();
-}
-
-function toggleBatchSelect(path) {
-  const on = !state.batchSelected.has(path);
-  if (on) state.batchSelected.add(path);
-  else state.batchSelected.delete(path);
-  const card = document.querySelector(`.card[data-path="${CSS.escape(path)}"]`);
-  if (card) {
-    card.classList.toggle('card-selected', on);
-    const pick = card.querySelector('.card-pick');
-    if (pick) pick.textContent = on ? '✓' : '';
-  }
-  updateBatchBar();
-}
-
-function updateBatchBar() {
-  const n = state.batchSelected.size;
-  el('batchBar').hidden = !(state.adminMode && state.batchSelect);
-  el('batchCount').textContent = `${n} selected`;
-  el('batchSortBtn').disabled = n === 0;
-}
-
-function openBatchSortModal() {
-  if (!state.batchSelected.size) return;
-  el('batchCategory').innerHTML = allPhaseOptions().map(folder => {
+function phaseOptionsHtml() {
+  return allPhaseOptions().map(folder => {
     const j = journeyFor(folder);
     const label = j ? `${j.stage}` + (folder !== 'General' ? ` (${folder})` : '') : folder;
     return `<option value="${escapeAttr(folder)}">${escapeHtml(label)}</option>`;
   }).join('');
-  const n = state.batchSelected.size;
-  el('batchModalCopy').textContent = `${n} photo${n === 1 ? '' : 's'} selected. Move them all into:`;
-  el('batchPickList').innerHTML = [...state.batchSelected].map(path =>
-    `<div class="pick-row"><span class="pick-name" title="${escapeAttr(path)}">${escapeHtml(path)}</span></div>`
-  ).join('');
-  el('batchModalOverlay').hidden = false;
 }
 
-async function performBatchMove() {
-  const to = el('batchCategory').value;
-  const paths = [...state.batchSelected];
-  el('batchModalOverlay').hidden = true;
-  if (!paths.length) return;
-  let done = 0;
-  showToast(`Moving 0/${paths.length}\u2026`, true);
-  for (const path of paths) {
-    const asset = state.assets.find(a => a.canonical.path === path);
+function updateSortCopy() {
+  const n = state.sortRows.length;
+  const proposedCount = state.sortRows.filter(r => r.suggested).length;
+  const reviewCount = state.sortRows.filter(r => r.needsReview).length;
+  el('sortModalCopy').textContent =
+    `${n} photo${n === 1 ? '' : 's'} total — ${proposedCount} move${proposedCount === 1 ? '' : 's'} suggested, ${reviewCount} need${reviewCount === 1 ? 's' : ''} review. Filter, pick a phase, or assign per photo.`;
+}
+
+function openSortFlow() {
+  state.sortRows = buildSortRows();
+  el('sortFilter').value = '';
+  el('sortQty').innerHTML = phaseOptionsHtml();
+  renderSortList();
+  el('sortModalOverlay').hidden = false;
+}
+
+/* Bulk: assign the chosen phase (sortQty) to every photo currently visible
+   through the filter, then keep the list rendered with those targets. Rows it
+   applies to are checked too, so hitting "Move selected" moves exactly the
+   batch that was applied. */
+function applyPhaseToFiltered() {
+  const to = el('sortQty').value;
+  const q = el('sortFilter').value.trim().toLowerCase();
+  for (const r of state.sortRows) {
+    if (!q || r.name.toLowerCase().includes(q)) {
+      r.target = to;
+      r.checked = r.target !== r.from;
+    }
+  }
+  renderSortList();
+}
+
+async function performSortMoves() {
+  const rows = state.sortRows;
+  const targets = {};
+  el('sortPickList').querySelectorAll('select.sort-target').forEach(sel => {
+    targets[Number(sel.dataset.idx)] = sel.value;
+  });
+  const final = [];
+  el('sortPickList').querySelectorAll('input:checked').forEach(inp => {
+    const r = rows[Number(inp.dataset.idx)];
+    if (!r) return;
+    const to = targets[Number(inp.dataset.idx)] || r.from;
+    if (to !== r.from) final.push({ img: r.img, name: r.name, from: r.from, to });
+  });
+  el('sortModalOverlay').hidden = true;
+  if (!final.length) { state.sortRows = null; return; }
+
+  if (DEMO_MODE) {
+    // Demo parity: actually re-file in-memory (like delete/upload) rather than
+    // claiming a move that the empty live tree can't perform.
+    const count = (function () {
+      let n = 0;
+      for (const mv of final) {
+        for (const folder of state.order) {
+          const hit = (state.folders[folder] || []).findIndex(f => f.path === mv.img.path);
+          if (hit !== -1) state.folders[folder].splice(hit, 1);
+        }
+        const moved = { ...mv.img, path: `${CONFIG.imagesPath}/${mv.to}/${mv.name}`, folder: mv.to };
+        (state.folders[mv.to] = state.folders[mv.to] || []).push(moved);
+        n++;
+      }
+      return n;
+    })();
+    state.order = Object.keys(state.folders).sort((a, b) =>
+      (folderSequence(a) - folderSequence(b)) || a.localeCompare(b, 'en', { numeric: true })
+    );
+    state.sortRows = null;
+    render();
+    showToast(`Moved ${count} photo${count === 1 ? '' : 's'} (demo).`);
+    return;
+  }
+
+  let done = 0, failed = 0, collided = 0;
+  showToast(`Moving 0/${final.length}\u2026`, true);
+  for (const mv of final) {
+    const asset = state.assets.find(a => a.canonical.path === mv.img.path);
     const items = asset ? [asset.canonical, ...asset.variants] : [];
-    const from = items[0] ? items[0].path.split('/').slice(-2, -1)[0] : '';
-    if (!items.length || from === to) { done++; continue; }
+    // Pre-check every destination path (canonical + variants): moving onto an
+    // existing same-named file would 422 partway, leaving the asset split.
+    const collides = items.some(item =>
+      (state.folders[mv.to] || []).some(f => f.path === `${CONFIG.imagesPath}/${mv.to}/${item.name}`)
+    );
+    if (collides) {
+      collided++;
+      showToast(`Skipped ${mv.name} — ${mv.to} already contains a photo with that name.`, true);
+      done++;
+      showToast(`Moving ${done}/${final.length}\u2026`, true);
+      continue;
+    }
     try {
       for (const item of items) {
         const src = await githubFetch(
@@ -1131,20 +1185,23 @@ async function performBatchMove() {
         );
         if (!src.ok) throw new Error('could not read source blob');
         const content = (await src.json()).content;
-        await githubPut(`${CONFIG.imagesPath}/${to}/${item.name}`, content, `Sort ${item.name} into ${to} via gallery admin`);
-        await githubDelete(item.path, item.sha, `Sort ${item.name} out of ${from} via gallery admin`);
+        await githubPut(`${CONFIG.imagesPath}/${mv.to}/${item.name}`, content, `Sort ${item.name} into ${mv.to} via gallery admin`, { overwrite: false });
+        await githubDelete(item.path, item.sha, `Sort ${item.name} out of ${mv.from} via gallery admin`);
       }
     } catch (err) {
-      showToast(`Failed: ${path.split('/').pop()} — ${err.message}`);
+      failed++;
+      showToast(`Failed: ${mv.name} — ${err.message}`, true);
     }
     done++;
-    showToast(`Moving ${done}/${paths.length}\u2026`, true);
+    showToast(`Moving ${done}/${final.length}\u2026`, true);
   }
-  showToast(`Moved ${done} into ${to}.`);
-  state.batchSelect = false;
-  state.batchSelected.clear();
-  el('batchSelectBtn').textContent = 'Select photos to sort';
-  el('batchBar').hidden = true;
+  state.sortRows = null;
+  const moved = done - failed - collided;
+  if (failed || collided) {
+    showToast(`Moved ${moved} photo${moved === 1 ? '' : 's'}${failed ? ` (${failed} failed)` : ''}${collided ? ` (${collided} skipped — name already in target phase)` : ''}.`);
+  } else {
+    showToast(`Moved ${done} photo${done === 1 ? '' : 's'}.`);
+  }
   await loadTree(true);
 }
 
@@ -1174,12 +1231,35 @@ function contentsUrl(path) {
   return `https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/contents/${path.split('/').map(encodeURIComponent).join('/')}`;
 }
 
-async function githubPut(path, base64Content, message) {
-  const res = await githubFetch(contentsUrl(path), {
-    method: 'PUT',
-    headers: { Authorization: `Bearer ${state.token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ message, content: base64Content, branch: CONFIG.branch }),
-  });
+/* PUT a file. GitHub's Contents API requires the current file sha to UPDATE
+   an existing path (422 "sha wasn't supplied" otherwise), so unless the
+   caller opts out (overwrite:false — a "don't clobber" create), an
+   acknowledged success is re-fetched for its sha and the write is retried.
+   This is what makes gallery.json metadata edits work on a repo that already
+   has the file committed (e.g. via the classify modal or upload metadata). */
+async function githubPut(path, base64Content, message, opts = {}) {
+  const overwrite = opts.overwrite !== false;
+  async function attempt(sha) {
+    return githubFetch(contentsUrl(path), {
+      method: 'PUT',
+      headers: { Authorization: `Bearer ${state.token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message, content: base64Content, branch: CONFIG.branch, ...(sha ? { sha } : {}) }),
+    });
+  }
+  let res = await attempt();
+  if (!res.ok) {
+    const err0 = await res.json().catch(() => ({}));
+    const needsSha = /sha wasn't supplied|sha was supposed to be a string|"sha" wasn't supplied/i.test(err0.message || '');
+    if (needsSha && overwrite) {
+      const cur = await githubFetch(contentsUrl(path), {
+        headers: { Authorization: `Bearer ${state.token}` },
+      });
+      if (cur.ok) {
+        const data = await cur.json().catch(() => ({}));
+        if (data && data.sha) res = await attempt(data.sha);
+      }
+    }
+  }
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.message || `Upload failed (${res.status})`);

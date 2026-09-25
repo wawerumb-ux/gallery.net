@@ -39,8 +39,7 @@
         <input type="text" id="newFolderName" placeholder="folder-name" class="text-input">
         <input type="file" id="newFolderFiles" multiple accept="image/*" hidden>
         <button class="btn btn-ghost" id="newFolderBtn">+ Create with photos</button>
-        <button class="btn btn-ghost" id="sortPhotosBtn">Sort photos into phases</button>
-        <button class="btn btn-ghost" id="batchSelectBtn">Select photos to sort</button>
+        <button class="btn btn-ghost" id="sortPhotosBtn">Sort photos</button>
       </div>
     </nav>
 
@@ -93,36 +92,20 @@
 </div>
 
 <div class="modal-overlay" id="sortModalOverlay" hidden>
-  <div class="modal modal-wide" role="dialog" aria-modal="true" aria-labelledby="sortModalTitle">
-    <h2 id="sortModalTitle">Sort photos into phases</h2>
+  <div class="modal modal-wide sort-modal" role="dialog" aria-modal="true" aria-labelledby="sortModalTitle">
+    <h2 id="sortModalTitle">Sort photos</h2>
     <p class="modal-copy" id="sortModalCopy"></p>
-    <div class="pick-list" id="sortPickList"></div>
-    <div class="pick-list pick-list-sub" id="sortReviewList"></div>
+    <div class="sort-toolbar">
+      <input type="search" id="sortFilter" class="text-input" placeholder="Filter by filename…">
+      <select id="sortQty" class="text-input"></select>
+      <button class="btn btn-ghost btn-sm" id="sortQuickBtn">Apply to all filtered</button>
+    </div>
+    <div class="pick-list sort-list" id="sortPickList"></div>
     <div class="modal-actions">
       <button class="btn btn-ghost" id="sortCancel">Cancel</button>
       <button class="btn btn-primary" id="sortConfirm">Move selected</button>
     </div>
   </div>
-</div>
-
-<div class="modal-overlay" id="batchModalOverlay" hidden>
-  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="batchModalTitle">
-    <h2 id="batchModalTitle">Sort selected photos</h2>
-    <p class="modal-copy" id="batchModalCopy"></p>
-    <label class="tag-field" for="batchCategory">Move all selected into</label>
-    <select id="batchCategory" class="text-input"></select>
-    <div class="pick-list" id="batchPickList"></div>
-    <div class="modal-actions">
-      <button class="btn btn-ghost" id="batchCancel">Cancel</button>
-      <button class="btn btn-primary" id="batchConfirm">Move photos</button>
-    </div>
-  </div>
-</div>
-
-<div class="batch-bar" id="batchBar" hidden>
-  <span class="batch-count" id="batchCount">0 selected</span>
-  <button class="btn btn-ghost btn-sm" id="batchClearBtn">Clear</button>
-  <button class="btn btn-primary btn-sm" id="batchSortBtn" disabled>Sort selected</button>
 </div>
 
 <div class="modal-overlay" id="tagModalOverlay" hidden>
