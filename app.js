@@ -799,6 +799,13 @@ function wireStaticEvents() {
   el('batchClearBtn').addEventListener('click', () => { state.batchSelected.clear(); updateBatchBar(); render(); });
   el('batchSortBtn').addEventListener('click', openCategoryModal);
 
+  el('settingsBtn').addEventListener('click', openSettingsModal);
+  el('settingsCancel').addEventListener('click', () => { el('settingsModalOverlay').hidden = true; });
+  el('settingsModalOverlay').addEventListener('click', e => { if (e.target.id === 'settingsModalOverlay') el('settingsModalOverlay').hidden = true; });
+  el('settingsPhase').addEventListener('change', () => { el('settingsPhaseRename').value = el('settingsPhase').value; });
+  el('settingsRenameBtn').addEventListener('click', renamePhase);
+  el('settingsRemoveBtn').addEventListener('click', removePhase);
+
   el('uploadCancel').addEventListener('click', () => { el('uploadModalOverlay').hidden = true; state.pendingUploads = null; });
   el('uploadConfirm').addEventListener('click', performUploads);
   el('uploadModalOverlay').addEventListener('click', e => {
@@ -877,6 +884,7 @@ function signOut() {
 
 function updateAdminUI() {
   el('adminToggle').textContent = state.adminMode ? 'Sign out' : 'Admin';
+  el('settingsBtn').hidden = !state.adminMode;
   el('newFolderPanel').hidden = !state.adminMode;
   el('sortPhotosBtn').hidden = !state.adminMode;
 }
@@ -1156,6 +1164,129 @@ async function performBatchMove() {
   showToast(failed || collided
     ? `Moved ${moved} photo${moved === 1 ? '' : 's'} into ${to}${failed ? ` (${failed} failed)` : ''}${collided ? ` (${collided} skipped — name already there)` : ''}.`
     : `Moved ${done} photo${done === 1 ? '' : 's'} into ${to}.`);
+  await loadTree(true);
+}
+
+/* ── Admin → Phase settings (gear icon): rename or remove a whole phase.
+   Both operate on every photo in the category — canonical + its committed
+   variants — and both keep gallery.json metadata in sync. ── */
+
+function openSettingsModal() {
+  const options = availableCategories().map(folder => {
+    const j = journeyFor(folder);
+    const label = j ? `${j.stage}${folder !== j.stage ? ` (${folder})` : ''}` : folder;
+    return `<option value="${escapeAttr(folder)}">${escapeHtml(label)}</option>`;
+  }).join('');
+  el('settingsPhase').innerHTML = options;
+  el('settingsPhaseRename').value = '';
+  el('settingsModalOverlay').hidden = false;
+  el('settingsPhase').focus();
+}
+
+async function renamePhase() {
+  const from = el('settingsPhase').value;
+  const to = normalizeCategory(el('settingsPhaseRename').value);
+  if (!from) return showToast('Pick a phase first.');
+  if (!to) return showToast('Type a new name for the phase.');
+  if (to === from) return showToast('New name matches the current phase.');
+  if (availableCategories().includes(to)) return showToast(`A phase named "${to}" already exists.`);
+  const photos = (state.folders[from] || []).length;
+  if (!photos) return showToast(`Nothing to rename in "${from}".`);
+  el('settingsModalOverlay').hidden = true;
+
+  const oldPrefix = `${CONFIG.imagesPath}/${from}/`;
+
+  if (DEMO_MODE) {
+    state.folders[to] = state.folders[from].map(f => ({ ...f, folder: to, path: `${CONFIG.imagesPath}/${to}/${f.name}` }));
+    delete state.folders[from];
+    const md = Object.keys(state.metadata);
+    for (const key of md) if (key.startsWith(oldPrefix)) {
+      state.metadata[`${CONFIG.imagesPath}/${to}/${key.slice(oldPrefix.length)}`] = state.metadata[key];
+      delete state.metadata[key];
+    }
+    state.order = Object.keys(state.folders).sort((a, b) =>
+      (folderSequence(a) - folderSequence(b)) || a.localeCompare(b, 'en', { numeric: true })
+    );
+    render();
+    showToast(`Renamed "${from}" to "${to}" (demo).`);
+    return;
+  }
+
+  const affected = state.assets.filter(a => a.folder === from);
+  let done = 0, failed = 0;
+  showToast(`Renaming 0/${affected.length}\u2026`, true);
+  for (const asset of affected) {
+    try {
+      for (const item of [asset.canonical, ...asset.variants]) {
+        const src = await githubFetch(`https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/git/blobs/${item.sha}`, { headers: { Authorization: `Bearer ${state.token}` } });
+        if (!src.ok) throw new Error('could not read source blob');
+        const content = (await src.json()).content;
+        await githubPut(`${CONFIG.imagesPath}/${to}/${item.name}`, content, `Rename phase ${from} → ${to} via gallery admin`, { overwrite: false });
+        await githubDelete(item.path, item.sha, `Rename phase ${from} → ${to} via gallery admin`);
+      }
+    } catch (err) {
+      failed++;
+      showToast(`Failed: ${asset.canonical.name} — ${err.message}`, true);
+    }
+    done++;
+    showToast(`Renaming ${done}/${affected.length}\u2026`, true);
+  }
+  // Remap metadata keys from the old folder to the new one, then persist.
+  const md = Object.keys(state.metadata);
+  for (const key of md) if (key.startsWith(oldPrefix)) {
+    state.metadata[`${CONFIG.imagesPath}/${to}/${key.slice(oldPrefix.length)}`] = state.metadata[key];
+    delete state.metadata[key];
+  }
+  try {
+    await persistMetadata();
+  } catch (err) {
+    showToast(`Photos renamed, but metadata not saved: ${err.message}`);
+  }
+  showToast(failed ? `Renamed "${from}" to "${to}" (${failed} failed).` : `Renamed "${from}" to "${to}".`);
+  await loadTree(true);
+}
+
+async function removePhase() {
+  const folder = el('settingsPhase').value;
+  if (!folder) return showToast('Pick a phase first.');
+  const photos = (state.folders[folder] || []).length;
+  if (!photos) return showToast(`"${folder}" is empty — nothing to remove.`);
+  if (!confirm(`Remove phase "${folder}" and delete all ${photos} photo${photos === 1 ? '' : 's'} inside it? This can't be undone from here.`)) return;
+  el('settingsModalOverlay').hidden = true;
+
+  const prefix = `${CONFIG.imagesPath}/${folder}/`;
+
+  if (DEMO_MODE) {
+    for (const key of Object.keys(state.metadata)) if (key.startsWith(prefix)) delete state.metadata[key];
+    delete state.folders[folder];
+    state.order = Object.keys(state.folders).sort((a, b) =>
+      (folderSequence(a) - folderSequence(b)) || a.localeCompare(b, 'en', { numeric: true })
+    );
+    render();
+    showToast(`Removed phase "${folder}" (demo).`);
+    return;
+  }
+
+  const affected = state.assets.filter(a => a.folder === folder);
+  let failed = 0;
+  showToast(`Removing 0/${affected.length} photo${affected.length === 1 ? '' : 's'}\u2026`, true);
+  for (const asset of affected) {
+    for (const item of [asset.canonical, ...asset.variants]) {
+      try {
+        await githubDelete(item.path, item.sha, `Remove phase ${folder} via gallery admin`);
+      } catch (err) {
+        failed++;
+        showToast(`Failed: ${item.name} — ${err.message}`, true);
+      }
+    }
+  }
+  for (const key of Object.keys(state.metadata)) if (key.startsWith(prefix)) delete state.metadata[key];
+  try {
+    await persistMetadata();
+  } catch (err) {
+    showToast(`Photos removed, but metadata not saved: ${err.message}`);
+  }
+  showToast(failed ? `Removed phase "${folder}" (${failed} files failed).` : `Removed phase "${folder}".`);
   await loadTree(true);
 }
 

@@ -105,7 +105,10 @@ code{font-family:var(--font-mono);background:var(--panel-raised);padding:.1em .4
 .btn-primary:disabled{opacity:.6;cursor:default;}
 .btn-ghost{background:none;border-color:var(--border);color:var(--text-dim);width:100%;}
 .btn-ghost:hover{border-color:var(--copper);color:var(--copper);}
+.btn-danger{background:none;border-color:var(--danger);color:var(--danger);width:auto;}
+.btn-danger:hover{background:var(--danger);color:#fff;}
 .btn-sm{width:auto;padding:5px 10px;font-size:12px;}
+.icon-btn{font-size:15px;line-height:1;padding:6px 9px;}
 
 /* Main / gallery */
 .main{flex:1;padding:28px 32px 80px;min-width:0;}

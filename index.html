@@ -25,6 +25,7 @@
       </span>
     </div>
     <div class="header-right">
+      <button class="admin-link icon-btn" id="settingsBtn" hidden aria-label="Phase settings" title="Phase settings">⚙</button>
       <button class="admin-link" id="adminToggle">Admin</button>
     </div>
     <div class="trace-line" id="traceLine"></div>
@@ -104,6 +105,23 @@
       <button class="btn btn-ghost" id="sortCancel">Cancel</button>
       <button class="btn btn-primary" id="sortConfirm">Move photos</button>
     </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="settingsModalOverlay" hidden>
+  <div class="modal modal-wide" role="dialog" aria-modal="true" aria-labelledby="settingsModalTitle">
+    <h2 id="settingsModalTitle">Phase settings</h2>
+    <p class="modal-copy" id="settingsCopy">Rename a phase, or remove it (every photo inside is deleted).</p>
+    <label class="tag-field" for="settingsPhase">Phase</label>
+    <select id="settingsPhase" class="text-input"></select>
+    <label class="tag-field" for="settingsPhaseRename">Rename to</label>
+    <input type="text" id="settingsPhaseRename" class="text-input" placeholder="new-folder-name" autocomplete="off">
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="settingsRenameBtn">Rename</button>
+      <button class="btn btn-danger" id="settingsRemoveBtn">Remove phase</button>
+      <button class="btn btn-ghost" id="settingsCancel">Cancel</button>
+    </div>
+    <p class="modal-note">Removing a phase deletes it and all of its photos from the repo.</p>
   </div>
 </div>
 
