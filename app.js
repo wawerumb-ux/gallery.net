@@ -700,6 +700,7 @@ function renderSidebar() {
   `).join('');
   el('phaseList').querySelectorAll('.phase-btn').forEach(btn => {
     btn.addEventListener('click', () => {
+      pushSectionScroll();
       el(`section-${cssSafe(btn.dataset.folder)}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
   });
@@ -882,6 +883,64 @@ function animateCount(node, target) {
   })(start);
 }
 
+/* ── Browser back: overlays & section jumps ─────────────────────
+   Opening the lightbox or a modal — or clicking a phase in the
+   sidebar — pushes a history entry, so the back button (and the
+   mobile back gesture / edge swipe) returns to what was visible
+   before instead of leaving the site. Explicit closes unwind their
+   entry; the popstate listener does the actual hiding so the DOM
+   and the URL history always agree. Direct closing is the file://
+   fallback, where pushState is unreliable. */
+const overlayRegistry = {};
+const overlayStack = [];
+let suppressPopstate = false;
+
+function overlayPush(id, closeFn) {
+  overlayRegistry[id] = closeFn;
+  if (location.protocol === 'file:') return;
+  try {
+    history.pushState({ 'gallery-overlay': id }, '');
+    overlayStack.push(id);
+  } catch (_) {}
+}
+
+function overlayHide(id) {
+  const fn = overlayRegistry[id];
+  if (fn) fn();
+}
+
+function overlayClose(id) {
+  overlayHide(id);
+  const i = overlayStack.lastIndexOf(id);
+  if (i !== -1) {
+    overlayStack.splice(i, 1);
+    if (location.protocol !== 'file:') {
+      suppressPopstate = true;
+      try { history.go(-1); } catch (_) {}
+    }
+  }
+}
+
+function pushSectionScroll() {
+  if (location.protocol === 'file:') return;
+  try { history.pushState({ phaseScroll: { y: window.scrollY } }, ''); } catch (_) {}
+}
+
+window.addEventListener('popstate', (e) => {
+  if (suppressPopstate) { suppressPopstate = false; return; }
+  const id = overlayStack.pop();
+  if (id) return overlayHide(id);
+  const s = e.state;
+  if (s && s.phaseScroll) window.scrollTo(0, s.phaseScroll.y);
+});
+
+/* Overlay close routines (shared by the X/Esc/outside handlers and the
+   back-button popstate path, so both run identical cleanup). */
+function closeUploadModal() { el('uploadModalOverlay').hidden = true; state.pendingUploads = null; }
+function closeSortModal() { el('sortModalOverlay').hidden = true; }
+function closeSettingsModal() { el('settingsModalOverlay').hidden = true; }
+function closeTagModal() { el('tagModalOverlay').hidden = true; state.taggingPath = null; }
+
 /* ── Admin: sign in / out ─────────────────────────────────────── */
 
 function wireStaticEvents() {
@@ -892,13 +951,13 @@ function wireStaticEvents() {
   el('adminSearchFilter').addEventListener('change', applyAdminFilter);
   el('adminToggle').addEventListener('click', () => {
     if (state.adminMode) signOut();
-    else { el('adminModalOverlay').hidden = false; el('tokenInput').focus(); }
+    else { overlayPush('adminModalOverlay', closeModal); el('adminModalOverlay').hidden = false; el('tokenInput').focus(); }
   });
   el('toastClose').addEventListener('click', () => { el('toast').hidden = true; });
-  el('tokenCancel').addEventListener('click', closeModal);
+  el('tokenCancel').addEventListener('click', () => overlayClose('adminModalOverlay'));
   el('tokenSubmit').addEventListener('click', trySignIn);
   el('tokenInput').addEventListener('keydown', e => { if (e.key === 'Enter') trySignIn(); });
-  el('adminModalOverlay').addEventListener('click', e => { if (e.target.id === 'adminModalOverlay') closeModal(); });
+  el('adminModalOverlay').addEventListener('click', e => { if (e.target.id === 'adminModalOverlay') overlayClose('adminModalOverlay'); });
 
   el('newFolderBtn').addEventListener('click', () => {
     const name = sanitizeFilename(el('newFolderName').value).toLowerCase();
@@ -911,42 +970,42 @@ function wireStaticEvents() {
   });
 
   el('sortPhotosBtn').addEventListener('click', () => { if (state.adminMode) toggleBatchSelectMode(); });
-  el('sortCancel').addEventListener('click', () => { el('sortModalOverlay').hidden = true; });
+  el('sortCancel').addEventListener('click', () => overlayClose('sortModalOverlay'));
   el('sortConfirm').addEventListener('click', performBatchMove);
-  el('sortModalOverlay').addEventListener('click', e => { if (e.target.id === 'sortModalOverlay') el('sortModalOverlay').hidden = true; });
+  el('sortModalOverlay').addEventListener('click', e => { if (e.target.id === 'sortModalOverlay') overlayClose('sortModalOverlay'); });
   el('categoryInput').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); performBatchMove(); } });
   el('batchClearBtn').addEventListener('click', () => { state.batchSelected.clear(); updateBatchBar(); render(); });
   el('batchSortBtn').addEventListener('click', openCategoryModal);
 
   el('settingsBtn').addEventListener('click', openSettingsModal);
-  el('settingsCancel').addEventListener('click', () => { el('settingsModalOverlay').hidden = true; });
-  el('settingsModalOverlay').addEventListener('click', e => { if (e.target.id === 'settingsModalOverlay') el('settingsModalOverlay').hidden = true; });
+  el('settingsCancel').addEventListener('click', () => overlayClose('settingsModalOverlay'));
+  el('settingsModalOverlay').addEventListener('click', e => { if (e.target.id === 'settingsModalOverlay') overlayClose('settingsModalOverlay'); });
   el('settingsPhase').addEventListener('change', () => { el('settingsPhaseRename').value = el('settingsPhase').value; });
   el('settingsRenameBtn').addEventListener('click', renamePhase);
   el('settingsRemoveBtn').addEventListener('click', removePhase);
   el('settingsUndoBtn').addEventListener('click', undoLastChange);
   el('settingsRevertBtn').addEventListener('click', revertAllChanges);
 
-  el('uploadCancel').addEventListener('click', () => { el('uploadModalOverlay').hidden = true; state.pendingUploads = null; });
+  el('uploadCancel').addEventListener('click', () => overlayClose('uploadModalOverlay'));
   el('uploadConfirm').addEventListener('click', performUploads);
   el('uploadModalOverlay').addEventListener('click', e => {
-    if (e.target.id === 'uploadModalOverlay') { el('uploadModalOverlay').hidden = true; state.pendingUploads = null; }
+    if (e.target.id === 'uploadModalOverlay') overlayClose('uploadModalOverlay');
   });
 
-  el('tagCancel').addEventListener('click', () => { el('tagModalOverlay').hidden = true; state.taggingPath = null; });
+  el('tagCancel').addEventListener('click', () => overlayClose('tagModalOverlay'));
   el('tagSave').addEventListener('click', saveTagModal);
   el('tagModalOverlay').addEventListener('click', e => {
-    if (e.target.id === 'tagModalOverlay') { el('tagModalOverlay').hidden = true; state.taggingPath = null; }
+    if (e.target.id === 'tagModalOverlay') overlayClose('tagModalOverlay');
   });
 
-  el('lightboxClose').addEventListener('click', closeLightbox);
+  el('lightboxClose').addEventListener('click', () => overlayClose('lightbox'));
   el('lightboxPrev').addEventListener('click', () => lightboxStep(-1));
   el('lightboxNext').addEventListener('click', () => lightboxStep(1));
   el('lightboxDownload').addEventListener('click', downloadFromLightbox);
-  el('lightbox').addEventListener('click', e => { if (e.target.id === 'lightbox') closeLightbox(); });
+  el('lightbox').addEventListener('click', e => { if (e.target.id === 'lightbox') overlayClose('lightbox'); });
   document.addEventListener('keydown', e => {
     if (el('lightbox').hidden) return;
-    if (e.key === 'Escape') closeLightbox();
+    if (e.key === 'Escape') overlayClose('lightbox');
     if (e.key === 'ArrowLeft') lightboxStep(-1);
     if (e.key === 'ArrowRight') lightboxStep(1);
     if (e.key === 'd' || e.key === 'D') downloadFromLightbox();
@@ -959,7 +1018,7 @@ async function trySignIn() {
   if (DEMO_MODE) {
     state.token = 'demo';
     state.adminMode = true;
-    closeModal();
+    overlayClose('adminModalOverlay');
     updateAdminUI();
     render();
     showToast('Demo admin session — nothing leaves this browser tab.');
@@ -978,7 +1037,7 @@ async function trySignIn() {
     state.adminMode = true;
     sessionStorage.setItem(TOKEN_KEY, token);
     console.warn('GitHub PAT stored in sessionStorage — do not share screenshots of this console.');
-    closeModal();
+    overlayClose('adminModalOverlay');
     updateAdminUI();
     await loadMetadata(true);
     await loadTree(true);
@@ -1045,6 +1104,7 @@ function openUploadConfirm(fileList, contextFolder) {
     </div>`;
   }).join('');
   el('uploadConfirm').textContent = `Upload ${state.pendingUploads.files.length}`;
+  overlayPush('uploadModalOverlay', closeUploadModal);
   el('uploadModalOverlay').hidden = false;
 }
 
@@ -1055,8 +1115,7 @@ async function performUploads() {
     const folder = sel ? sel.value : (state.pendingUploads.context || 'General');
     (groups[folder] = groups[folder] || []).push(file);
   });
-  el('uploadModalOverlay').hidden = true;
-  state.pendingUploads = null;
+  overlayClose('uploadModalOverlay');
 
   let total = Object.values(groups).reduce((a, g) => a + g.length, 0);
   let done = 0, skipped = 0, failed = 0;
@@ -1143,6 +1202,7 @@ function openTagModal(path, pretty) {
   ).join('');
   el('tagActivity').value = (md && md.activity) || '';
   el('tagRename').value = path.split('/').pop();
+  overlayPush('tagModalOverlay', closeTagModal);
   el('tagModalOverlay').hidden = false;
 }
 
@@ -1205,8 +1265,7 @@ async function saveTagModal() {
   const newName = el('tagRename').value.trim();
   if (phase || activity) state.metadata[path] = { phase, activity };
   else delete state.metadata[path];
-  el('tagModalOverlay').hidden = true;
-  state.taggingPath = null;
+  overlayClose('tagModalOverlay');
 
   let renamedLive = false;
   let renameMsg = '';
@@ -1304,6 +1363,7 @@ function openCategoryModal() {
   el('sortPickList').innerHTML = [...state.batchSelected].map(path =>
     `<div class="pick-row"><span class="pick-name" title="${escapeAttr(path)}">${escapeHtml(path)}</span></div>`
   ).join('');
+  overlayPush('sortModalOverlay', closeSortModal);
   el('sortModalOverlay').hidden = false;
   el('categoryInput').focus();
 }
@@ -1312,7 +1372,7 @@ async function performBatchMove() {
   const to = resolveTarget(el('categoryInput').value);
   const paths = [...state.batchSelected];
   if (!to) { showToast('Type or pick a category first.'); return; }
-  el('sortModalOverlay').hidden = true;
+  overlayClose('sortModalOverlay');
   if (!paths.length) { exitBatchSelect(); render(); return; }
 
   if (DEMO_MODE) {
@@ -1384,6 +1444,7 @@ function openSettingsModal() {
   }).join('');
   el('settingsPhase').innerHTML = options;
   el('settingsPhaseRename').value = '';
+  overlayPush('settingsModalOverlay', closeSettingsModal);
   el('settingsModalOverlay').hidden = false;
   el('settingsPhase').focus();
 }
@@ -1397,7 +1458,7 @@ async function renamePhase() {
   if (availableCategories().includes(to)) return showToast(`A phase named "${to}" already exists.`);
   const photos = (state.folders[from] || []).length;
   if (!photos) return showToast(`Nothing to rename in "${from}".`);
-  el('settingsModalOverlay').hidden = true;
+  overlayClose('settingsModalOverlay');
 
   const oldPrefix = `${CONFIG.imagesPath}/${from}/`;
 
@@ -1457,7 +1518,7 @@ async function removePhase() {
   const photos = (state.folders[folder] || []).length;
   if (!photos) return showToast(`"${folder}" is empty — nothing to remove.`);
   if (!confirm(`Remove phase "${folder}" and delete all ${photos} photo${photos === 1 ? '' : 's'} inside it? This can't be undone from here.`)) return;
-  el('settingsModalOverlay').hidden = true;
+  overlayClose('settingsModalOverlay');
 
   const prefix = `${CONFIG.imagesPath}/${folder}/`;
 
@@ -1730,6 +1791,7 @@ function openLightbox(folder, index, startSrc) {
   state.lightboxIndex = index;
   state.lightboxStartSrc = startSrc || null;
   updateLightbox();
+  overlayPush('lightbox', closeLightbox);
   el('lightbox').hidden = false;
 }
 function updateLightbox() {
