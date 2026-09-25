@@ -55,6 +55,7 @@ function loadAppPure() {
     globalThis.__X = { journeyFor, classifyPhoto, buildAssets, discoverFromTree,
       setAssets, summarizeDuplicates, normalizeCategory, rawUrl, pageUrl, imgSrc, cardSrc,
       lightboxSrc, thumbSrc, prettyName, sanitizeFilename,
+      isAdminCommit, scopeEntries, planRestore,
       setDPR: (v) => { devicePixelRatio = v; } };
   `;
   vm.runInContext(code + expose, ctx, { filename: 'app.js' });
@@ -231,4 +232,49 @@ describe('D8 — category combobox normalization', () => {
     assert.equal(G.normalizeCategory('   '), '', 'blank stays blank (never a new category)');
     assert.equal(G.normalizeCategory('...'), '', 'punctuation-only stays blank');
   });
+
+/* ── D9 · history undo/revert helpers: recognising admin commits, scoping a
+   tree to the images/ + gallery.json paths, and diffing two trees into a
+   restore plan (files to re-create vs files to delete) ── */
+describe('D9 — undo/revert history helpers', () => {
+  test('isAdminCommit recognises commits made from the gallery', () => {
+    if (!G || !G.isAdminCommit) return test.skip();
+    assert.equal(G.isAdminCommit({ commit: { message: 'Sort a.jpg into rack-build via gallery admin' } }), true);
+    assert.equal(G.isAdminCommit({ commit: { message: 'Rename phase rack-build → data via gallery admin' } }), true);
+    assert.equal(G.isAdminCommit({ commit: { message: 'init gallery' } }), false);
+    assert.equal(G.isAdminCommit(null), false);
+    assert.equal(G.isAdminCommit({}), false);
+  });
+
+  test('scopeEntries keeps only images/ blobs plus gallery.json', () => {
+    if (!G || !G.scopeEntries) return test.skip();
+    const tree = [
+      { path: 'index.html', type: 'blob', sha: 's1' },
+      { path: 'images/rack-build/a.jpg', type: 'blob', sha: 's2' },
+      { path: 'images/rack-build', type: 'tree', sha: 't1' },
+      { path: 'gallery.json', type: 'blob', sha: 's3' },
+      { path: 'images/root.png', type: 'blob', sha: 's4' },
+    ];
+    const map = G.scopeEntries(tree, 'images');
+    assert.deepEqual(Object.keys(map).sort(), ['gallery.json', 'images/rack-build/a.jpg', 'images/root.png']);
+    assert.equal(map['images/rack-build/a.jpg'], 's2');
+  });
+
+  test('planRestore recreates missing/changed files and deletes added ones', () => {
+    if (!G || !G.planRestore) return test.skip();
+    const js = (p, s) => ({ [p]: s });
+    const plan = G.planRestore(
+      { ...js('images/a.jpg', 'new'), ...js('images/gen.jpg', 'x'), 'gallery.json': 'gm' }, // current state
+      { ...js('images/a.jpg', 'orig'), 'gallery.json': 'gOrig' }                             // target snapshot
+    );
+    assert.deepEqual(
+      [...plan.put.map(({ path, sha }) => `${path}@${sha}`)].sort(),
+      ['gallery.json@gOrig', 'images/a.jpg@orig']
+    );
+    assert.deepEqual(
+      [...plan.remove.map(({ path, sha }) => `${path}@${sha}`)],
+      ['images/gen.jpg@x']
+    );
+  });
+});
 });

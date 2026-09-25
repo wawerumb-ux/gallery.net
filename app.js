@@ -805,6 +805,8 @@ function wireStaticEvents() {
   el('settingsPhase').addEventListener('change', () => { el('settingsPhaseRename').value = el('settingsPhase').value; });
   el('settingsRenameBtn').addEventListener('click', renamePhase);
   el('settingsRemoveBtn').addEventListener('click', removePhase);
+  el('settingsUndoBtn').addEventListener('click', undoLastChange);
+  el('settingsRevertBtn').addEventListener('click', revertAllChanges);
 
   el('uploadCancel').addEventListener('click', () => { el('uploadModalOverlay').hidden = true; state.pendingUploads = null; });
   el('uploadConfirm').addEventListener('click', performUploads);
@@ -1288,6 +1290,144 @@ async function removePhase() {
   }
   showToast(failed ? `Removed phase "${folder}" (${failed} files failed).` : `Removed phase "${folder}".`);
   await loadTree(true);
+}
+
+/* ── Admin → Phase settings · history undo/revert.
+   Every admin action lands as a commit whose message ends with
+   "via gallery admin". Undo diffs the tree against the PARENT of the
+   newest admin commit (the state just before that action) and rewinds
+   only the images/ folder and gallery.json. Revert all diffs against
+   the parent of the OLDEST admin commit — the original seed state the
+   gallery started from. ── */
+
+const ADMIN_MARKER = 'via gallery admin';
+
+function isAdminCommit(rawCommit) {
+  const msg = ((rawCommit && (rawCommit.commit || rawCommit).message) || '').trim();
+  return msg.includes(ADMIN_MARKER);
+}
+
+function scopeEntries(entries, imagesPath) {
+  const map = {};
+  for (const ent of entries || []) {
+    if (ent.type !== 'blob') continue;
+    if (ent.path === 'gallery.json' || ent.path.startsWith(`${imagesPath}/`)) map[ent.path] = ent.sha;
+  }
+  return map;
+}
+
+function planRestore(currentMap, targetMap) {
+  const cur = currentMap || {};
+  const tgt = targetMap || {};
+  const put = [], remove = [];
+  for (const path of Object.keys(tgt).sort()) {
+    if (cur[path] !== tgt[path]) put.push({ path, sha: tgt[path] });
+  }
+  for (const path of Object.keys(cur).sort()) {
+    if (!(path in tgt)) remove.push({ path, sha: cur[path] });
+  }
+  return { put, remove };
+}
+
+async function headCommit() {
+  const res = await githubFetch(
+    `https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/commits/${CONFIG.branch}`,
+    { headers: { Authorization: `Bearer ${state.token}` } }
+  );
+  if (!res.ok) throw new Error(((await res.json().catch(() => ({}))).message) || `Could not read ${CONFIG.branch}.`);
+  return res.json();
+}
+
+async function commitLog() {
+  const all = [];
+  for (let page = 1; page <= 20; page++) {
+    const res = await githubFetch(
+      `https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/commits?sha=${CONFIG.branch}&per_page=100&page=${page}`,
+      { headers: { Authorization: `Bearer ${state.token}` } }
+    );
+    if (!res.ok) throw new Error('Could not read commit history.');
+    const pageData = await res.json();
+    all.push(...pageData);
+    if (pageData.length < 100) break;
+  }
+  return all;
+}
+
+async function treePathMap(commitSha) {
+  const res = await githubFetch(
+    `https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/git/trees/${commitSha}?recursive=1`,
+    { headers: { Authorization: `Bearer ${state.token}` } }
+  );
+  if (!res.ok) throw new Error('Could not read the source tree.');
+  const data = await res.json();
+  return scopeEntries(data.tree, CONFIG.imagesPath);
+}
+
+async function applyRestore(plan, label) {
+  const total = plan.put.length + plan.remove.length;
+  if (!total) return showToast('Nothing to change — that state is already back.');
+  let done = 0, failed = 0;
+  const headers = { Authorization: `Bearer ${state.token}` };
+  showToast(`Reverting 0/${total}…`, true);
+  for (const { path, sha } of plan.put) {
+    try {
+      const blob = await githubFetch(`https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/git/blobs/${sha}`, { headers });
+      if (!blob.ok) throw new Error('could not read file');
+      const content = (await blob.json()).content;
+      await githubPut(path, content, `${label} ${ADMIN_MARKER}`, { overwrite: true });
+    } catch (err) {
+      failed++;
+      showToast(`Failed: ${path} — ${err.message}`, true);
+    }
+    showToast(`Reverting ${++done}/${total}…`, true);
+  }
+  for (const { path, sha } of plan.remove) {
+    try {
+      await githubDelete(path, sha, `${label} ${ADMIN_MARKER}`);
+    } catch (err) {
+      failed++;
+      showToast(`Failed: ${path} — ${err.message}`, true);
+    }
+    showToast(`Reverting ${++done}/${total}…`, true);
+  }
+  showToast(failed ? `${label} done (${failed} failed).` : `${label} done.`);
+  await loadTree(true);
+}
+
+async function undoLastChange() {
+  if (DEMO_MODE) return showToast('Undo steps back a real commit — it only works on the live gallery.');
+  try {
+    const head = await headCommit();
+    if (!isAdminCommit(head)) return showToast('The last change was not made from the gallery — nothing to undo.');
+    const parent = head.parents && head.parents[0];
+    if (!parent) return showToast('There is no earlier commit to undo to.');
+    const cur = await treePathMap(head.sha);
+    const tgt = await treePathMap(parent.sha);
+    await applyRestore(planRestore(cur, tgt), 'Undo');
+  } catch (err) {
+    showToast(`Could not undo: ${err.message}`);
+  }
+}
+
+async function revertAllChanges() {
+  if (DEMO_MODE) return showToast('Revert all restores the real repo — it only works on the live gallery.');
+  try {
+    const log = await commitLog();
+    let oldestAdmin = -1;
+    for (let i = 0; i < log.length; i++) if (isAdminCommit(log[i])) oldestAdmin = i;
+    if (oldestAdmin === -1) return showToast('Nothing was changed from the gallery yet — nothing to revert.');
+    const baseline = log[oldestAdmin].parents && log[oldestAdmin].parents[0];
+    if (!baseline) return showToast('Could not find the original gallery state.');
+    if (!confirm(
+      `Return every photo and phase to the original gallery state (commit ${baseline.sha.slice(0, 8)})?\n` +
+      'All admin sorts, renames and removals are undone in one step.'
+    )) return;
+    const cur = await treePathMap(log[0].sha);
+    const tgt = await treePathMap(baseline.sha);
+    await applyRestore(planRestore(cur, tgt), 'Revert all');
+  } catch (err) {
+    showToast(`Could not revert all: ${err.message}`);
+  }
 }
 
 async function deleteImage(path, sha, prettyLabel) {
