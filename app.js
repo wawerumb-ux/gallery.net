@@ -1017,21 +1017,99 @@ function openTagModal(path, pretty) {
     `<option value="${escapeAttr(s)}" ${s === ((md && md.phase) || '') ? 'selected' : ''}>${escapeHtml(s || '— auto —')}</option>`
   ).join('');
   el('tagActivity').value = (md && md.activity) || '';
+  el('tagRename').value = path.split('/').pop();
   el('tagModalOverlay').hidden = false;
+}
+
+function renameDerivedName(itemName, canonicalName, newCanonicalName) {
+  const suffix = itemName.slice(basenameStem(canonicalName).length);
+  return basenameStem(newCanonicalName) + suffix;
+}
+
+async function renamePhoto(path, newName) {
+  const safe = sanitizeFilename(newName);
+  const oldName = sanitizeFilename(path.split('/').pop());
+  if (!safe) return { ok: false, error: 'the new name is empty after clean-up' };
+  if (safe === oldName) return { ok: false, error: 'same name' };
+  const folder = path.split('/').slice(-2, -1)[0];
+  const targetPath = `${CONFIG.imagesPath}/${folder}/${safe}`;
+  if ((state.folders[folder] || []).some(f => f.path === targetPath)) return { ok: false, error: `"${safe}" already exists in ${folder}` };
+
+  if (DEMO_MODE) {
+    const idx = (state.folders[folder] || []).findIndex(f => f.path === path);
+    if (idx === -1) return { ok: false, error: 'photo not found' };
+    state.folders[folder][idx] = { ...state.folders[folder][idx], name: safe, path: targetPath };
+    if (state.metadata[path] !== undefined) {
+      state.metadata[targetPath] = state.metadata[path];
+      delete state.metadata[path];
+    }
+    return { ok: true };
+  }
+
+  const asset = state.assets.find(a => a.canonical.path === path);
+  const items = asset ? [asset.canonical, ...asset.variants] : [{ path, sha: null, name: path.split('/').pop() }];
+  let failed = 0;
+  for (const item of items) {
+    const newItemPath = `${CONFIG.imagesPath}/${folder}/${renameDerivedName(item.name, path.split('/').pop(), safe)}`;
+    try {
+      if (asset) {
+        const blob = await githubFetch(`https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/git/blobs/${item.sha}`, { headers: { Authorization: `Bearer ${state.token}` } });
+        if (!blob.ok) throw new Error('could not read source blob');
+        const content = (await blob.json()).content;
+        await githubPut(newItemPath, content, `Rename ${item.name} → ${newItemPath.split('/').pop()} via gallery admin`, { overwrite: false });
+      }
+      await githubDelete(item.path, item.sha, `Rename ${item.name} → ${newItemPath.split('/').pop()} via gallery admin`);
+    } catch (err) {
+      failed++;
+      console.error('rename item failed', item, err);
+    }
+  }
+  if (failed) return { ok: false, error: `${failed} file(s) could not be moved` };
+
+  if (state.metadata[path] !== undefined) {
+    state.metadata[targetPath] = state.metadata[path];
+    delete state.metadata[path];
+  }
+  return { ok: true };
 }
 
 async function saveTagModal() {
   const path = state.taggingPath;
   const phase = el('tagStage').value;
   const activity = el('tagActivity').value.trim();
+  const newName = el('tagRename').value.trim();
   if (phase || activity) state.metadata[path] = { phase, activity };
   else delete state.metadata[path];
   el('tagModalOverlay').hidden = true;
   state.taggingPath = null;
+
+  let renamedLive = false;
+  let renameMsg = '';
+  if (newName) {
+    const r = await renamePhoto(path, newName);
+    if (r.ok) {
+      renamedLive = !DEMO_MODE;
+      renameMsg = renamedLive ? 'renamed.' : 'renamed (demo).';
+    } else if (r.error && r.error !== 'same name') {
+      renameMsg = `NOT renamed (${r.error}).`;
+    }
+  }
+
+  if (renamedLive) {
+    try {
+      await persistMetadata();
+      await loadTree(true);
+      showToast(`Saved classification — ${renameMsg}`);
+    } catch (err) {
+      showToast(`Metadata not saved: ${err.message}`);
+    }
+    return;
+  }
+
   render();
   try {
     await persistMetadata();
-    showToast('Saved classification.');
+    showToast(renameMsg ? `Saved classification — ${renameMsg}` : 'Saved classification.');
   } catch (err) {
     showToast(`Metadata not saved: ${err.message}`);
   }

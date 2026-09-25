@@ -56,6 +56,7 @@ function loadAppPure() {
       setAssets, summarizeDuplicates, normalizeCategory, rawUrl, pageUrl, imgSrc, cardSrc,
       lightboxSrc, thumbSrc, prettyName, sanitizeFilename,
       isAdminCommit, scopeEntries, planRestore,
+      renameDerivedName,
       setDPR: (v) => { devicePixelRatio = v; } };
   `;
   vm.runInContext(code + expose, ctx, { filename: 'app.js' });
@@ -233,9 +234,17 @@ describe('D8 — category combobox normalization', () => {
     assert.equal(G.normalizeCategory('...'), '', 'punctuation-only stays blank');
   });
 
-/* ── D9 · history undo/revert helpers: recognising admin commits, scoping a
-   tree to the images/ + gallery.json paths, and diffing two trees into a
-   restore plan (files to re-create vs files to delete) ── */
+/* ── D10 · photo rename: derived names keep each variant's suffix so a
+   canonical rename (cable-pull/IMG_2300.jpg → field-walk.jpg) renames its
+   responsive tiers the same way (IMG_2300-480.webp → field-walk-480.webp). ── */
+describe('D10 — photo rename variant derivation', () => {
+  test('variant files keep their tier suffix when the canonical is renamed', () => {
+    if (!G || !G.renameDerivedName) return test.skip();
+    assert.equal(G.renameDerivedName('IMG_2300.jpg', 'IMG_2300.jpg', 'field-walk.jpg'), 'field-walk.jpg');
+    assert.equal(G.renameDerivedName('IMG_2300-480.webp', 'IMG_2300.jpg', 'field-walk.jpg'), 'field-walk-480.webp');
+    assert.equal(G.renameDerivedName('IMG_2300-800.webp', 'IMG_2300.jpg', 'field-walk.jpg'), 'field-walk-800.webp');
+  });
+});
 describe('D9 — undo/revert history helpers', () => {
   test('isAdminCommit recognises commits made from the gallery', () => {
     if (!G || !G.isAdminCommit) return test.skip();
