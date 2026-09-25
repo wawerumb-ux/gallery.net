@@ -363,12 +363,26 @@ async function githubFetch(url, options = {}) {
 
 document.addEventListener('DOMContentLoaded', init);
 
+/* The sticky header's height varies with viewport width and text wrapping, so
+   the sticky sidebar must offset by the real, measured height. Pure CSS cannot
+   query the rendered layout back, hence this small runtime measurement. */
+function syncSidebarTop() {
+  const header = document.querySelector('.header');
+  if (!header) return;
+  document.documentElement.style.setProperty('--sidebar-top', header.getBoundingClientRect().height + 'px');
+}
+
 async function init() {
   el('demoBadge').hidden = !DEMO_MODE;
   state.token = sessionStorage.getItem(TOKEN_KEY);
   state.adminMode = DEMO_MODE ? false : !!state.token;
   updateAdminUI();
   wireStaticEvents();
+
+  syncSidebarTop();
+  window.addEventListener('resize', syncSidebarTop);
+  window.addEventListener('load', syncSidebarTop);
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(syncSidebarTop);
 
   // Add unload handler to cancel requests
   window.addEventListener('beforeunload', cancelRequests);
