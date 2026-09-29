@@ -230,6 +230,7 @@ const state = {
   duplicateSummary: { totalFiles: 0, uniqueAssets: 0, exactDuplicateFiles: 0, visualDuplicateCandidates: 0 },
   adminMode: false,
   token: null,
+  view: 'phases', // 'images' = one flat grid of every photo, 'phases' = grouped by folder
   batchSelect: false, // gallery card-selection mode (sort flow)
   batchSelected: new Set(), // paths of the photos the admin picked
 
@@ -658,6 +659,7 @@ function buildDemoFolders() {
       path: `${CONFIG.imagesPath || 'images'}/${phase}/demo-${i + 1}.svg`,
       sha: `demo-${pIdx}-${i}`,
       name: `demo-${i + 1}.svg`,
+      folder: phase,
       demoSrc: demoImage(phase, i + 1),
     }));
   });
@@ -680,6 +682,7 @@ function render() {
   el('emptyState').hidden = totalPhotos !== 0;
   el('emptyPath').textContent = CONFIG.imagesPath + '/';
   renderSidebar();
+  computeFirstPaintPaths();
   renderGallery();
   animateIntro(totalPhotos, state.order.length);
   applyAdminFilter();
@@ -693,6 +696,10 @@ function render() {
 }
 
 function renderSidebar() {
+  el('viewFilter').value = state.view;
+  // The phase folder only exists in "phases" view; in "images" view there is
+  // nothing to group, so the whole folder (and its list) is taken off the page.
+  el('phaseGroup').hidden = state.view !== 'phases';
   el('phaseList').innerHTML = state.order.map(folder => `
     <li><button class="phase-btn" data-folder="${escapeAttr(folder)}">
       <span>${escapeHtml(folder)}</span><span class="phase-count">${state.folders[folder].length}</span>
@@ -705,6 +712,15 @@ function renderSidebar() {
       el(`section-${cssSafe(btn.dataset.folder)}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
   });
+}
+
+/* The sidebar filter is the only place the two layouts are chosen. */
+function setView(view) {
+  if (view !== 'images' && view !== 'phases') return;
+  if (state.view === view) return;
+  state.view = view;
+  closeLightbox();
+  render();
 }
 
 /* The sidebar's phases sit in one folder: the header opens and closes them. */
@@ -723,18 +739,20 @@ function applyAdminFilter() {
   const scope = el('adminSearchFilter').value;
   const shown = new Set();
   let visible = 0, total = 0;
-  for (const folder of state.order) {
-    const section = el(`section-${cssSafe(folder)}`);
-    if (!section) continue;
+  for (const section of document.querySelectorAll('#gallery .phase-section')) {
+    // Walk the rendered sections rather than state.order: in "images" view
+    // there is a single section with no data-folder, and a query still has to
+    // reach the cards inside it.
+    const folder = section.dataset.folder || '';
     const cards = section.querySelectorAll('.card[data-path]');
     total += cards.length;
     if (!q) {
       section.hidden = false;
       cards.forEach(c => { c.hidden = false; visible++; });
-      shown.add(folder);
+      if (folder) shown.add(folder);
       continue;
     }
-    const phaseHit = folder.toLowerCase().includes(q);
+    const phaseHit = !!folder && folder.toLowerCase().includes(q);
     if (scope === 'phase') {
       section.hidden = !phaseHit;
       if (phaseHit) { shown.add(folder); cards.forEach(c => { c.hidden = false; visible++; }); }
@@ -743,7 +761,7 @@ function applyAdminFilter() {
     }
     let sec = 0;
     for (const c of cards) {
-      const nameHit = ((c.dataset.path || '') + ' ' + (c.textContent || ' ')).toLowerCase().includes(q);
+      const nameHit = ((c.dataset.path || '') + ' ' + (c.textContent || '')).toLowerCase().includes(q);
       let show;
       if (scope === 'image') show = nameHit;
       else show = phaseHit || nameHit;
@@ -760,9 +778,44 @@ function applyAdminFilter() {
   if (q) setPhaseGroupOpen(true); // a search must never hide behind a closed folder
 }
 
+/* One card, shared by both views. Every card carries its folder and the index
+   within that folder, so the lightbox, the admin search and the upload flows
+   behave identically no matter which view rendered it. */
+function cardMarkup(img, folder, i) {
+  const pretty = prettyName(img.name);
+  const c = classifyPhoto(img);
+  return `<figure class="card ${c.needsReview ? 'card-needs-review' : ''}${state.batchSelect ? ' card-selectable' : ''}${state.batchSelect && state.batchSelected.has(img.path) ? ' card-selected' : ''}" data-group="${escapeAttr(c.group || '')}" data-folder="${escapeAttr(folder)}" data-index="${i}" data-path="${escapeAttr(img.path)}">
+    <img class="card-img" src="${thumbSrc(img)}" data-full="${cardSrc(img)}" alt="${escapeAttr(pretty)}" loading="${isFirstPaint(img) ? 'eager' : 'lazy'}" fetchpriority="${isFirstPaint(img) ? 'high' : 'auto'}" decoding="async">
+    ${state.adminMode && !state.batchSelect ? `<button class="card-delete" data-path="${escapeAttr(img.path)}" data-sha="${escapeAttr(img.sha)}" data-name="${escapeAttr(pretty)}" aria-label="Delete ${escapeAttr(pretty)}">×</button>` : ''}
+    ${state.adminMode && !state.batchSelect ? `<button class="card-tag" data-path="${escapeAttr(img.path)}" data-name="${escapeAttr(pretty)}" title="Classify this photo">tag</button>` : ''}
+    ${state.adminMode && state.batchSelect ? `<span class="card-pick">${state.batchSelected.has(img.path) ? '✓' : ''}</span>` : ''}
+    <figcaption>${escapeHtml(pretty)}</figcaption>
+  </figure>`;
+}
+
+/* Every photo, in phase order. "images" view renders this as one grid. */
+function allImages() {
+  return state.order.flatMap(folder => state.folders[folder] || []);
+}
+/* The same list, but each photo paired with the folder-local index its card
+   needs — the flat grid renders from this, never from a positional index into
+   a different folder. */
+function allImageCards() {
+  return state.order.flatMap(folder =>
+    (state.folders[folder] || []).map((img, i) => ({ img, folder, index: i })));
+}
+
 function renderGallery() {
   const gallery = el('gallery');
-  gallery.innerHTML = state.order.map(folder => {
+  // "phases" groups the photos under one section per folder; "images" drops the
+  // grouping entirely and lays every photo out in a single grid, in the same
+  // order, so switching views never reorders what you were just looking at.
+  gallery.innerHTML = state.view === 'images' ? `
+    <section class="phase-section phase-section-flat" id="section-all-images">
+      <div class="grid">
+        ${allImageCards().map(c => cardMarkup(c.img, c.folder, c.index)).join('')}
+      </div>
+    </section>` : state.order.map(folder => {
     const items = state.folders[folder];
     const j = journeyFor(folder);
     const stageName = j ? j.stage : folder;
@@ -782,17 +835,7 @@ function renderGallery() {
         </span>
       </div>
       <div class="grid">
-        ${items.map((img, i) => {
-          const pretty = prettyName(img.name);
-          const c = classifyPhoto(img);
-          return `<figure class="card ${c.needsReview ? 'card-needs-review' : ''}${state.batchSelect ? ' card-selectable' : ''}${state.batchSelect && state.batchSelected.has(img.path) ? ' card-selected' : ''}" data-group="${escapeAttr(c.group || '')}" data-folder="${escapeAttr(folder)}" data-index="${i}" data-path="${escapeAttr(img.path)}">
-            <img class="card-img" src="${thumbSrc(img)}" data-full="${cardSrc(img)}" alt="${escapeAttr(pretty)}" loading="${isFirstPaint(img) ? 'eager' : 'lazy'}" fetchpriority="${isFirstPaint(img) ? 'high' : 'auto'}" decoding="async">
-            ${state.adminMode && !state.batchSelect ? `<button class="card-delete" data-path="${escapeAttr(img.path)}" data-sha="${escapeAttr(img.sha)}" data-name="${escapeAttr(pretty)}" aria-label="Delete ${escapeAttr(pretty)}">×</button>` : ''}
-            ${state.adminMode && !state.batchSelect ? `<button class="card-tag" data-path="${escapeAttr(img.path)}" data-name="${escapeAttr(pretty)}" title="Classify this photo">tag</button>` : ''}
-            ${state.adminMode && state.batchSelect ? `<span class="card-pick">${state.batchSelected.has(img.path) ? '✓' : ''}</span>` : ''}
-            <figcaption>${escapeHtml(pretty)}</figcaption>
-          </figure>`;
-        }).join('')}
+        ${items.map((img, i) => cardMarkup(img, folder, i)).join('')}
       </div>
     </section>`;
   }).join('');
@@ -803,11 +846,9 @@ function renderGallery() {
   // the Pages host now, so the preload links below are all that's needed.
   if (!state._preloadedFirstPaint) {
     state._preloadedFirstPaint = true;
-    const firstFolder = state.order[0];
-    const firstImgs = (firstFolder && state.folders[firstFolder]) ? state.folders[firstFolder].slice(0, 6) : [];
-    firstImgs.forEach(img => {
-      // Preload the tiny thumb tile (-480 tier) so the first visible cards
-      // paint immediately; the sharper tier rides in behind it after reveal.
+    // Preload the tiny thumb tile (-480 tier) so the first visible cards
+    // paint immediately; the sharper tier rides in behind it after reveal.
+    firstPaintImages().forEach(img => {
       const pre = document.createElement('link');
       pre.rel = 'preload'; pre.as = 'image'; pre.href = thumbSrc(img); pre.fetchPriority = 'high';
       document.head.appendChild(pre);
@@ -896,6 +937,11 @@ function setupScrollSpy() {
 
 /* One deliberate load moment: counters tick up, a trace line draws under the header. */
 function animateIntro(totalPhotos, totalFolders) {
+  // Switching the sidebar filter re-renders the gallery but changes no totals,
+  // so the count-up and the trace line only ever play on a real data change.
+  const sig = `${totalPhotos}/${totalFolders}`;
+  if (state._introSig === sig) return;
+  state._introSig = sig;
   const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   if (reduce) {
     el('statPhotos').textContent = totalPhotos;
@@ -1112,6 +1158,8 @@ function wireStaticEvents() {
     setSidebarCollapsed(!el('sidebar').classList.contains('is-collapsed'));
     lastSidebarScrollY = window.scrollY;
   });
+
+  el('viewFilter').addEventListener('change', e => setView(e.target.value));
 
   el('phaseGroupBtn').addEventListener('click', () => {
     setPhaseGroupOpen(el('phaseGroupBtn').getAttribute('aria-expanded') !== 'true');
@@ -1905,17 +1953,32 @@ function fileToDataUrl(file) {
 
 /* ── Lightbox ─────────────────────────────────────────────────── */
 
+/* In "images" view the lightbox walks every photo in phase order instead of
+   stopping at each phase boundary; in "phases" view it stays inside one phase. */
+function lightboxItems(folder) {
+  return state.view === 'images' ? allImages() : (state.folders[folder] || []);
+}
+/* Cards report a folder-local index; in "images" view translate it to the
+   position of that same photo in the flat list. */
+function lightboxIndexFor(folder, index) {
+  if (state.view !== 'images') return index;
+  const target = (state.folders[folder] || [])[index];
+  if (!target) return 0;
+  const at = allImages().findIndex(i => i.path === target.path);
+  return at >= 0 ? at : 0;
+}
+
 function openLightbox(folder, index, startSrc) {
   state.lightboxFolder = folder;
-  state.lightboxIndex = index;
+  state.lightboxIndex = lightboxIndexFor(folder, index);
   state.lightboxStartSrc = startSrc || null;
   updateLightbox();
   overlayPush('lightbox', closeLightbox);
   el('lightbox').hidden = false;
 }
 function updateLightbox() {
-  const items = state.folders[state.lightboxFolder];
-  const img = items ? items[state.lightboxIndex] : null;
+  const items = lightboxItems(state.lightboxFolder);
+  const img = items[state.lightboxIndex];
   if (!img) return;
   const lb = el('lightboxImg');
   // Always open crisp: the LARGEST committed variant (cached once the card
@@ -1928,13 +1991,15 @@ function updateLightbox() {
   lb.onload = () => { if (lb.src !== lb.dataset.full && lb.dataset.full) lb.src = lb.dataset.full; };
   lb.onerror = () => { if (lb.src !== lb.dataset.full && lb.dataset.full) lb.src = lb.dataset.full; };
   lb.alt = prettyName(img.name);
-  if (el('lightboxCaption')) el('lightboxCaption').textContent = `${state.lightboxFolder} / ${prettyName(img.name)}`;
+  const phase = state.view === 'images' ? (img.folder || state.lightboxFolder) : state.lightboxFolder;
+  if (el('lightboxCaption')) el('lightboxCaption').textContent = `${phase} / ${prettyName(img.name)}`;
   if (el('lightboxCounter')) el('lightboxCounter').textContent = `${state.lightboxIndex + 1} / ${items.length}`;
-  if (el('lightboxPhase')) el('lightboxPhase').textContent = state.lightboxFolder;
+  if (el('lightboxPhase')) el('lightboxPhase').textContent = state.view === 'images' ? 'all images' : state.lightboxFolder;
 }
 function closeLightbox() { el('lightbox').hidden = true; }
 function lightboxStep(delta) {
-  const items = state.folders[state.lightboxFolder];
+  const items = lightboxItems(state.lightboxFolder);
+  if (!items.length) return;
   state.lightboxIndex = (state.lightboxIndex + delta + items.length) % items.length;
   updateLightbox();
 }
@@ -1947,7 +2012,7 @@ function lightboxStep(delta) {
    /CORS hiccup) it opens the tokenless raw URL in a new tab so the visitor
    can still save the image. */
 async function downloadFromLightbox() {
-  const img = state.folders[state.lightboxFolder][state.lightboxIndex];
+  const img = lightboxItems(state.lightboxFolder)[state.lightboxIndex];
   if (!img) return;
   const filename = sanitizeFilename(img.name) ||
     (prettyName(img.name).toLowerCase().replace(/\s+/g, '-') || 'gallery-photo') + '.jpg';
@@ -1989,12 +2054,26 @@ async function downloadFromLightbox() {
 function rawUrl(path) {
   return `https://raw.githubusercontent.com/${CONFIG.owner}/${CONFIG.repo}/${CONFIG.branch}/${path.split('/').map(encodeURIComponent).join('/')}`;
 }
+/* The photos at the top of whatever is on screen: the head of the flat list in
+   "images" view, the head of the first phase in "phases" view. Recomputed once
+   per render and read per card, so the check stays O(1) for each image. */
+let firstPaintPaths = new Set();
+const FIRST_PAINT_EAGER = 3;   // eager/high-priority cards
+const FIRST_PAINT_PRELOAD = 6; // thumb preloads
+function firstPaintImages() {
+  const head = state.view === 'images'
+    ? allImages()
+    : ((state.folders[state.order[0]] || []));
+  return head.slice(0, FIRST_PAINT_PRELOAD);
+}
+function computeFirstPaintPaths() {
+  firstPaintPaths = new Set(
+    (state.view === 'images' ? allImages() : (state.folders[state.order[0]] || []))
+      .slice(0, FIRST_PAINT_EAGER).map(i => i.path)
+  );
+}
 function isFirstPaint(img) {
-  if (!state.order || !state.order.length || !state.folders) return false;
-  const first = state.order[0];
-  if (img.folder !== first) return false;
-  const idx = (state.folders[first] || []).findIndex(f => f.path === img.path);
-  return idx >= 0 && idx < 3;
+  return firstPaintPaths.has(img.path);
 }
 
 function thumbSrc(img) {

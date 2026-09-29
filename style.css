@@ -258,6 +258,51 @@ code {
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
+/* View filter: the one control that picks between "images" (one flat grid) and
+   "phases" (grouped by folder). Sits where the old sidebar label was. */
+.view-filter {
+  margin-bottom: 10px;
+}
+.view-select-wrap {
+  position: relative;
+  display: block;
+}
+.view-select-wrap select {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 9px 30px 9px 12px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  outline: none;
+  transition: border-color var(--duration-fast) ease, box-shadow var(--duration-fast) ease;
+}
+.view-select-wrap select:hover {
+  border-color: rgba(45, 212, 191, 0.35);
+}
+.view-select-wrap select:focus {
+  border-color: var(--teal);
+  box-shadow: 0 0 0 3px var(--teal-dim);
+}
+.view-select-wrap select option {
+  background: var(--panel);
+  color: var(--text);
+}
+.view-select-caret {
+  position: absolute;
+  right: 11px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 10px;
+  color: var(--text-faint);
+  pointer-events: none;
+}
 /* Phase folder: one collapsible group holding every phase */
 .phase-group-btn {
   width: 100%;
@@ -1216,6 +1261,14 @@ code {
   }
   .sidebar-label {
     display: none;
+  }
+  /* Compact filter above the phase folder pill */
+  .view-filter {
+    margin-bottom: 8px;
+  }
+  .view-select-wrap select {
+    padding: 7px 28px 7px 12px;
+    font-size: 12.5px;
   }
   .phase-group-btn {
     background: rgba(255, 255, 255, 0.05);

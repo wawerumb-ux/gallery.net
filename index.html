@@ -47,9 +47,19 @@
       </div>
       <div class="sidebar-nav" id="sidebarNav">
         <div class="sidebar-nav-inner">
+          <div class="view-filter">
+            <label class="sidebar-label" for="viewFilter">view</label>
+            <div class="view-select-wrap">
+              <select id="viewFilter" aria-label="Show all images, or group them by phase">
+                <option value="images">images</option>
+                <option value="phases">phases</option>
+              </select>
+              <span class="view-select-caret" aria-hidden="true">▾</span>
+            </div>
+          </div>
           <div class="phase-group" id="phaseGroup">
             <button class="phase-group-btn" id="phaseGroupBtn" type="button" aria-expanded="true" aria-controls="phaseGroupList">
-              <img class="phase-group-icon" src="logo/7729581.png" alt="" aria-hidden="true" width="18" height="18">
+              <img class="phase-group-icon" src="logo/icon%202.png" alt="" aria-hidden="true" width="18" height="18">
               <span class="phase-group-name">phases</span>
               <span class="phase-count" id="phaseGroupCount">0</span>
               <span class="phase-group-caret" aria-hidden="true">▾</span>
