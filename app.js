@@ -971,10 +971,12 @@ function closeTagModal() { el('tagModalOverlay').hidden = true; state.taggingPat
 
 /* ── Admin: sign in / out ─────────────────────────────────────── */
 
-/* On phones the admin nav is tall, so it folds away on the way down and comes
-   back on the way up — the search field above it always stays put. */
+/* On phones the first scroll into the gallery folds the phase nav away — from
+   then on the caret beside the search is the only thing that opens it, so it
+   never fights the admin mid-scroll. The search field itself never moves. */
 const mobileNavQuery = window.matchMedia('(max-width: 800px)');
 let lastSidebarScrollY = 0;
+let navAutoFoldUsed = false;
 
 function setSidebarCollapsed(collapsed) {
   const sidebar = el('sidebar');
@@ -996,12 +998,13 @@ function syncSidebarOnScroll() {
   const y = Math.max(0, window.scrollY);
   const delta = y - lastSidebarScrollY;
   lastSidebarScrollY = y;
+  if (navAutoFoldUsed) return;
   // Folding the nav shrinks the page, so the bottom of the list is kept
   // expanded — otherwise the shortened page would bounce straight back open.
   const maxY = document.documentElement.scrollHeight - window.innerHeight;
   const atBottom = y >= maxY - 24;
   if (y < 8 || atBottom || delta < -4) setSidebarCollapsed(false);
-  else if (delta > 4 && y > 48) setSidebarCollapsed(true);
+  else if (delta > 4 && y > 48) { navAutoFoldUsed = true; setSidebarCollapsed(true); }
 }
 
 function wireStaticEvents() {
@@ -1169,6 +1172,7 @@ function updateAdminUI() {
   el('newFolderPanel').hidden = !state.adminMode;
   el('sortPhotosBtn').hidden = !state.adminMode;
   el('sidebarSearch').hidden = !state.adminMode;
+  navAutoFoldUsed = false;
   if (!state.adminMode) setSidebarCollapsed(false);
   if (!state.adminMode && el('adminSearch').value) {
     el('adminSearch').value = '';
