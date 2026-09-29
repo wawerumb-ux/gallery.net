@@ -971,6 +971,39 @@ function closeTagModal() { el('tagModalOverlay').hidden = true; state.taggingPat
 
 /* ── Admin: sign in / out ─────────────────────────────────────── */
 
+/* On phones the admin nav is tall, so it folds away on the way down and comes
+   back on the way up — the search field above it always stays put. */
+const mobileNavQuery = window.matchMedia('(max-width: 800px)');
+let lastSidebarScrollY = 0;
+
+function setSidebarCollapsed(collapsed) {
+  const sidebar = el('sidebar');
+  if (!sidebar) return;
+  sidebar.classList.toggle('is-collapsed', collapsed);
+  const toggle = el('sidebarToggle');
+  if (toggle) {
+    toggle.setAttribute('aria-expanded', String(!collapsed));
+    toggle.textContent = collapsed ? '▴' : '▾';
+  }
+}
+
+function syncSidebarOnScroll() {
+  if (!mobileNavQuery.matches || !state.adminMode) {
+    setSidebarCollapsed(false);
+    lastSidebarScrollY = window.scrollY;
+    return;
+  }
+  const y = Math.max(0, window.scrollY);
+  const delta = y - lastSidebarScrollY;
+  lastSidebarScrollY = y;
+  // Folding the nav shrinks the page, so the bottom of the list is kept
+  // expanded — otherwise the shortened page would bounce straight back open.
+  const maxY = document.documentElement.scrollHeight - window.innerHeight;
+  const atBottom = y >= maxY - 24;
+  if (y < 8 || atBottom || delta < -4) setSidebarCollapsed(false);
+  else if (delta > 4 && y > 48) setSidebarCollapsed(true);
+}
+
 function wireStaticEvents() {
   el('adminSearch').addEventListener('input', applyAdminFilter);
   el('adminSearch').addEventListener('keydown', e => {
@@ -1062,6 +1095,22 @@ function wireStaticEvents() {
     if (e.key === 'ArrowRight') lightboxStep(1);
     if (e.key === 'd' || e.key === 'D') downloadFromLightbox();
   });
+
+  el('sidebarToggle').addEventListener('click', () => {
+    setSidebarCollapsed(!el('sidebar').classList.contains('is-collapsed'));
+    lastSidebarScrollY = window.scrollY;
+  });
+
+  let sidebarScrollQueued = false;
+  window.addEventListener('scroll', () => {
+    if (sidebarScrollQueued) return;
+    sidebarScrollQueued = true;
+    requestAnimationFrame(() => { sidebarScrollQueued = false; syncSidebarOnScroll(); });
+  }, { passive: true });
+  window.addEventListener('resize', () => {
+    lastSidebarScrollY = window.scrollY;
+    syncSidebarOnScroll();
+  });
 }
 
 async function trySignIn() {
@@ -1120,6 +1169,7 @@ function updateAdminUI() {
   el('newFolderPanel').hidden = !state.adminMode;
   el('sortPhotosBtn').hidden = !state.adminMode;
   el('sidebarSearch').hidden = !state.adminMode;
+  if (!state.adminMode) setSidebarCollapsed(false);
   if (!state.adminMode && el('adminSearch').value) {
     el('adminSearch').value = '';
     el('adminSearchCount').textContent = '';

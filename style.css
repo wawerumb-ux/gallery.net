@@ -231,6 +231,25 @@ code {
   color: var(--text-faint);
   margin-left: auto;
 }
+.sidebar-toggle {
+  display: none;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  color: var(--text-dim);
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0;
+  transition: color var(--duration-fast) ease, background var(--duration-fast) ease;
+}
+.sidebar-toggle:hover {
+  color: var(--teal);
+  background: rgba(255, 255, 255, 0.06);
+}
 .sidebar-label {
   font-size: 11px;
   font-weight: 600;
@@ -1127,6 +1146,25 @@ code {
   .sidebar-label {
     display: none;
   }
+  .sidebar-toggle {
+    display: block;
+  }
+  /* Search stays put; the phase nav + admin panel collapse away on scroll */
+  .sidebar-nav {
+    display: grid;
+    grid-template-rows: 1fr;
+    transition: grid-template-rows var(--duration-normal) cubic-bezier(0.2, 0.7, 0.3, 1),
+                opacity var(--duration-fast) ease;
+  }
+  .sidebar-nav-inner {
+    min-height: 0;
+    overflow: hidden;
+  }
+  .sidebar.is-collapsed .sidebar-nav {
+    grid-template-rows: 0fr;
+    opacity: 0;
+    pointer-events: none;
+  }
   .phase-list {
     display: flex;
     flex-direction: row;
@@ -1249,6 +1287,7 @@ code {
   .admin-link,
   .btn,
   .phase-btn,
+  .sidebar-nav,
   .lightbox,
   .modal,
   .toast,

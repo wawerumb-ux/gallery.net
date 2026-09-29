@@ -42,16 +42,21 @@
             <option value="phase">phases</option>
           </select>
           <span class="search-count" id="adminSearchCount"></span>
+          <button class="sidebar-toggle" id="sidebarToggle" type="button" aria-expanded="true" aria-controls="sidebarNav" aria-label="Show or hide phase navigation">▾</button>
         </div>
       </div>
-      <div class="sidebar-label">phases</div>
-      <ul class="phase-list" id="phaseList"></ul>
-      <div class="admin-panel" id="newFolderPanel" hidden>
-        <div class="sidebar-label">new phase</div>
-        <input type="text" id="newFolderName" placeholder="folder-name" class="text-input">
-        <input type="file" id="newFolderFiles" multiple accept="image/*" hidden>
-        <button class="btn btn-ghost" id="newFolderBtn">+ Create with photos</button>
-        <button class="btn btn-ghost" id="sortPhotosBtn">Sort photos</button>
+      <div class="sidebar-nav" id="sidebarNav">
+        <div class="sidebar-nav-inner">
+          <div class="sidebar-label">phases</div>
+          <ul class="phase-list" id="phaseList"></ul>
+          <div class="admin-panel" id="newFolderPanel" hidden>
+            <div class="sidebar-label">new phase</div>
+            <input type="text" id="newFolderName" placeholder="folder-name" class="text-input">
+            <input type="file" id="newFolderFiles" multiple accept="image/*" hidden>
+            <button class="btn btn-ghost" id="newFolderBtn">+ Create with photos</button>
+            <button class="btn btn-ghost" id="sortPhotosBtn">Sort photos</button>
+          </div>
+        </div>
       </div>
     </nav>
 
