@@ -698,12 +698,20 @@ function renderSidebar() {
       <span>${escapeHtml(folder)}</span><span class="phase-count">${state.folders[folder].length}</span>
     </button></li>
   `).join('');
+  el('phaseGroupCount').textContent = state.order.reduce((n, f) => n + state.folders[f].length, 0);
   el('phaseList').querySelectorAll('.phase-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       pushSectionScroll();
       el(`section-${cssSafe(btn.dataset.folder)}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
   });
+}
+
+/* The sidebar's phases sit in one folder: the header opens and closes them. */
+function setPhaseGroupOpen(open) {
+  el('phaseGroup').classList.toggle('is-collapsed', !open);
+  el('phaseGroupBtn').setAttribute('aria-expanded', String(open));
+  el('phaseGroupBtn').querySelector('.phase-group-caret').textContent = open ? '▾' : '▸';
 }
 
 /* Admin quick-find: hide phases/cards that don't match the query, in the
@@ -749,6 +757,7 @@ function applyAdminFilter() {
     btn.hidden = !shown.has(btn.dataset.folder);
   });
   el('adminSearchCount').textContent = q ? `${visible}/${total}` : '';
+  if (q) setPhaseGroupOpen(true); // a search must never hide behind a closed folder
 }
 
 function renderGallery() {
@@ -1102,6 +1111,10 @@ function wireStaticEvents() {
   el('sidebarToggle').addEventListener('click', () => {
     setSidebarCollapsed(!el('sidebar').classList.contains('is-collapsed'));
     lastSidebarScrollY = window.scrollY;
+  });
+
+  el('phaseGroupBtn').addEventListener('click', () => {
+    setPhaseGroupOpen(el('phaseGroupBtn').getAttribute('aria-expanded') !== 'true');
   });
 
   let sidebarScrollQueued = false;

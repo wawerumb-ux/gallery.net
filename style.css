@@ -258,6 +258,76 @@ code {
   text-transform: uppercase;
   letter-spacing: 0.08em;
 }
+/* Phase folder: one collapsible group holding every phase */
+.phase-group-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--text-faint);
+  padding: 6px 8px;
+  margin: 0 0 10px;
+  border-radius: var(--radius-md);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  text-align: left;
+  transition: background var(--duration-fast) ease, color var(--duration-fast) ease;
+}
+.phase-group-btn:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-dim);
+}
+.phase-group-icon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  border-radius: 5px;
+  object-fit: cover;
+}
+.phase-group-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.phase-group-caret {
+  margin-left: 2px;
+  font-size: 10px;
+  color: var(--text-faint);
+  flex-shrink: 0;
+  transition: color var(--duration-fast) ease;
+}
+.phase-group-list {
+  display: grid;
+  grid-template-rows: 1fr;
+  transition: grid-template-rows var(--duration-normal) cubic-bezier(0.2, 0.7, 0.3, 1),
+              opacity var(--duration-fast) ease;
+}
+.phase-group-list > * {
+  min-height: 0;
+  overflow: hidden;
+}
+.phase-group.is-collapsed .phase-group-list {
+  grid-template-rows: 0fr;
+  opacity: 0;
+  pointer-events: none;
+}
+/* Grid tracks size to the item's margin/padding boxes, so those must go too
+   for the fold to reach a true zero height. */
+.phase-group.is-collapsed .phase-group-list > * {
+  margin-top: 0;
+  margin-bottom: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+.phase-group.is-collapsed .phase-group-btn {
+  margin-bottom: 0;
+}
 .phase-list {
   list-style: none;
   margin: 0 0 24px;
@@ -1147,6 +1217,23 @@ code {
   .sidebar-label {
     display: none;
   }
+  .phase-group-btn {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-pill);
+    color: var(--text-dim);
+    padding: 6px 12px;
+    font-size: 12px;
+    letter-spacing: 0.04em;
+    align-self: flex-start;
+  }
+  .phase-group-icon {
+    width: 16px;
+    height: 16px;
+  }
+  .phase-group-caret {
+    margin-left: 4px;
+  }
   .sidebar-toggle {
     display: block;
   }
@@ -1293,6 +1380,7 @@ code {
   .btn,
   .phase-btn,
   .sidebar-nav,
+  .phase-group-list,
   .lightbox,
   .modal,
   .toast,

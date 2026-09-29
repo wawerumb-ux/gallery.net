@@ -47,8 +47,17 @@
       </div>
       <div class="sidebar-nav" id="sidebarNav">
         <div class="sidebar-nav-inner">
-          <div class="sidebar-label">phases</div>
-          <ul class="phase-list" id="phaseList"></ul>
+          <div class="phase-group" id="phaseGroup">
+            <button class="phase-group-btn" id="phaseGroupBtn" type="button" aria-expanded="true" aria-controls="phaseGroupList">
+              <img class="phase-group-icon" src="logo/7729581.png" alt="" aria-hidden="true" width="18" height="18">
+              <span class="phase-group-name">phases</span>
+              <span class="phase-count" id="phaseGroupCount">0</span>
+              <span class="phase-group-caret" aria-hidden="true">▾</span>
+            </button>
+            <div class="phase-group-list" id="phaseGroupList">
+              <ul class="phase-list" id="phaseList"></ul>
+            </div>
+          </div>
           <div class="admin-panel" id="newFolderPanel" hidden>
             <div class="sidebar-label">new phase</div>
             <input type="text" id="newFolderName" placeholder="folder-name" class="text-input">
