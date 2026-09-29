@@ -759,7 +759,7 @@ function renderGallery() {
     const stageName = j ? j.stage : folder;
     const needsReview = items.some(img => classifyPhoto(img).needsReview);
     return `
-    <section class="phase-section" id="section-${cssSafe(folder)}">
+    <section class="phase-section" id="section-${cssSafe(folder)}" data-folder="${escapeAttr(folder)}">
       <div class="phase-header">
         <div class="phase-header-main">
           <h2>${escapeHtml(stageName)}</h2>
@@ -855,6 +855,34 @@ function renderGallery() {
       input.click();
     });
   });
+  setupScrollSpy();
+}
+
+let sectionObserver = null;
+function setupScrollSpy() {
+  if (typeof IntersectionObserver === 'undefined' || typeof document === 'undefined') return;
+  if (sectionObserver) sectionObserver.disconnect();
+  sectionObserver = new IntersectionObserver((entries) => {
+    for (const entry of entries) {
+      if (entry.isIntersecting) {
+        const folder = entry.target.dataset.folder;
+        if (!folder) continue;
+        const btns = document.querySelectorAll('.phase-btn');
+        btns.forEach(b => {
+          const active = b.dataset.folder === folder;
+          b.classList.toggle('is-active', active);
+          if (active && typeof window !== 'undefined' && window.innerWidth <= 800) {
+            b.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+          }
+        });
+        break;
+      }
+    }
+  }, {
+    rootMargin: '-10% 0px -70% 0px',
+    threshold: 0.05
+  });
+  document.querySelectorAll('.phase-section').forEach(sec => sectionObserver.observe(sec));
 }
 
 /* One deliberate load moment: counters tick up, a trace line draws under the header. */
@@ -1002,7 +1030,31 @@ function wireStaticEvents() {
   el('lightboxPrev').addEventListener('click', () => lightboxStep(-1));
   el('lightboxNext').addEventListener('click', () => lightboxStep(1));
   el('lightboxDownload').addEventListener('click', downloadFromLightbox);
-  el('lightbox').addEventListener('click', e => { if (e.target.id === 'lightbox') overlayClose('lightbox'); });
+  el('lightbox').addEventListener('click', e => { if (e.target.id === 'lightbox' || e.target.id === 'lightboxViewport') overlayClose('lightbox'); });
+
+  // Touch swipe gestures for mobile gallery navigation
+  const lbElem = el('lightbox');
+  let touchStartX = 0;
+  let touchStartY = 0;
+  lbElem.addEventListener('touchstart', e => {
+    if (e.touches && e.touches.length === 1) {
+      touchStartX = e.touches[0].clientX;
+      touchStartY = e.touches[0].clientY;
+    }
+  }, { passive: true });
+  lbElem.addEventListener('touchend', e => {
+    if (e.changedTouches && e.changedTouches.length === 1) {
+      const dx = e.changedTouches[0].clientX - touchStartX;
+      const dy = e.changedTouches[0].clientY - touchStartY;
+      if (Math.abs(dx) > 40 && Math.abs(dx) > Math.abs(dy) * 1.4) {
+        if (dx < 0) lightboxStep(1);
+        else lightboxStep(-1);
+      } else if (dy > 80 && Math.abs(dy) > Math.abs(dx) * 1.4) {
+        overlayClose('lightbox');
+      }
+    }
+  }, { passive: true });
+
   document.addEventListener('keydown', e => {
     if (el('lightbox').hidden) return;
     if (e.key === 'Escape') overlayClose('lightbox');
@@ -1795,7 +1847,9 @@ function openLightbox(folder, index, startSrc) {
   el('lightbox').hidden = false;
 }
 function updateLightbox() {
-  const img = state.folders[state.lightboxFolder][state.lightboxIndex];
+  const items = state.folders[state.lightboxFolder];
+  const img = items ? items[state.lightboxIndex] : null;
+  if (!img) return;
   const lb = el('lightboxImg');
   // Always open crisp: the LARGEST committed variant (cached once the card
   // revealed, ~66KB if nav); full-res original layers in silently after.
@@ -1807,7 +1861,9 @@ function updateLightbox() {
   lb.onload = () => { if (lb.src !== lb.dataset.full && lb.dataset.full) lb.src = lb.dataset.full; };
   lb.onerror = () => { if (lb.src !== lb.dataset.full && lb.dataset.full) lb.src = lb.dataset.full; };
   lb.alt = prettyName(img.name);
-  el('lightboxCaption').textContent = `${state.lightboxFolder} / ${prettyName(img.name)}`;
+  if (el('lightboxCaption')) el('lightboxCaption').textContent = `${state.lightboxFolder} / ${prettyName(img.name)}`;
+  if (el('lightboxCounter')) el('lightboxCounter').textContent = `${state.lightboxIndex + 1} / ${items.length}`;
+  if (el('lightboxPhase')) el('lightboxPhase').textContent = state.lightboxFolder;
 }
 function closeLightbox() { el('lightbox').hidden = true; }
 function lightboxStep(delta) {

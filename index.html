@@ -8,7 +8,7 @@
 <link rel="apple-touch-icon" href="logo/favi.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -86,14 +86,25 @@
   </div>
 </div>
 
-<div class="lightbox" id="lightbox" hidden>
-  <button class="lightbox-close" id="lightboxClose" aria-label="Close">×</button>
+<div class="lightbox" id="lightbox" hidden role="dialog" aria-modal="true" aria-label="Photo viewer">
+  <div class="lightbox-topbar">
+    <button class="lightbox-close" id="lightboxClose" aria-label="Close viewer">✕</button>
+    <div class="lightbox-title-wrap">
+      <span class="lightbox-counter" id="lightboxCounter">1 / 1</span>
+      <span class="lightbox-phase" id="lightboxPhase"></span>
+    </div>
+    <div style="width:40px;"></div>
+  </div>
   <button class="lightbox-nav lightbox-prev" id="lightboxPrev" aria-label="Previous photo">‹</button>
-  <img class="lightbox-img" id="lightboxImg" alt="">
+  <div class="lightbox-viewport" id="lightboxViewport">
+    <img class="lightbox-img" id="lightboxImg" alt="">
+  </div>
   <button class="lightbox-nav lightbox-next" id="lightboxNext" aria-label="Next photo">›</button>
   <div class="lightbox-captionbar">
     <span class="lightbox-caption" id="lightboxCaption"></span>
-    <button class="lightbox-download" id="lightboxDownload" type="button">⭳ Download</button>
+    <div class="lightbox-actions">
+      <button class="lightbox-download" id="lightboxDownload" type="button">⭳ Download</button>
+    </div>
   </div>
 </div>
 
