@@ -468,6 +468,49 @@ code {
 .btn:active {
   transform: scale(0.97);
 }
+/* ── Sliding fill ──────────────────────────────────────────────────
+   Action buttons don't snap to a new background on hover: a panel wipes in
+   from the left behind the label. The ::before sits at z-index -1 inside an
+   isolated stacking context, so per the CSS painting order it covers the
+   button's own background but stays behind the text, and overflow: hidden
+   clips it to the pill. Keyboard focus gets the same fill, not just hover. */
+.btn,
+.lightbox-download {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+.btn::before,
+.lightbox-download::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  transform: translateX(-101%);
+  transition: transform var(--duration-normal) var(--ease-out);
+}
+.btn:hover::before,
+.btn:focus-visible::before,
+.lightbox-download:hover::before,
+.lightbox-download:focus-visible::before {
+  transform: translateX(0);
+}
+/* What each variant wipes in, and the label colour that has to sit on it.
+   Sand and deep coral are both dark enough for --accent-ink / white. */
+.btn-ghost::before,
+.btn-primary::before,
+.lightbox-download::before {
+  background: var(--sand);
+}
+.btn-ghost:hover,
+.btn-ghost:focus-visible,
+.btn-primary:hover,
+.btn-primary:focus-visible {
+  color: var(--accent-ink);
+}
+.btn-danger::before {
+  background: #96383C;
+}
 .btn-primary {
   background: var(--accent-fill);
   color: var(--accent-ink);
@@ -573,75 +616,9 @@ code {
 @keyframes load-blink { to { visibility: hidden; } }
 .empty-sub { color: var(--text-faint); margin-top: 6px; }
 
-/* ── Phase Section & Sticky Headers ──────────────────────────────── */
+/* ── Phase Card: one card per phase, its photos tiled inside ──────────── */
 .phase-section {
   margin-bottom: 52px;
-}
-.phase-header {
-  position: sticky;
-  top: var(--sidebar-top, 61px);
-  z-index: 10;
-  background: var(--bg-translucent);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  padding: 12px 4px 12px 0;
-  margin-bottom: 14px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  border-bottom: 1px solid var(--border-subtle);
-  transition: background var(--duration-fast) ease;
-}
-.phase-header-main {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-width: 0;
-  flex-wrap: wrap;
-}
-.phase-header h2 {
-  font-size: 17px;
-  margin: 0;
-  font-weight: 700;
-  letter-spacing: -0.015em;
-  color: var(--text);
-  min-width: 0;
-  overflow-wrap: anywhere;
-}
-.group-pill {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  color: var(--text);
-  background: var(--sand);
-  border: 1px solid rgba(188, 79, 79, 0.2);
-  padding: 2px 9px;
-  border-radius: var(--radius-pill);
-  flex-shrink: 0;
-}
-.phase-path {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  color: var(--text-faint);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.phase-header-meta {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-left: auto;
-  flex-shrink: 0;
-}
-.phase-header-count {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--text-dim);
-  background: rgba(70, 48, 38, 0.06);
-  padding: 3px 10px;
-  border-radius: var(--radius-pill);
 }
 .needs-review-chip {
   font-size: 11px;
@@ -737,6 +714,133 @@ code {
 .card:focus-visible figcaption {
   opacity: 1;
   transform: translateY(0);
+}
+
+/* ── Phase Card ───────────────────────────────────────────────────────
+   "phases" view renders one card per phase and tiles that phase's photos
+   inside it, so the page reads as a handful of phases rather than a wall of
+   individual photos. Everything here reuses the .card primitives. */
+.grid-phases {
+  grid-template-columns: repeat(auto-fill, minmax(228px, 1fr));
+}
+.phase-card {
+  aspect-ratio: 1 / 1;
+  background: var(--panel-raised);
+  /* Drop .card's transparent 1px border: it clips the collage's inset:0 to
+     the padding box, which left a 1px ring of card background around every
+     phase card. The hover/selected rings are box-shadows, so nothing is lost. */
+  border: none;
+}
+.phase-card-collage {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  grid-template-columns: repeat(var(--cols, 3), 1fr);
+  /* A 2px seam tinted by the page, so a sparse collage never shows a grid gap
+     as a different colour from the card's own background. */
+  gap: 2px;
+  background: var(--border-subtle);
+}
+/* Tiles are the raw .card markup, stripped back to a plain grid cell: no
+   aspect ratio, no rounding, no hover lift, no caption of their own. */
+.phase-card .card-tile {
+  aspect-ratio: auto;
+  min-width: 0;
+  min-height: 0;
+  border: none;
+  border-radius: 0;
+  will-change: auto;
+}
+.phase-card .card-tile:hover,
+.phase-card .card-tile:active {
+  transform: none;
+}
+.phase-card .card-tile figcaption {
+  display: none;
+}
+.phase-card-tools {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+/* Sits over photography of any colour, so it carries its own dark backing
+   rather than inheriting the light-theme button colours. */
+.phase-card-more,
+.phase-card-add {
+  color: #FFFFFF;
+  background: rgba(28, 16, 10, 0.76);
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: var(--radius-pill);
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 9px;
+  white-space: nowrap;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+.phase-card-add {
+  margin-left: 0;
+  padding: 3px 10px;
+}
+/* Same slide, but this button sits on photography, so it wipes in a near-opaque
+   dark rather than the light sand the modal buttons use. */
+.phase-card-add::before {
+  background: rgba(10, 6, 3, 0.92);
+}
+.phase-card-add:hover {
+  background: rgba(28, 16, 10, 0.9);
+  border-color: rgba(255, 255, 255, 0.4);
+}
+.phase-card-chip {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 3;
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.35);
+}
+/* Always on: the phase name is the card's only label, so it can't be a
+   hover-only caption the way a photo's filename is. The selector has to
+   outrank `.card figcaption` (which is hover-revealed), hence the descendant. */
+.phase-card .phase-card-meta {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 30px 11px 9px;
+  font-size: 12.5px;
+  font-weight: 600;
+  /* Its own gradient, darker through the text row than .card figcaption's:
+     the phase name is the card's only label, and at the shared mid-stop alpha
+     it would land at 3.0:1 over a bright photo. */
+  background: linear-gradient(to top, rgba(20, 12, 8, 0.92) 0%, rgba(20, 12, 8, 0.8) 62%, rgba(20, 12, 8, 0.5) 88%, transparent 100%);
+  opacity: 1;
+  transform: none;
+}
+.phase-card-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.phase-card-count {
+  margin-left: auto;
+  flex-shrink: 0;
+  font-size: 11px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  /* Dark chip, not a white tint: a translucent white pill over the gradient
+     washed out to 2.4:1 against the label beside it. */
+  background: rgba(20, 12, 8, 0.62);
+  border-radius: var(--radius-pill);
+  padding: 1px 8px;
 }
 
 /* Card Contextual Controls */
@@ -1400,11 +1504,12 @@ code {
   .card figcaption {
     display: none; /* Pure distraction-free photo wall on phones */
   }
-  .phase-header {
-    padding: 10px 0;
-  }
-  .phase-header h2 {
-    font-size: 15px;
+  /* The rule above would also strip the phase card's label, leaving a grid of
+     unlabelled collages — so the phase name stays, at a phone-sized weight. */
+  .phase-card .phase-card-meta {
+    display: flex;
+    padding: 22px 8px 7px;
+    font-size: 12px;
   }
   .pick-row {
     flex-wrap: wrap;
@@ -1434,6 +1539,7 @@ code {
   .trace-line,
   .admin-link,
   .btn,
+  .lightbox-download,
   .phase-btn,
   .sidebar-nav,
   .phase-group-list,
@@ -1444,5 +1550,11 @@ code {
   .card-pick {
     transition: none !important;
     animation: none !important;
+  }
+
+  /* The fill still appears on hover, it just stops wiping across. */
+  .btn::before,
+  .lightbox-download::before {
+    transition: none !important;
   }
 }

@@ -709,7 +709,7 @@ function renderSidebar() {
   el('phaseList').querySelectorAll('.phase-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       pushSectionScroll();
-      el(`section-${cssSafe(btn.dataset.folder)}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      el(`phase-${cssSafe(btn.dataset.folder)}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
   });
 }
@@ -739,36 +739,45 @@ function applyAdminFilter() {
   const scope = el('adminSearchFilter').value;
   const shown = new Set();
   let visible = 0, total = 0;
-  for (const section of document.querySelectorAll('#gallery .phase-section')) {
-    // Walk the rendered sections rather than state.order: in "images" view
-    // there is a single section with no data-folder, and a query still has to
-    // reach the cards inside it.
-    const folder = section.dataset.folder || '';
-    const cards = section.querySelectorAll('.card[data-path]');
+  // Walk what actually rendered rather than state.order: in "images" view
+  // there is a single section with no data-folder and a query still has to
+  // reach the cards inside it, while in "phases" view each phase is one card
+  // whose collage tiles are not individually addressable.
+  for (const unit of document.querySelectorAll('#gallery .phase-section, #gallery .phase-card')) {
+    const folder = unit.dataset.folder || '';
+    const isPhaseCard = unit.classList.contains('phase-card');
+    // A phase card is one item and matches on the photo names tiled inside it;
+    // a flat section holds real cards that match on their own file name.
+    const cards = isPhaseCard ? [unit] : [...unit.querySelectorAll('.card[data-path]')];
     total += cards.length;
     if (!q) {
-      section.hidden = false;
+      unit.hidden = false;
       cards.forEach(c => { c.hidden = false; visible++; });
       if (folder) shown.add(folder);
       continue;
     }
     const phaseHit = !!folder && folder.toLowerCase().includes(q);
     if (scope === 'phase') {
-      section.hidden = !phaseHit;
+      unit.hidden = !phaseHit;
       if (phaseHit) { shown.add(folder); cards.forEach(c => { c.hidden = false; visible++; }); }
       else cards.forEach(c => { c.hidden = true; });
       continue;
     }
     let sec = 0;
     for (const c of cards) {
-      const nameHit = ((c.dataset.path || '') + ' ' + (c.textContent || '')).toLowerCase().includes(q);
+      // An image query must not be satisfied by the phase name on the card,
+      // so read the tile captions rather than the card's whole text content.
+      const label = isPhaseCard
+        ? [...c.querySelectorAll('.card-tile figcaption')].map(f => f.textContent).join(' ')
+        : (c.dataset.path || '');
+      const nameHit = ((label + ' ' + (c.textContent || '')).toLowerCase()).includes(q);
       let show;
       if (scope === 'image') show = nameHit;
       else show = phaseHit || nameHit;
       c.hidden = !show;
       if (show) { visible++; sec++; }
     }
-    section.hidden = scope === 'image' ? sec === 0 : !(phaseHit || sec > 0);
+    unit.hidden = scope === 'image' ? sec === 0 : !(phaseHit || sec > 0);
     if (sec > 0 || phaseHit) shown.add(folder);
   }
   el('phaseList').querySelectorAll('.phase-btn').forEach(btn => {
@@ -780,16 +789,48 @@ function applyAdminFilter() {
 
 /* One card, shared by both views. Every card carries its folder and the index
    within that folder, so the lightbox, the admin search and the upload flows
-   behave identically no matter which view rendered it. */
-function cardMarkup(img, folder, i) {
+   behave identically no matter which view rendered it. `extra` adds a layout
+   modifier only — the phase collage reuses this markup for its tiles. */
+function cardMarkup(img, folder, i, extra) {
   const pretty = prettyName(img.name);
   const c = classifyPhoto(img);
-  return `<figure class="card ${c.needsReview ? 'card-needs-review' : ''}${state.batchSelect ? ' card-selectable' : ''}${state.batchSelect && state.batchSelected.has(img.path) ? ' card-selected' : ''}" data-group="${escapeAttr(c.group || '')}" data-folder="${escapeAttr(folder)}" data-index="${i}" data-path="${escapeAttr(img.path)}">
+  return `<figure class="card ${extra || ''}${c.needsReview ? 'card-needs-review' : ''}${state.batchSelect ? ' card-selectable' : ''}${state.batchSelect && state.batchSelected.has(img.path) ? ' card-selected' : ''}" data-group="${escapeAttr(c.group || '')}" data-folder="${escapeAttr(folder)}" data-index="${i}" data-path="${escapeAttr(img.path)}">
     <img class="card-img" src="${thumbSrc(img)}" data-full="${cardSrc(img)}" alt="${escapeAttr(pretty)}" loading="${isFirstPaint(img) ? 'eager' : 'lazy'}" fetchpriority="${isFirstPaint(img) ? 'high' : 'auto'}" decoding="async">
     ${state.adminMode && !state.batchSelect ? `<button class="card-delete" data-path="${escapeAttr(img.path)}" data-sha="${escapeAttr(img.sha)}" data-name="${escapeAttr(pretty)}" aria-label="Delete ${escapeAttr(pretty)}">×</button>` : ''}
     ${state.adminMode && !state.batchSelect ? `<button class="card-tag" data-path="${escapeAttr(img.path)}" data-name="${escapeAttr(pretty)}" title="Classify this photo">tag</button>` : ''}
     ${state.adminMode && state.batchSelect ? `<span class="card-pick">${state.batchSelected.has(img.path) ? '✓' : ''}</span>` : ''}
     <figcaption>${escapeHtml(pretty)}</figcaption>
+  </figure>`;
+}
+
+/* One card per phase in "phases" view. The whole phase is a single tile in the
+   grid; its photos are stacked inside it as a small collage, so the page reads
+   as a handful of phases rather than a wall of individual photos. Clicking
+   anywhere on the card opens the lightbox scoped to that phase. */
+const PHASE_CARD_TILES = 9;
+function phaseCardMarkup(folder) {
+  const items = state.folders[folder] || [];
+  const j = journeyFor(folder);
+  const stageName = j ? j.stage : folder;
+  const needsReview = items.some(img => classifyPhoto(img).needsReview);
+  // A card with only one or two photos looks broken at three columns, so the
+  // collage thins out rather than leaving half-empty grid tracks.
+  const cols = items.length === 1 ? 1 : items.length <= 4 ? 2 : 3;
+  const shown = items.slice(0, PHASE_CARD_TILES);
+  const rest = items.length - shown.length;
+  return `<figure class="card phase-card" id="phase-${cssSafe(folder)}" data-folder="${escapeAttr(folder)}" data-group="${escapeAttr(j ? j.group : '')}">
+    <div class="phase-card-collage" style="--cols:${cols}">
+      ${shown.map((img, i) => cardMarkup(img, folder, i, 'card-tile')).join('')}
+    </div>
+    ${(rest > 0 || state.adminMode) ? `<div class="phase-card-tools">
+      ${rest > 0 ? `<span class="phase-card-more">+${rest}</span>` : ''}
+      ${state.adminMode ? `<button class="btn btn-ghost btn-sm add-photos-btn phase-card-add" data-folder="${escapeAttr(folder)}">+ Add</button>` : ''}
+    </div>` : ''}
+    ${needsReview ? `<span class="needs-review-chip phase-card-chip" title="Some photos here have no journey stage assigned">Needs Review</span>` : ''}
+    <figcaption class="phase-card-meta">
+      <span class="phase-card-name">${escapeHtml(stageName)}</span>
+      <span class="phase-card-count" title="${items.length} photos">${items.length}</span>
+    </figcaption>
   </figure>`;
 }
 
@@ -810,35 +851,18 @@ function renderGallery() {
   // "phases" groups the photos under one section per folder; "images" drops the
   // grouping entirely and lays every photo out in a single grid, in the same
   // order, so switching views never reorders what you were just looking at.
+  // "phases" gives every phase one card and tiles that phase's photos inside
+  // it; "images" drops the grouping entirely and lays every photo out on its
+  // own, in the same order, so switching views never reorders what you were
+  // just looking at.
   gallery.innerHTML = state.view === 'images' ? `
     <section class="phase-section phase-section-flat" id="section-all-images">
       <div class="grid">
         ${allImageCards().map(c => cardMarkup(c.img, c.folder, c.index)).join('')}
       </div>
-    </section>` : state.order.map(folder => {
-    const items = state.folders[folder];
-    const j = journeyFor(folder);
-    const stageName = j ? j.stage : folder;
-    const needsReview = items.some(img => classifyPhoto(img).needsReview);
-    return `
-    <section class="phase-section" id="section-${cssSafe(folder)}" data-folder="${escapeAttr(folder)}">
-      <div class="phase-header">
-        <div class="phase-header-main">
-          <h2>${escapeHtml(stageName)}</h2>
-          ${j ? `<span class="group-pill">${escapeHtml(j.group)}</span>` : ''}
-          <span class="phase-path">${escapeHtml(CONFIG.imagesPath + '/' + folder)}</span>
-        </div>
-        <span class="phase-header-meta">
-          <span class="phase-header-count">${items.length}</span>
-          ${needsReview ? `<span class="needs-review-chip" title="Some photos here have no journey stage assigned">Needs Review</span>` : ''}
-          ${state.adminMode ? `<button class="btn btn-ghost btn-sm add-photos-btn" data-folder="${escapeAttr(folder)}">+ Add photos</button>` : ''}
-        </span>
-      </div>
-      <div class="grid">
-        ${items.map((img, i) => cardMarkup(img, folder, i)).join('')}
-      </div>
-    </section>`;
-  }).join('');
+    </section>` : `<div class="grid grid-phases">
+    ${state.order.map(folder => phaseCardMarkup(folder)).join('')}
+  </div>`;
 
   // First paint: raw.githubusercontent sends Cache-Control: no-cache, so
   // every visit pays DNS + TLS + a full GET unless we preconnect and preload
@@ -872,6 +896,9 @@ function renderGallery() {
     img.addEventListener('click', () => {
       const card = img.closest('.card');
       if (state.adminMode && state.batchSelect) return; // figure-level listener toggles selection
+      // Inside a phase collage the card's own listener opens the lightbox, so
+      // this one steps aside rather than opening the same photo twice.
+      if (card.closest('.phase-card')) return;
       // Hand the lightbox the exact image the card already loaded (a cache
       // hit = instant, no re-download, no blur flash) and whether it was
       // fully revealed. Null = card still loading → start at the sharp tier.
@@ -891,6 +918,17 @@ function renderGallery() {
       openTagModal(btn.dataset.path, btn.dataset.name);
     });
   });
+  // A phase card is one click target: the lightbox opens scoped to that phase.
+  // Clicking a specific tile inside the collage jumps to that exact photo.
+  gallery.querySelectorAll('.phase-card').forEach(fig => {
+    fig.addEventListener('click', (e) => {
+      if (state.adminMode && state.batchSelect) return;
+      const tile = e.target.closest('.card-tile');
+      const img = tile && tile.querySelector('img');
+      openLightbox(fig.dataset.folder, tile ? Number(tile.dataset.index) : 0,
+        (img && img.classList.contains('is-loaded') && img.currentSrc) ? img.currentSrc : null);
+    });
+  });
   // Sort selection mode: whole-card click toggles the photo's selection.
   if (state.adminMode && state.batchSelect) {
     gallery.querySelectorAll('.card[data-path]').forEach(fig => {
@@ -898,7 +936,9 @@ function renderGallery() {
     });
   }
   gallery.querySelectorAll('.add-photos-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', (e) => {
+      // Sits on top of the phase card, so don't let it also open the lightbox.
+      e.stopPropagation();
       const input = document.createElement('input');
       input.type = 'file'; input.multiple = true; input.accept = 'image/*';
       input.onchange = () => { if (input.files.length) openUploadConfirm(input.files, btn.dataset.folder); };
@@ -932,7 +972,9 @@ function setupScrollSpy() {
     rootMargin: '-10% 0px -70% 0px',
     threshold: 0.05
   });
-  document.querySelectorAll('.phase-section').forEach(sec => sectionObserver.observe(sec));
+  // Only "phases" view has one element per phase; in "images" view there is
+  // nothing to spy on and the phase list is off the page anyway.
+  document.querySelectorAll('.phase-card').forEach(sec => sectionObserver.observe(sec));
 }
 
 /* One deliberate load moment: counters tick up, a trace line draws under the header. */
@@ -1286,6 +1328,7 @@ async function performUploads() {
 
   let total = Object.values(groups).reduce((a, g) => a + g.length, 0);
   let done = 0, skipped = 0, failed = 0;
+  const failedNames = [];
 
   // Paths already in the gallery → same-name uploads are skipped (a blind PUT
   // would 422 "sha wasn't supplied" and stall the whole batch). Cheap, no API
@@ -1334,7 +1377,7 @@ async function performUploads() {
         if (j) state.metadata[path] = { phase: j.stage, activity: '' };
       } catch (err) {
         failed++;
-        showToast(`Failed: ${file.name} — ${err.message}`);
+        failedNames.push(file.name);
       }
       done++;
       showToast(`Uploading ${done}/${total}…`, true);
@@ -1342,7 +1385,7 @@ async function performUploads() {
   }
   const added = total - skipped - failed;
   showToast(skipped || failed
-    ? `Added ${added} photo${added === 1 ? '' : 's'}${skipped ? ` (${skipped} skipped — already in the gallery)` : ''}${failed ? ` (${failed} failed)` : ''}.`
+    ? `Added ${added} photo${added === 1 ? '' : 's'}${skipped ? ` (${skipped} skipped — already in the gallery)` : ''}${failureSuffix(failedNames)}.`
     : `Added ${total} photo${total === 1 ? '' : 's'}.`);
   if (DEMO_MODE) { render(); return; }
   try {
@@ -1566,6 +1609,7 @@ async function performBatchMove() {
   }
 
   let done = 0, failed = 0, collided = 0;
+  const failedNames = [];
   showToast(`Moving 0/${paths.length}…`, true);
   for (const path of paths) {
     const asset = state.assets.find(a => a.canonical.path === path);
@@ -1586,7 +1630,7 @@ async function performBatchMove() {
       }
     } catch (err) {
       failed++;
-      showToast(`Failed: ${items[0].name} — ${err.message}`, true);
+      failedNames.push(items[0].name);
     }
     done++;
     showToast(`Moving ${done}/${paths.length}…`, true);
@@ -1594,7 +1638,7 @@ async function performBatchMove() {
   exitBatchSelect();
   const moved = done - failed - collided;
   showToast(failed || collided
-    ? `Moved ${moved} photo${moved === 1 ? '' : 's'} into ${to}${failed ? ` (${failed} failed)` : ''}${collided ? ` (${collided} skipped — name already there)` : ''}.`
+    ? `Moved ${moved} photo${moved === 1 ? '' : 's'} into ${to}${failureSuffix(failedNames)}${collided ? ` (${collided} skipped — name already there)` : ''}.`
     : `Moved ${done} photo${done === 1 ? '' : 's'} into ${to}.`);
   await loadTree(true);
 }
@@ -1647,6 +1691,7 @@ async function renamePhase() {
 
   const affected = state.assets.filter(a => a.folder === from);
   let done = 0, failed = 0;
+  const failedNames = [];
   showToast(`Renaming 0/${affected.length}\u2026`, true);
   for (const asset of affected) {
     try {
@@ -1659,7 +1704,7 @@ async function renamePhase() {
       }
     } catch (err) {
       failed++;
-      showToast(`Failed: ${asset.canonical.name} — ${err.message}`, true);
+      failedNames.push(asset.canonical.name);
     }
     done++;
     showToast(`Renaming ${done}/${affected.length}\u2026`, true);
@@ -1675,7 +1720,7 @@ async function renamePhase() {
   } catch (err) {
     showToast(`Photos renamed, but metadata not saved: ${err.message}`);
   }
-  showToast(failed ? `Renamed "${from}" to "${to}" (${failed} failed).` : `Renamed "${from}" to "${to}".`);
+  showToast(failed ? `Renamed "${from}" to "${to}"${failureSuffix(failedNames)}.` : `Renamed "${from}" to "${to}".`);
   await loadTree(true);
 }
 
@@ -1798,6 +1843,7 @@ async function applyRestore(plan, label) {
   const total = plan.put.length + plan.remove.length;
   if (!total) return showToast('Nothing to change — that state is already back.');
   let done = 0, failed = 0;
+  const failedNames = [];
   const headers = { Authorization: `Bearer ${state.token}` };
   showToast(`Reverting 0/${total}…`, true);
   for (const { path, sha } of plan.put) {
@@ -1808,7 +1854,7 @@ async function applyRestore(plan, label) {
       await githubPut(path, content, `${label} ${ADMIN_MARKER}`, { overwrite: true });
     } catch (err) {
       failed++;
-      showToast(`Failed: ${path} — ${err.message}`, true);
+      failedNames.push(path);
     }
     showToast(`Reverting ${++done}/${total}…`, true);
   }
@@ -1817,11 +1863,11 @@ async function applyRestore(plan, label) {
       await githubDelete(path, sha, `${label} ${ADMIN_MARKER}`);
     } catch (err) {
       failed++;
-      showToast(`Failed: ${path} — ${err.message}`, true);
+      failedNames.push(path);
     }
     showToast(`Reverting ${++done}/${total}…`, true);
   }
-  showToast(failed ? `${label} done (${failed} failed).` : `${label} done.`);
+  showToast(failed ? `${label} done${failureSuffix(failedNames)}.` : `${label} done.`);
   await loadTree(true);
 }
 
@@ -2144,8 +2190,36 @@ function escapeAttr(s) { return escapeHtml(s).replace(/"/g, '&quot;'); }
 let toastTimer;
 function showToast(msg, sticky = false) {
   const t = el('toast');
-  t.textContent = msg;
+  let span = document.getElementById('toastMessage');
+  if (!span) {
+    span = document.createElement('span');
+    span.id = 'toastMessage';
+    t.textContent = '';
+    t.appendChild(span);
+    let close = document.getElementById('toastClose');
+    if (!close) {
+      close = document.createElement('button');
+      close.type = 'button';
+      close.className = 'toast-close';
+      close.id = 'toastClose';
+      close.setAttribute('aria-label', 'Dismiss');
+      close.textContent = '×';
+      close.addEventListener('click', () => { t.hidden = true; });
+      t.appendChild(close);
+    }
+  }
+  span.textContent = msg;
   t.hidden = false;
   clearTimeout(toastTimer);
   if (!sticky) toastTimer = setTimeout(() => { t.hidden = true; }, 3200);
+}
+
+// Failure detail is collected through a batch and surfaced once at the end,
+// because a per-item error toast is immediately overwritten by the next
+// progress toast and would never be seen.
+function failureSuffix(failedNames) {
+  if (!failedNames.length) return '';
+  const shown = failedNames.slice(0, 3).join(', ');
+  const extra = failedNames.length > 3 ? ` and ${failedNames.length - 3} more` : '';
+  return ` (${failedNames.length} failed: ${shown}${extra})`;
 }
