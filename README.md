@@ -10,6 +10,17 @@ Public visitors (your bosses) just browse. Signing in with an admin token lets
 you add or remove photos straight from the browser — no backend, no database,
 just this repo.
 
+## The walkthrough
+
+`/walkthrough/` is a guided, seven-step tour of the build — site survey to
+final reveal — with real URLs (`/walkthrough/cabling/` etc., one static page
+per step, so deep links are shareable). Visitors reach it from the ⋮ menu →
+**Project walkthrough**. Step content lives in `walkthrough/steps.js` (slug,
+title, one-sentence copy, hero + gallery photos pointing at the existing
+`images/` assets); the runtime (`walkthrough/walkthrough.js`) renders each
+page from that array, so adding a step means adding one object plus one static
+folder — the progress ramp and navigation recompute themselves.
+
 ## Testing it before you have a repo
 
 Open `index.html` with `owner`/`repo` still blank in `app.js` and the site

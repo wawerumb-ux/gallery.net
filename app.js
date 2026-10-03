@@ -1249,6 +1249,7 @@ const ICONS = {
   gear: '<svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>',
   signOut: '<svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true"><path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4C2.9 3 2 3.9 2 5v14c0 1.1.9 2 2 2h8v-2H4V5z"/></svg>',
   signIn: '<svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true"><path d="M11 7 9.6 8.4l2.6 2.6H2v2h10.2l-2.6 2.6L11 17l5-5-5-5zm9 12h-8v2h8c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2h-8v2h8v14z"/></svg>',
+  route: '<svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true"><path d="M19 15.18V5c0-1.1-.9-2-2-2H7C5.9 3 5 3.9 5 5v10.18c-1.16.41-2 1.51-2 2.82 0 1.66 1.34 3 3 3s3-1.34 3-3c0-1.3-.84-2.4-2-2.82V7h8v8.18c-1.16.41-2 1.51-2 2.82 0 1.66 1.34 3 3 3s3-1.34 3-3c0-1.31-.84-2.41-2-2.82z"/></svg>',
 };
 
 function openSheet(cfg) {
@@ -1274,16 +1275,20 @@ function openSheet(cfg) {
 
 function closeSheet() { el('sheetOverlay').hidden = true; }
 
-/* Header ⋮: a visitor gets sign-in; the admin gets the full tool set. */
+/* Header ⋮: everyone gets the walkthrough; a visitor also gets sign-in,
+   the admin gets the full tool set. */
 function mainMenu() {
-  const items = state.adminMode ? [
-    { icon: ICONS.photoAdd, label: 'Add photos', onTap: () => pickFiles(null) },
-    { icon: ICONS.folderAdd, label: 'New album…', onTap: openNewAlbumModal },
-    { icon: ICONS.checkCircle, label: 'Select photos', onTap: () => enterSelectMode() },
-    { icon: ICONS.gear, label: 'Album settings', onTap: () => openSettingsModal() },
-    { icon: ICONS.signOut, label: 'Sign out', onTap: signOut },
-  ] : [
-    { icon: ICONS.signIn, label: 'Admin sign in', onTap: openAdminModal },
+  const items = [
+    { icon: ICONS.route, label: 'Project walkthrough', onTap: () => { window.location.href = 'walkthrough/'; } },
+    ...(state.adminMode ? [
+      { icon: ICONS.photoAdd, label: 'Add photos', onTap: () => pickFiles(null) },
+      { icon: ICONS.folderAdd, label: 'New album…', onTap: openNewAlbumModal },
+      { icon: ICONS.checkCircle, label: 'Select photos', onTap: () => enterSelectMode() },
+      { icon: ICONS.gear, label: 'Album settings', onTap: () => openSettingsModal() },
+      { icon: ICONS.signOut, label: 'Sign out', onTap: signOut },
+    ] : [
+      { icon: ICONS.signIn, label: 'Admin sign in', onTap: openAdminModal },
+    ]),
   ];
   openSheet({ title: DEMO_MODE ? 'Demo data — nothing leaves this tab' : undefined, items });
 }

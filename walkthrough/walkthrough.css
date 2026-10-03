@@ -1,0 +1,269 @@
+/* ────────────────────────────────────────────────────────────────────
+   Walkthrough — "One UI Spices" on the site's existing tokens.
+   Depth = blur + dim, never 3D perspective or heavy shadows.
+   One easing, three durations, content on top, controls on the bottom.
+   ──────────────────────────────────────────────────────────────────── */
+
+:root {
+  /* Site tokens govern (walkthrough is not its own surface) */
+  --wt-bg: #000000;
+  --wt-text: #ffffff;
+  --wt-muted: rgba(255, 255, 255, 0.6);
+  --wt-faint: rgba(255, 255, 255, 0.28);
+  --wt-accent: #0072ef;            /* used sparingly: active dot, CTA, one node */
+
+  /* One UI motion: fast start, gentle settle. No bounce, no overshoot. */
+  --wt-ease: cubic-bezier(0.22, 0.25, 0.00, 1.00);
+  --wt-short: 100ms;
+  --wt-base: 300ms;
+  --wt-long: 500ms;
+
+  --wt-radius-pill: 999px;
+  --wt-radius-card: 16px;
+  --wt-col: 480px;
+
+  --wt-font: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+}
+
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body.wt {
+  margin: 0;
+  background: var(--wt-bg);
+  color: var(--wt-text);
+  font-family: var(--wt-font);
+  font-size: 15.5px;
+  line-height: 1.5;
+  min-height: 100vh;
+  min-height: 100dvh;
+  overflow-x: clip;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Ambient layer ─────────────────────────────────────────────────
+   The vanilla Depth Triad stand-in for the WebGL network: a fixed field
+   of translucent nodes and hairline links, identical on every page.
+   It never unmounts; navigation only re-dims and re-blurs it.
+   State is driven by --wt-progress (0 = sharp context, 1 = receded). */
+.wt-ambient {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+  /* --wt-progress is set by the runtime; these three are the whole ramp */
+  filter: blur(calc(12px * var(--wt-progress, 0)))
+          brightness(calc(1 - (0.5 * var(--wt-progress, 0))));
+  transform: scale(calc(1 - (0.04 * var(--wt-progress, 0))));
+  transition: filter var(--wt-long) var(--wt-ease),
+              transform var(--wt-long) var(--wt-ease);
+  will-change: filter, transform;
+}
+.wt-ambient-inner {
+  position: absolute;
+  inset: -12%;
+  /* Drift: slow, continuous, tied to time — the only idle motion allowed */
+  animation: wt-drift 240s linear infinite;
+}
+@keyframes wt-drift {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+.wt-node {
+  position: absolute;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.3);
+}
+.wt-node-accent { background: var(--wt-accent); opacity: 0.85; }
+.wt-link {
+  position: absolute;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.09);
+  transform-origin: 0 50%;
+}
+
+/* ── Page skeleton ─────────────────────────────────────────────────
+   Top ~55%: full-bleed photography. Bottom: counter, title, copy,
+   dots, primary CTA — everything actionable within thumb reach. */
+.wt-page {
+  position: relative;
+  z-index: 1;
+  max-width: var(--wt-col);
+  min-height: 100vh;
+  min-height: 100dvh;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+}
+@media (min-width: 481px) {
+  .wt-page {
+    border-left: 1px solid rgba(255, 255, 255, 0.08);
+    border-right: 1px solid rgba(255, 255, 255, 0.08);
+  }
+}
+
+/* Photography */
+.wt-media {
+  position: relative;
+  height: 55vh;
+  height: 55dvh;
+  min-height: 280px;
+  overflow: hidden;
+  background: var(--wt-bg);
+  cursor: pointer;
+}
+.wt-media img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  opacity: 0;
+  /* IMAGES: overlapping crossfade — incoming rides the long duration */
+  transition: opacity var(--wt-long) var(--wt-ease);
+}
+.wt-media img.is-on { opacity: 1; }
+/* Outgoing runs shorter; the two layers briefly overlap (no glare) */
+.wt-media img.wt-img-out {
+  opacity: 0;
+  transition-duration: var(--wt-base);
+}
+.wt-media-hint {
+  position: absolute;
+  right: 16px;
+  bottom: 12px;
+  z-index: 2;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.55);
+  background: rgba(0, 0, 0, 0.45);
+  border-radius: var(--wt-radius-pill);
+  padding: 4px 12px;
+  pointer-events: none;
+}
+
+/* Controls — the thumb zone */
+.wt-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 20px 24px calc(24px + env(safe-area-inset-bottom, 0px));
+}
+.wt-counter {
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--wt-muted);
+}
+.wt-title {
+  margin: 0;
+  font-size: 30px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+}
+.wt-copy {
+  margin: 0;
+  font-size: 15.5px;
+  color: var(--wt-muted);
+  max-width: 34ch;
+}
+.wt-dots {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 16px 0 8px;
+}
+.wt-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--wt-faint);
+  padding: 0;
+  border: none;
+  cursor: pointer;
+  transition: transform var(--wt-short) var(--wt-ease),
+              background var(--wt-short) var(--wt-ease);
+}
+.wt-dot:active { transform: scale(0.8); }
+.wt-dot[aria-current="step"] {
+  background: var(--wt-accent);
+  transform: scale(1.35);
+}
+.wt-cta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 52px;
+  border: none;
+  border-radius: var(--wt-radius-pill);
+  background: var(--wt-accent);
+  color: #ffffff;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  text-decoration: none;
+  cursor: pointer;
+  transition: filter var(--wt-short) var(--wt-ease),
+              transform var(--wt-short) var(--wt-ease);
+}
+.wt-cta:hover { filter: brightness(1.12); }
+.wt-cta:active { transform: scale(0.98); }
+.wt-alt {
+  align-self: center;
+  margin-top: 4px;
+  background: none;
+  border: none;
+  padding: 8px 12px;
+  color: var(--wt-muted);
+  font-family: inherit;
+  font-size: 13px;
+  text-decoration: none;
+  cursor: pointer;
+  transition: color var(--wt-short) var(--wt-ease);
+}
+.wt-alt:hover { color: var(--wt-text); }
+
+/* Landing: no media region — the sharp ambient is the whole visual */
+.wt-page-landing .wt-media { display: none; }
+.wt-page-landing .wt-panel { justify-content: flex-end; min-height: 100vh; min-height: 100dvh; }
+
+/* ── Enter / exit fades ────────────────────────────────────────────
+   TEXT: sequential — old text fully gone before new text appears.
+   Across static pages we honour this by delaying incoming text 220ms
+   after the media starts, and fading outgoing text first. */
+.wt-panel > * {
+  opacity: 0;
+  transform: translateY(6px);
+}
+.wt-page.wt-enter .wt-panel > * {
+  opacity: 1;
+  transform: none;
+  transition: opacity var(--wt-base) var(--wt-ease) 220ms,
+              transform var(--wt-base) var(--wt-ease) 220ms;
+}
+.wt-page.wt-exit .wt-panel > * {
+  opacity: 0;
+  transform: none;
+  transition: opacity var(--wt-base) var(--wt-ease);
+}
+.wt-page.wt-exit .wt-media img.is-on {
+  opacity: 0;
+  transition-duration: var(--wt-base);
+}
+
+/* Landing panel is visible by default path too (same enter rules) */
+
+/* Reduced motion: fades become cuts, drift stops */
+@media (prefers-reduced-motion: reduce) {
+  .wt-ambient, .wt-media img, .wt-panel > *, .wt-cta, .wt-alt, .wt-dot {
+    transition: none !important;
+  }
+  .wt-ambient-inner { animation: none !important; }
+}
