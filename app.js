@@ -236,6 +236,8 @@ const state = {
   view: 'images', // 'images' = Pictures tab (day-grouped wall), 'phases' = Albums tab
   picturesList: [],   // flat [{img, folder, index}] newest-first — the Pictures tab order
   _tabScroll: {},     // per-tab scroll positions, restored on tab switch
+  albumDetail: null,  // phase folder opened inline (Albums tab → photo grid)
+  _albumScroll: 0,    // Albums-grid scroll, restored when the detail closes
   _suppressClickUntil: 0, // a long-press that opened selection swallows its trailing click
   batchSelect: false, // gallery card-selection mode (sort flow)
   batchSelected: new Set(), // paths of the photos the admin picked
@@ -688,6 +690,9 @@ function render() {
   renderPictures();
   renderAlbums();
   wireGalleryEvents();
+  // An open album detail re-renders too (rename/delete/classify flow
+  // through here) — after wireGalleryEvents so its own wiring wins.
+  if (state.albumDetail) renderAlbumDetail();
   // First paint: raw.githubusercontent sends Cache-Control: no-cache, so
   // every visit pays DNS + TLS + a full GET unless we preload the images the
   // user actually sees first (the top of the Pictures tab).
@@ -719,6 +724,9 @@ function render() {
 function setView(view) {
   if (view !== 'images' && view !== 'phases') return;
   if (state.view === view) return;
+  // The album detail lives inside the Albums tab — switching tabs leaves it.
+  state.albumDetail = null;
+  el('albumDetailView').hidden = true;
   state._tabScroll[state.view] = window.scrollY;
   state.view = view;
   const pictures = view === 'images';
@@ -734,10 +742,33 @@ function setView(view) {
 }
 
 /* One UI hero header: the big "Gallery" title folds away on scroll and the
-   compact title takes its place in the app bar. */
+   compact title takes its place in the app bar. Inside an album both carry
+   the album name instead. */
 function syncAppbar() {
   const bar = el('appbar');
-  if (bar) bar.classList.toggle('is-collapsed', window.scrollY > 36);
+  const collapsed = window.scrollY > 36;
+  if (bar) {
+    const was = bar.classList.contains('is-collapsed');
+    bar.classList.toggle('is-collapsed', collapsed);
+    if (was !== collapsed) syncChromeH();
+  }
+  const folder = state.albumDetail;
+  const j = folder ? journeyFor(folder) : null;
+  const name = folder ? (j ? j.stage : folder) : 'Gallery';
+  const title = el('appbarTitle');
+  if (title) title.textContent = name;
+  el('appbarMini').textContent = name;
+}
+
+/* Height of the top chrome (app bar, or the selection bar while selecting) —
+   the album-detail header sticks right below it. The height changes in
+   discrete steps (hero collapse, search pill, selection bar), so the sticky
+   offset is re-measured only at those transitions. */
+function syncChromeH() {
+  const selBar = el('selectBar');
+  const h = (selBar && !selBar.hidden) ? 56
+    : (el('appbar') ? el('appbar').offsetHeight : 54);
+  document.documentElement.style.setProperty('--chrome-h', h + 'px');
 }
 
 /* Admin quick-find: hide cards/albums that don't match the query, and fold
@@ -765,6 +796,14 @@ function applyAdminFilter() {
     const hit = !q || (alb.dataset.folder || '').toLowerCase().includes(q);
     const show = !q || (scope !== 'image' && hit);
     alb.hidden = !show;
+    if (show) visible++;
+  });
+  // An open album detail holds photo cards too — same rules as the wall.
+  document.querySelectorAll('#albumDetailView .card[data-path]').forEach(card => {
+    total++;
+    const hit = !q || (card.dataset.path || '').toLowerCase().includes(q);
+    const show = !q || (scope !== 'phase' && hit);
+    card.hidden = !show;
     if (show) visible++;
   });
   el('adminSearchCount').textContent = q ? `${visible}/${total}` : '';
@@ -865,6 +904,84 @@ function renderAlbums() {
   el('albumsView').innerHTML = `<div class="grid-albums">${state.order.map(albumCardMarkup).join('')}</div>`;
 }
 
+/* ── Album detail: one tap on a cover reveals that phase's photos in
+       an inline grid (Samsung Gallery) — the cover no longer jumps
+       straight into the viewer; tapping a photo inside the grid does. */
+function openAlbumDetail(folder) {
+  const items = state.folders[folder] || [];
+  if (!items.length) return;
+  state._albumScroll = window.scrollY;   // where the Albums grid was
+  state.albumDetail = folder;
+  // A stale search query would hide the grid behind it — reset it.
+  if (el('adminSearch').value) {
+    el('adminSearch').value = '';
+    el('adminSearchCount').textContent = '';
+  }
+  applyAdminFilter();
+  renderAlbumDetail();
+  el('albumsView').hidden = true;
+  el('albumDetailView').hidden = false;
+  syncAppbar();
+  syncChromeH();
+  window.scrollTo(0, 0);
+}
+
+function closeAlbumDetail() {
+  if (!state.albumDetail) return;
+  state.albumDetail = null;
+  el('albumDetailView').hidden = true;
+  el('albumsView').hidden = state.view !== 'phases';
+  syncAppbar();
+  syncChromeH();
+  window.scrollTo(0, state._albumScroll || 0);
+}
+
+function renderAlbumDetail() {
+  const folder = state.albumDetail;
+  if (!folder) return;
+  const items = state.folders[folder] || [];
+  if (!items.length) { closeAlbumDetail(); return; }
+  const j = journeyFor(folder);
+  const stageName = j ? j.stage : folder;
+  const keepY = window.scrollY;   // re-renders (rename/delete) keep place
+  el('albumDetailView').innerHTML = `
+    <div class="album-detail-head">
+      <button class="album-back" id="albumBack" type="button" aria-label="Back to albums">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+      </button>
+      <div class="album-detail-titles">
+        <h2 class="album-detail-name">${escapeHtml(stageName)}</h2>
+        <span class="album-detail-count">${items.length} photo${items.length === 1 ? '' : 's'}</span>
+      </div>
+    </div>
+    <div class="grid grid-pictures">
+      ${items.map((img, i) => cardMarkup(img, folder, i)).join('')}
+    </div>`;
+  el('albumBack').addEventListener('click', closeAlbumDetail);
+  // Same wiring as the Pictures wall: tap = viewer, long-press = select.
+  el('albumDetailView').querySelectorAll('.card').forEach(fig => {
+    fig.addEventListener('click', () => {
+      if (Date.now() < (state._suppressClickUntil || 0)) return;
+      if (state.adminMode && state.batchSelect) { toggleBatchSelect(fig.dataset.path); return; }
+      const img = fig.querySelector('img');
+      openLightbox(fig.dataset.folder, Number(fig.dataset.index),
+        (img && img.classList.contains('is-loaded') && img.currentSrc) ? img.currentSrc : null);
+    });
+    wireLongPress(fig);
+  });
+  el('albumDetailView').querySelectorAll('img[data-full]').forEach(img => {
+    img.addEventListener('load', () => {
+      if (!img.classList.contains('is-loaded')) img.classList.add('is-loaded');
+      if (img.src !== img.dataset.full && img.dataset.full) img.src = img.dataset.full;
+      loadProg.imageLoaded();
+    });
+    img.addEventListener('error', () => {
+      if (img.src !== img.dataset.full && img.dataset.full) img.src = img.dataset.full;
+    });
+  });
+  window.scrollTo(0, keepY);
+}
+
 function wireGalleryEvents() {
   const gallery = el('gallery');
   gallery.querySelectorAll('img[data-full]').forEach(img => {
@@ -896,13 +1013,11 @@ function wireGalleryEvents() {
     });
     wireLongPress(fig);
   });
-  // Album covers open the viewer scoped to that album at the cover photo.
+  // Album covers open the phase's photos in an inline grid.
   gallery.querySelectorAll('#albumsView .album').forEach(fig => {
     fig.addEventListener('click', (e) => {
       if (e.target.closest('.album-more')) return;
-      const img = fig.querySelector('.album-cover img');
-      openLightbox(fig.dataset.folder, Number(fig.dataset.index),
-        (img && img.classList.contains('is-loaded') && img.currentSrc) ? img.currentSrc : null);
+      openAlbumDetail(fig.dataset.folder);
     });
   });
   gallery.querySelectorAll('.album-more').forEach(btn => {
@@ -1221,6 +1336,7 @@ function signOut() {
 function updateAdminUI() {
   el('fabAdd').hidden = !state.adminMode;
   el('searchWrap').hidden = !state.adminMode;
+  syncChromeH(); // the search pill changes the app bar height
   if (!state.adminMode) {
     state.batchSelect = false;
     state.batchSelected.clear();
@@ -1573,7 +1689,9 @@ function resolveTarget(rawValue) {
    top bar offers Move (into an album) and Delete, like the phone does. */
 function enterSelectMode(path) {
   if (!state.adminMode) return;
-  if (state.view !== 'images') setView('images'); // tiles live on the Pictures tab
+  // Tiles live on the Pictures tab — unless a phase is open inline,
+  // where selection stays inside that album's grid.
+  if (state.view !== 'images' && !state.albumDetail) setView('images');
   state.batchSelect = true;
   if (path) state.batchSelected.add(path);
   render();
@@ -1582,12 +1700,11 @@ function enterSelectMode(path) {
 function toggleBatchSelect(path) {
   if (state.batchSelected.has(path)) state.batchSelected.delete(path);
   else state.batchSelected.add(path);
-  const card = document.querySelector(`#picturesView .card[data-path="${CSS.escape(path)}"]`);
-  if (card) {
+  document.querySelectorAll(`#picturesView .card[data-path="${CSS.escape(path)}"], #albumDetailView .card[data-path="${CSS.escape(path)}"]`).forEach(card => {
     card.classList.toggle('card-selected', state.batchSelected.has(path));
     const pick = card.querySelector('.card-pick');
     if (pick) pick.textContent = state.batchSelected.has(path) ? '✓' : '';
-  }
+  });
   updateSelectBar();
 }
 
@@ -1599,6 +1716,7 @@ function updateSelectBar() {
   el('selectMove').disabled = n === 0;
   el('selectDelete').disabled = n === 0;
   document.body.classList?.toggle('is-selecting', on);
+  syncChromeH();
 }
 
 function exitBatchSelect() {
