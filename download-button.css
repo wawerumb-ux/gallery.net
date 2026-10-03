@@ -1,0 +1,147 @@
+/* ────────────────────────────────────────────────────────────────────
+   DownloadButton — the site's single animated download control.
+   One easing (ONE_UI_BASIC), durations from --dlb-* custom properties
+   injected by download-button.js from oneui.js's D (SPEED_MULTIPLIER
+   × 1.25). No duration is ever hardcoded here — the var() references
+   are the whole point.
+   ──────────────────────────────────────────────────────────────────── */
+
+.dlb {
+  /* Fallbacks apply only if oneui.js failed to load; the JS always sets
+     these from D, so the multiplier stays the single source. */
+  --dlb-short: 125ms;
+  --dlb-base: 375ms;
+  --dlb-long: 625ms;
+  --dlb-ease: cubic-bezier(0.22, 0.25, 0.00, 1.00);
+  --dlb-accent: #0072ef;           /* site token governs the tray */
+
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 22px;
+  border: none;
+  border-radius: 999px;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  text-decoration: none;
+  cursor: pointer;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+  transition: filter var(--dlb-short) var(--dlb-ease),
+              background var(--dlb-short) var(--dlb-ease),
+              transform var(--dlb-short) var(--dlb-ease),
+              opacity var(--dlb-base) var(--dlb-ease);
+}
+.dlb:focus-visible {
+  outline: 2px solid var(--dlb-accent);
+  outline-offset: 2px;
+}
+.dlb:active { transform: scale(0.98); }
+
+/* Variants */
+.dlb-primary {
+  background: var(--dlb-accent);
+  color: #ffffff;
+}
+.dlb-primary:hover { filter: brightness(1.12); }
+.dlb-ghost {
+  background: transparent;
+  color: inherit;
+}
+.dlb-ghost:hover { background: rgba(255, 255, 255, 0.08); }
+
+/* The canonical icon: arrow in currentColor, tray in accent. */
+.dlb svg {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  display: block;
+}
+.dlb-arrow-wrap {
+  transition: transform var(--dlb-base) var(--dlb-ease),
+              opacity var(--dlb-base) var(--dlb-ease);
+}
+.dlb-tray {
+  transition: fill var(--dlb-base) var(--dlb-ease);
+}
+.dlb-check {
+  opacity: 0;
+  transition: opacity var(--dlb-base) var(--dlb-ease);
+}
+
+/* Phase 1+2 — activation: arrow dips 6px / 40% opacity while the tray
+   pulses 1 → 1.06 → 1 and brightens toward white, then settles. */
+.dlb.is-active .dlb-arrow-wrap {
+  transform: translateY(6px);
+  opacity: 0.4;
+}
+.dlb.is-active .dlb-tray {
+  animation: dlb-tray-pulse var(--dlb-base) var(--dlb-ease);
+}
+@keyframes dlb-tray-pulse {
+  50% {
+    transform: scale(1.06);
+    fill: color-mix(in srgb, var(--dlb-accent) 20%, #ffffff);
+  }
+}
+/* Phase 3 — arrow returns to rest (JS drops .is-active, adds nothing;
+   the same base transition carries it home). */
+
+/* Success: tray fills accent, arrow yields to a white checkmark. */
+.dlb.is-success .dlb-tray {
+  fill: var(--dlb-accent);
+}
+.dlb.is-success .dlb-arrow-wrap {
+  transform: none;
+  opacity: 0;
+}
+.dlb.is-success .dlb-check {
+  opacity: 1;
+}
+
+/* Error: muted, and the success state is never played. */
+.dlb.is-error {
+  opacity: 0.55;
+}
+
+/* Viewer bottom-bar fit (photo viewer's Download action). */
+.dlb-viewer {
+  flex-direction: column;
+  gap: 4px;
+  min-width: 72px;
+  min-height: 0;
+  padding: 8px 10px;
+  border-radius: 14px;
+  background: transparent;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 400;
+}
+.dlb-viewer svg {
+  width: 24px;
+  height: 24px;
+}
+.dlb-viewer .dlb-label { color: rgba(255, 255, 255, 0.78); }
+
+/* Walkthrough fit (ghost action under the primary CTA). */
+.dlb-walkthrough {
+  align-self: center;
+  min-height: 0;
+  padding: 8px 16px;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 13px;
+}
+.dlb-walkthrough:hover { color: #ffffff; }
+
+/* Reduced motion: zero frames beyond the state change. */
+@media (prefers-reduced-motion: reduce) {
+  .dlb, .dlb-arrow-wrap, .dlb-tray, .dlb-check {
+    transition: none !important;
+    animation: none !important;
+  }
+}

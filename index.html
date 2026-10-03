@@ -12,6 +12,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="download-button.css">
 </head>
 <body>
 <div class="app" id="app">
@@ -124,10 +125,7 @@
     <svg viewBox="0 0 24 24" width="30" height="30" fill="currentColor" aria-hidden="true"><path d="M8.59 16.59 10 18l6-6-6-6-1.41 1.41L13.17 12z"/></svg>
   </button>
   <div class="viewer-bottom" id="viewerBottom">
-    <button class="viewer-action" id="lightboxDownload" type="button">
-      <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true"><path d="M11 3h2v10.17l2.59-2.58L17 12l-5 5-5-5 1.41-1.41L11 13.17V3zM5 19h14v2H5z"/></svg>
-      <span>Download</span>
-    </button>
+    <span id="lightboxDownloadSlot"></span>
     <button class="viewer-action" id="lightboxTag" type="button" hidden>
       <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true"><path d="M17.63 5.84C17.27 5.33 16.67 5 16 5L5 5.01C3.9 5.01 3 5.9 3 7v10c0 1.1.9 1.99 2 1.99L16 19c.67 0 1.27-.33 1.63-.84L22 12l-4.37-6.16z"/></svg>
       <span>Classify</span>
@@ -246,6 +244,8 @@
   <button class="toast-close" id="toastClose" aria-label="Dismiss">×</button>
 </div>
 
+<script src="oneui.js"></script>
+<script src="download-button.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

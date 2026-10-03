@@ -1105,7 +1105,15 @@ function wireStaticEvents() {
   el('lightboxClose').addEventListener('click', () => overlayClose('lightbox'));
   el('lightboxPrev').addEventListener('click', () => lightboxStep(-1));
   el('lightboxNext').addEventListener('click', () => lightboxStep(1));
-  el('lightboxDownload').addEventListener('click', downloadFromLightbox);
+  // The viewer's Download action is the site's single DownloadButton.
+  viewerDownload = createDownloadButton({
+    href: '',
+    label: 'Download',
+    variant: 'ghost',
+    className: 'dlb-viewer',
+    onDownloadComplete: () => showToast(`Saved ${viewerDownloadName}`),
+  });
+  el('lightboxDownloadSlot').appendChild(viewerDownload.el);
   el('lightboxTag').addEventListener('click', viewerTag);
   el('lightboxDelete').addEventListener('click', viewerDelete);
   // Tap anywhere on the photo toggles the S10 immersive chrome.
@@ -1149,7 +1157,7 @@ function wireStaticEvents() {
     if (top && top !== 'lightbox') return; // a dialog sits above the viewer
     if (e.key === 'ArrowLeft') lightboxStep(-1);
     if (e.key === 'ArrowRight') lightboxStep(1);
-    if (e.key === 'd' || e.key === 'D') downloadFromLightbox();
+    if ((e.key === 'd' || e.key === 'D') && viewerDownload) viewerDownload.activate();
   });
 
   // Hero header folds away as the wall scrolls
@@ -2083,6 +2091,11 @@ function fileToDataUrl(file) {
 
 /* ── Lightbox ─────────────────────────────────────────────────── */
 
+/* The viewer's DownloadButton instance + the filename of the photo on
+   screen (for the completion toast). Created in wireStaticEvents. */
+let viewerDownload = null;
+let viewerDownloadName = '';
+
 /* On the Pictures tab the viewer walks the same day-sorted wall the user was
    looking at; from an album it stays inside that album. */
 function lightboxItems(folder) {
@@ -2133,6 +2146,16 @@ function updateLightbox() {
   el('lightboxTag').hidden = !state.adminMode;
   el('lightboxDelete').hidden = !state.adminMode;
   el('lightbox').classList.remove('chrome-off');
+  // The DownloadButton always points at the photo on screen, full-res,
+  // tokenless (same-origin Pages host or the in-page demo data URL).
+  viewerDownloadName = prettyName(img.name);
+  if (viewerDownload) {
+    viewerDownload.setFile({
+      href: img.demoSrc || pageUrl(img.path),
+      filename: sanitizeFilename(img.name) ||
+        (viewerDownloadName.toLowerCase().replace(/\s+/g, '-') || 'gallery-photo') + '.jpg',
+    });
+  }
 }
 
 /* Viewer bottom-bar admin actions act on the photo on screen. */
@@ -2153,51 +2176,6 @@ function lightboxStep(delta) {
   if (!items.length) return;
   state.lightboxIndex = (state.lightboxIndex + delta + items.length) % items.length;
   updateLightbox();
-}
-
-/* Visitor-safe download: never sends the admin token, never puts a token in
-   any URL. Demo mode uses the in-page data URL directly; live mode fetches
-   the raw bytes (raw.githubusercontent serves CORS with `Access-Control-Allow-
-   Origin: *` and needs no token), converts to a blob + object URL, and saves
-   via an anchor with the `download` attribute. If the fetch fails (offline /
-   /CORS hiccup) it opens the tokenless raw URL in a new tab so the visitor
-   can still save the image. */
-async function downloadFromLightbox() {
-  const img = lightboxItems(state.lightboxFolder)[state.lightboxIndex];
-  if (!img) return;
-  const filename = sanitizeFilename(img.name) ||
-    (prettyName(img.name).toLowerCase().replace(/\s+/g, '-') || 'gallery-photo') + '.jpg';
-
-  if (img.demoSrc) {
-    const a = document.createElement('a');
-    a.href = img.demoSrc;
-    a.download = filename;
-    a.rel = 'noopener';
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    showToast(`Saved ${prettyName(img.name)}`);
-    return;
-  }
-
-  try {
-    const res = await fetch(pageUrl(img.path));
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const blob = await res.blob();
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    a.rel = 'noopener';
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 10000);
-    showToast(`Saved ${prettyName(img.name)}`);
-  } catch (err) {
-    window.open(pageUrl(img.path), '_blank', 'noopener');
-    showToast('Opened in a new tab — use “Save image as…”', true);
-  }
 }
 
 /* ── Small helpers ────────────────────────────────────────────── */

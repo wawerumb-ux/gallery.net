@@ -148,12 +148,32 @@
     } else {
       addAction('Browse the full gallery', galleryUrl(), true);
     }
-    initMedia(step);
+    var dlBtn = null;
+    var media = initMedia(step, function onPhotoAdvance(i) {
+      // The download always points at the photo on screen, full-res.
+      if (dlBtn) dlBtn.setFile({ href: prefix + fullRes(media[i]), filename: fileName(media[i]) });
+    });
+    if (typeof createDownloadButton === 'function') {
+      dlBtn = createDownloadButton({
+        href: prefix + fullRes(media[0]),
+        filename: fileName(media[0]),
+        label: 'Download photo',
+        variant: 'ghost',
+        className: 'dlb-walkthrough',
+      });
+      // Under the primary CTA, above the quiet exit link.
+      elActions.insertBefore(dlBtn.el, elActions.children[1] || null);
+    }
   }
+
+  /* steps.js stores the -800.webp tier; the full-res canonical file is
+     the same name without the tier suffix. */
+  function fullRes(src) { return src.replace(/-800\.webp$/, '.jpg'); }
+  function fileName(src) { return fullRes(src).split('/').pop(); }
 
   /* Photography: hero plus the step's gallery, advanced by tap with
      the overlapping crossfade (outgoing 300ms, incoming 500ms). */
-  function initMedia(step) {
+  function initMedia(step, onAdvance) {
     var photos = [step.hero].concat(step.gallery);
     var layers = photos.map(function (src, i) {
       var img = document.createElement('img');
@@ -176,6 +196,7 @@
       inn.classList.add('is-on');            // incoming: 500ms
       out.classList.add('wt-img-out');       // outgoing: 300ms, overlap
       hint.textContent = (next + 1) + ' / ' + layers.length;
+      if (onAdvance) onAdvance(next);
       busy = true;
       setTimeout(function () {
         out.classList.remove('is-on', 'wt-img-out');
@@ -191,6 +212,7 @@
     requestAnimationFrame(function () {
       requestAnimationFrame(function () { layers[0].classList.add('is-on'); });
     });
+    return photos;
   }
 
   if (stepIndex) initStep(stepIndex); else initLanding();
@@ -217,6 +239,7 @@
   document.addEventListener('click', function (e) {
     var a = e.target.closest ? e.target.closest('a') : null;
     if (!a || !a.href) return;
+    if (a.hasAttribute('download')) return; // DownloadButton handles its own activation
     if (a.target === '_blank' || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
     e.preventDefault();
     exitTo(a.href);
