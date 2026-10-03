@@ -120,6 +120,29 @@ code {
 }
 .appbar.is-collapsed .appbar-mini { opacity: 1; transform: none; }
 .appbar-actions { margin-left: auto; display: flex; align-items: center; gap: 4px; }
+.appbar-walkthrough {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 14px;
+  border-radius: var(--radius-pill);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--hairline);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+  transition: background var(--duration-fast) var(--ease-spring),
+              border-color var(--duration-fast) var(--ease-spring),
+              transform var(--duration-fast) var(--ease-spring);
+}
+.appbar-walkthrough:hover {
+  background: rgba(255, 255, 255, 0.1);
+  border-color: var(--hairline-strong);
+}
+.appbar-walkthrough:active { transform: scale(0.97); }
+.appbar-walkthrough svg { flex-shrink: 0; }
 .appbar-icon {
   width: 42px; height: 42px;
   display: inline-flex; align-items: center; justify-content: center;
