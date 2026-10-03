@@ -1,9 +1,14 @@
 # Structured Cabling — Project Archive
 
 A gallery site for your networking install photos, grouped by phase, hosted on
-GitHub Pages. Public visitors (your bosses) just browse. Signing in with an
-admin token lets you add or remove photos straight from the browser — no
-backend, no database, just this repo.
+GitHub Pages. The interface follows the Samsung Gallery app (One UI, dark):
+a **Pictures** tab with every photo on a day-grouped wall, an **Albums** tab
+with one cover per phase, a bottom tab bar, and a fullscreen swipe viewer —
+on desktop it all sits in a centered phone-width column.
+
+Public visitors (your bosses) just browse. Signing in with an admin token lets
+you add or remove photos straight from the browser — no backend, no database,
+just this repo.
 
 ## Testing it before you have a repo
 
@@ -99,13 +104,17 @@ click "Sign out" when you're done to clear it early.
 
 ## 4. Using it day to day
 
-- **Browsing:** open the link, click a phase in the left list to jump to it,
-  click any photo for a full-size view with arrow-key navigation.
-- **Adding photos:** sign in as admin, then use **+ Add photos** on any phase
-  section (or **+ Create with photos** in the sidebar for a brand-new phase).
+- **Browsing:** open the link and scroll the day wall on **Pictures**, or tap
+  **Albums** for one cover per phase. Tap any photo for the fullscreen
+  viewer — swipe (or arrow keys) to move between photos, tap the photo to
+  hide the bars, back-arrow or swipe-down to close.
+- **Signing in:** tap **⋮** (top right) → **Admin sign in**.
+- **Adding photos:** while signed in, tap the blue **+** button, or an album
+  cover's **⋮ → Add photos**. **⋮ → New album…** starts a brand-new phase.
   Multi-select works.
-- **Removing a photo:** while signed in, hover a photo and click the small ×
-  in its corner.
+- **Sorting photos:** long-press a photo (or **⋮ → Select photos**), tap the
+  ones you want, then **Move** in the top bar. **Delete** sits beside it.
+- **Removing one photo:** open it in the viewer and tap **Delete** (admin).
 - Uploads/deletes are real commits to the repo (you'll see them in the repo's
   commit history), so there's a natural audit trail of who changed what and
   when, standard git history.

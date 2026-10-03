@@ -98,10 +98,13 @@ function extractPhotoDate(name) {
   return m ? `${m[1]}-${m[2]}-${m[3]}` : null;
 }
 
-/* '20260621_122750' or 'IMG-20260621-WA0001' → numeric timestamp (for photo order). */
+/* '20260621_122750' or 'IMG-20260621-WA0001' → numeric timestamp (for photo
+   order). Both branches normalize to 14 digits (YYYYMMDD + 6-digit tail): the
+   WhatsApp sequence counter is start-of-day-ish, so it's padded right —
+   otherwise a 12-digit value sorts below every camera photo ever taken. */
 function photoTs(name) {
   const m = name.match(/^(\d{8})_(\d{6})/) || name.match(/^IMG-(\d{8})-WA(\d{4})/i);
-  if (m) return parseInt(m[1] + (m[2] ? m[2] : '000000'), 10);
+  if (m) return parseInt(m[1] + (m[2] || '000000').padEnd(6, '0'), 10);
   return 0;
 }
 
@@ -230,7 +233,10 @@ const state = {
   duplicateSummary: { totalFiles: 0, uniqueAssets: 0, exactDuplicateFiles: 0, visualDuplicateCandidates: 0 },
   adminMode: false,
   token: null,
-  view: 'phases', // 'images' = one flat grid of every photo, 'phases' = grouped by folder
+  view: 'images', // 'images' = Pictures tab (day-grouped wall), 'phases' = Albums tab
+  picturesList: [],   // flat [{img, folder, index}] newest-first — the Pictures tab order
+  _tabScroll: {},     // per-tab scroll positions, restored on tab switch
+  _suppressClickUntil: 0, // a long-press that opened selection swallows its trailing click
   batchSelect: false, // gallery card-selection mode (sort flow)
   batchSelected: new Set(), // paths of the photos the admin picked
 
@@ -364,26 +370,13 @@ async function githubFetch(url, options = {}) {
 
 document.addEventListener('DOMContentLoaded', init);
 
-/* The sticky header's height varies with viewport width and text wrapping, so
-   the sticky sidebar must offset by the real, measured height. Pure CSS cannot
-   query the rendered layout back, hence this small runtime measurement. */
-function syncSidebarTop() {
-  const header = document.querySelector('.header');
-  if (!header) return;
-  document.documentElement.style.setProperty('--sidebar-top', header.getBoundingClientRect().height + 'px');
-}
-
 async function init() {
   el('demoBadge').hidden = !DEMO_MODE;
   state.token = sessionStorage.getItem(TOKEN_KEY);
   state.adminMode = DEMO_MODE ? false : !!state.token;
   updateAdminUI();
   wireStaticEvents();
-
-  syncSidebarTop();
-  window.addEventListener('resize', syncSidebarTop);
-  window.addEventListener('load', syncSidebarTop);
-  if (document.fonts && document.fonts.ready) document.fonts.ready.then(syncSidebarTop);
+  syncAppbar();
 
   // Add unload handler to cancel requests
   window.addEventListener('beforeunload', cancelRequests);
@@ -652,16 +645,25 @@ function loadDemoData() {
 }
 
 function buildDemoFolders() {
-  const phases = ['site-survey', 'cable-pull', 'termination-testing', 'rack-build'];
+  // Camera-style timestamped names so the Pictures tab's day groups demo properly.
+  const phases = [
+    ['site-survey', '20260619'],
+    ['cable-pull', '20260621'],
+    ['termination-testing', '20260623'],
+    ['rack-build', '20260626'],
+  ];
   const folders = {};
-  phases.forEach((phase, pIdx) => {
-    folders[phase] = Array.from({ length: 4 }, (_, i) => ({
-      path: `${CONFIG.imagesPath || 'images'}/${phase}/demo-${i + 1}.svg`,
-      sha: `demo-${pIdx}-${i}`,
-      name: `demo-${i + 1}.svg`,
-      folder: phase,
-      demoSrc: demoImage(phase, i + 1),
-    }));
+  phases.forEach(([phase, day], pIdx) => {
+    folders[phase] = Array.from({ length: 4 }, (_, i) => {
+      const name = `${day}_0${9 + i}1500.jpg`;
+      return {
+        path: `${CONFIG.imagesPath || 'images'}/${phase}/${name}`,
+        sha: `demo-${pIdx}-${i}`,
+        name,
+        folder: phase,
+        demoSrc: demoImage(phase, i + 1),
+      };
+    });
   });
   return folders;
 }
@@ -681,11 +683,25 @@ function render() {
   const totalPhotos = Object.values(state.folders).reduce((a, f) => a + f.length, 0);
   el('emptyState').hidden = totalPhotos !== 0;
   el('emptyPath').textContent = CONFIG.imagesPath + '/';
-  renderSidebar();
+  state.picturesList = picturesCards();
   computeFirstPaintPaths();
-  renderGallery();
+  renderPictures();
+  renderAlbums();
+  wireGalleryEvents();
+  // First paint: raw.githubusercontent sends Cache-Control: no-cache, so
+  // every visit pays DNS + TLS + a full GET unless we preload the images the
+  // user actually sees first (the top of the Pictures tab).
+  if (!state._preloadedFirstPaint) {
+    state._preloadedFirstPaint = true;
+    firstPaintImages().forEach(img => {
+      const pre = document.createElement('link');
+      pre.rel = 'preload'; pre.as = 'image'; pre.href = thumbSrc(img); pre.fetchPriority = 'high';
+      document.head.appendChild(pre);
+    });
+  }
   animateIntro(totalPhotos, state.order.length);
   applyAdminFilter();
+  updateSelectBar();
   const gate = el('loadingState');
   if (gate && !gate.hidden) {
     const eager = document.querySelectorAll('#gallery .card img[loading="eager"]').length;
@@ -693,192 +709,165 @@ function render() {
     if (!eager) loadProg.finish();
     else setTimeout(() => loadProg.finish(), 6000);
   }
+  // A re-render can stale the open viewer (rename/delete/classify) — refresh it.
+  if (!el('lightbox').hidden) updateLightbox();
 }
 
-function renderSidebar() {
-  el('viewFilter').value = state.view;
-  // The phase folder only exists in "phases" view; in "images" view there is
-  // nothing to group, so the whole folder (and its list) is taken off the page.
-  el('phaseGroup').hidden = state.view !== 'phases';
-  el('phaseList').innerHTML = state.order.map(folder => `
-    <li><button class="phase-btn" data-folder="${escapeAttr(folder)}">
-      <span>${escapeHtml(folder)}</span><span class="phase-count">${state.folders[folder].length}</span>
-    </button></li>
-  `).join('');
-  el('phaseGroupCount').textContent = state.order.reduce((n, f) => n + state.folders[f].length, 0);
-  el('phaseList').querySelectorAll('.phase-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      pushSectionScroll();
-      el(`phase-${cssSafe(btn.dataset.folder)}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    });
-  });
-}
-
-/* The sidebar filter is the only place the two layouts are chosen. */
+/* ── Bottom tabs (Pictures / Albums) ───────────────────────────────
+   Both views are always rendered; a tab switch just reveals one and
+   restores its scroll position, so flipping tabs never loses place. */
 function setView(view) {
   if (view !== 'images' && view !== 'phases') return;
   if (state.view === view) return;
+  state._tabScroll[state.view] = window.scrollY;
   state.view = view;
-  closeLightbox();
-  render();
+  const pictures = view === 'images';
+  el('tabPictures').classList.toggle('is-active', pictures);
+  el('tabPictures').setAttribute('aria-selected', String(pictures));
+  el('tabAlbums').classList.toggle('is-active', !pictures);
+  el('tabAlbums').setAttribute('aria-selected', String(!pictures));
+  el('picturesView').hidden = !pictures;
+  el('albumsView').hidden = pictures;
+  if (!el('lightbox').hidden) overlayClose('lightbox');
+  window.scrollTo(0, state._tabScroll[view] || 0);
+  syncAppbar();
 }
 
-/* The sidebar's phases sit in one folder: the header opens and closes them. */
-function setPhaseGroupOpen(open) {
-  el('phaseGroup').classList.toggle('is-collapsed', !open);
-  el('phaseGroupBtn').setAttribute('aria-expanded', String(open));
-  el('phaseGroupBtn').querySelector('.phase-group-caret').textContent = open ? '▾' : '▸';
+/* One UI hero header: the big "Gallery" title folds away on scroll and the
+   compact title takes its place in the app bar. */
+function syncAppbar() {
+  const bar = el('appbar');
+  if (bar) bar.classList.toggle('is-collapsed', window.scrollY > 36);
 }
 
-/* Admin quick-find: hide phases/cards that don't match the query, in the
-   sidebar (phase buttons) and the gallery (sections + cards). */
+/* Admin quick-find: hide cards/albums that don't match the query, and fold
+   away day groups left empty by the filter. */
 function applyAdminFilter() {
   const input = el('adminSearch');
-  if (!input || el('sidebarSearch').hidden) return;
+  const wrap = el('searchWrap');
+  if (!input || !wrap || wrap.hidden) return;
   const q = input.value.trim().toLowerCase();
   const scope = el('adminSearchFilter').value;
-  const shown = new Set();
   let visible = 0, total = 0;
-  // Walk what actually rendered rather than state.order: in "images" view
-  // there is a single section with no data-folder and a query still has to
-  // reach the cards inside it, while in "phases" view each phase is one card
-  // whose collage tiles are not individually addressable.
-  for (const unit of document.querySelectorAll('#gallery .phase-section, #gallery .phase-card')) {
-    const folder = unit.dataset.folder || '';
-    const isPhaseCard = unit.classList.contains('phase-card');
-    // A phase card is one item and matches on the photo names tiled inside it;
-    // a flat section holds real cards that match on their own file name.
-    const cards = isPhaseCard ? [unit] : [...unit.querySelectorAll('.card[data-path]')];
-    total += cards.length;
-    if (!q) {
-      unit.hidden = false;
-      cards.forEach(c => { c.hidden = false; visible++; });
-      if (folder) shown.add(folder);
-      continue;
-    }
-    const phaseHit = !!folder && folder.toLowerCase().includes(q);
-    if (scope === 'phase') {
-      unit.hidden = !phaseHit;
-      if (phaseHit) { shown.add(folder); cards.forEach(c => { c.hidden = false; visible++; }); }
-      else cards.forEach(c => { c.hidden = true; });
-      continue;
-    }
-    let sec = 0;
-    for (const c of cards) {
-      // An image query must not be satisfied by the phase name on the card,
-      // so read the tile captions rather than the card's whole text content.
-      const label = isPhaseCard
-        ? [...c.querySelectorAll('.card-tile figcaption')].map(f => f.textContent).join(' ')
-        : (c.dataset.path || '');
-      const nameHit = ((label + ' ' + (c.textContent || '')).toLowerCase()).includes(q);
-      let show;
-      if (scope === 'image') show = nameHit;
-      else show = phaseHit || nameHit;
-      c.hidden = !show;
-      if (show) { visible++; sec++; }
-    }
-    unit.hidden = scope === 'image' ? sec === 0 : !(phaseHit || sec > 0);
-    if (sec > 0 || phaseHit) shown.add(folder);
-  }
-  el('phaseList').querySelectorAll('.phase-btn').forEach(btn => {
-    btn.hidden = !shown.has(btn.dataset.folder);
+  document.querySelectorAll('#picturesView .card[data-path]').forEach(card => {
+    total++;
+    const hit = !q || (card.dataset.path || '').toLowerCase().includes(q);
+    const show = !q || (scope !== 'phase' && hit);
+    card.hidden = !show;
+    if (show) visible++;
+  });
+  document.querySelectorAll('#picturesView .day').forEach(day => {
+    if (q && scope === 'phase') { day.hidden = true; return; }
+    day.hidden = !!q && ![...day.querySelectorAll('.card')].some(c => !c.hidden);
+  });
+  document.querySelectorAll('#albumsView .album').forEach(alb => {
+    total++;
+    const hit = !q || (alb.dataset.folder || '').toLowerCase().includes(q);
+    const show = !q || (scope !== 'image' && hit);
+    alb.hidden = !show;
+    if (show) visible++;
   });
   el('adminSearchCount').textContent = q ? `${visible}/${total}` : '';
-  if (q) setPhaseGroupOpen(true); // a search must never hide behind a closed folder
 }
 
-/* One card, shared by both views. Every card carries its folder and the index
-   within that folder, so the lightbox, the admin search and the upload flows
-   behave identically no matter which view rendered it. `extra` adds a layout
-   modifier only — the phase collage reuses this markup for its tiles. */
-function cardMarkup(img, folder, i, extra) {
+/* One tile in the Pictures wall — S10 style: just the photo, no caption.
+   Every card carries its folder and folder-local index so the viewer, the
+   admin search and the upload flows all address it the same way. Selection
+   mode adds the circular badge (top-left, blue when picked). */
+function cardMarkup(img, folder, i) {
   const pretty = prettyName(img.name);
   const c = classifyPhoto(img);
-  return `<figure class="card ${extra || ''}${c.needsReview ? 'card-needs-review' : ''}${state.batchSelect ? ' card-selectable' : ''}${state.batchSelect && state.batchSelected.has(img.path) ? ' card-selected' : ''}" data-group="${escapeAttr(c.group || '')}" data-folder="${escapeAttr(folder)}" data-index="${i}" data-path="${escapeAttr(img.path)}">
+  const sel = state.adminMode && state.batchSelect;
+  const picked = sel && state.batchSelected.has(img.path);
+  return `<figure class="card${c.needsReview ? ' card-needs-review' : ''}${sel ? ' card-selectable' : ''}${picked ? ' card-selected' : ''}" data-group="${escapeAttr(c.group || '')}" data-folder="${escapeAttr(folder)}" data-index="${i}" data-path="${escapeAttr(img.path)}">
     <img class="card-img" src="${thumbSrc(img)}" data-full="${cardSrc(img)}" alt="${escapeAttr(pretty)}" loading="${isFirstPaint(img) ? 'eager' : 'lazy'}" fetchpriority="${isFirstPaint(img) ? 'high' : 'auto'}" decoding="async">
-    ${state.adminMode && !state.batchSelect ? `<button class="card-delete" data-path="${escapeAttr(img.path)}" data-sha="${escapeAttr(img.sha)}" data-name="${escapeAttr(pretty)}" aria-label="Delete ${escapeAttr(pretty)}">×</button>` : ''}
-    ${state.adminMode && !state.batchSelect ? `<button class="card-tag" data-path="${escapeAttr(img.path)}" data-name="${escapeAttr(pretty)}" title="Classify this photo">tag</button>` : ''}
-    ${state.adminMode && state.batchSelect ? `<span class="card-pick">${state.batchSelected.has(img.path) ? '✓' : ''}</span>` : ''}
-    <figcaption>${escapeHtml(pretty)}</figcaption>
+    ${sel ? `<span class="card-pick" aria-hidden="true">${picked ? '✓' : ''}</span>` : ''}
   </figure>`;
 }
 
-/* One card per phase in "phases" view. The whole phase is a single tile in the
-   grid; its photos are stacked inside it as a small collage, so the page reads
-   as a handful of phases rather than a wall of individual photos. Clicking
-   anywhere on the card opens the lightbox scoped to that phase. */
-const PHASE_CARD_TILES = 9;
-function phaseCardMarkup(folder) {
+/* One album per phase: the most recent photo is the cover, name + count sit
+   beneath it (One UI Albums tab). Clicking the cover opens the viewer scoped
+   to that album at the cover photo; the ⋮ chip (admin) opens its sheet. */
+function albumCardMarkup(folder) {
   const items = state.folders[folder] || [];
+  if (!items.length) return '';
   const j = journeyFor(folder);
   const stageName = j ? j.stage : folder;
   const needsReview = items.some(img => classifyPhoto(img).needsReview);
-  // A card with only one or two photos looks broken at three columns, so the
-  // collage thins out rather than leaving half-empty grid tracks.
-  const cols = items.length === 1 ? 1 : items.length <= 4 ? 2 : 3;
-  const shown = items.slice(0, PHASE_CARD_TILES);
-  const rest = items.length - shown.length;
-  return `<figure class="card phase-card" id="phase-${cssSafe(folder)}" data-folder="${escapeAttr(folder)}" data-group="${escapeAttr(j ? j.group : '')}">
-    <div class="phase-card-collage" style="--cols:${cols}">
-      ${shown.map((img, i) => cardMarkup(img, folder, i, 'card-tile')).join('')}
+  const coverIdx = items.length - 1;
+  const cover = items[coverIdx];
+  return `<figure class="album" data-folder="${escapeAttr(folder)}" data-index="${coverIdx}" data-group="${escapeAttr(j ? j.group : '')}">
+    <div class="album-cover">
+      <img src="${thumbSrc(cover)}" data-full="${cardSrc(cover)}" alt="${escapeAttr(stageName)}" loading="lazy" decoding="async">
+      ${needsReview ? `<span class="album-badge" title="Some photos here have no journey stage assigned">Needs review</span>` : ''}
+      ${state.adminMode ? `<button class="album-more" data-folder="${escapeAttr(folder)}" aria-label="Options for ${escapeAttr(stageName)}">${ICONS.ellipsis}</button>` : ''}
     </div>
-    ${(rest > 0 || state.adminMode) ? `<div class="phase-card-tools">
-      ${rest > 0 ? `<span class="phase-card-more">+${rest}</span>` : ''}
-      ${state.adminMode ? `<button class="btn btn-ghost btn-sm add-photos-btn phase-card-add" data-folder="${escapeAttr(folder)}">+ Add</button>` : ''}
-    </div>` : ''}
-    ${needsReview ? `<span class="needs-review-chip phase-card-chip" title="Some photos here have no journey stage assigned">Needs Review</span>` : ''}
-    <figcaption class="phase-card-meta">
-      <span class="phase-card-name">${escapeHtml(stageName)}</span>
-      <span class="phase-card-count" title="${items.length} photos">${items.length}</span>
+    <figcaption class="album-meta">
+      <span class="album-name">${escapeHtml(stageName)}</span>
+      <span class="album-count">${items.length}</span>
     </figcaption>
   </figure>`;
 }
 
-/* Every photo, in phase order. "images" view renders this as one grid. */
-function allImages() {
-  return state.order.flatMap(folder => state.folders[folder] || []);
-}
-/* The same list, but each photo paired with the folder-local index its card
-   needs — the flat grid renders from this, never from a positional index into
-   a different folder. */
+/* Every photo, in phase order, each paired with the folder-local index its
+   card needs — the Pictures wall renders from this, never from a positional
+   index into a different folder. */
 function allImageCards() {
   return state.order.flatMap(folder =>
     (state.folders[folder] || []).map((img, i) => ({ img, folder, index: i })));
 }
 
-function renderGallery() {
-  const gallery = el('gallery');
-  // "phases" groups the photos under one section per folder; "images" drops the
-  // grouping entirely and lays every photo out in a single grid, in the same
-  // order, so switching views never reorders what you were just looking at.
-  // "phases" gives every phase one card and tiles that phase's photos inside
-  // it; "images" drops the grouping entirely and lays every photo out on its
-  // own, in the same order, so switching views never reorders what you were
-  // just looking at.
-  gallery.innerHTML = state.view === 'images' ? `
-    <section class="phase-section phase-section-flat" id="section-all-images">
-      <div class="grid">
-        ${allImageCards().map(c => cardMarkup(c.img, c.folder, c.index)).join('')}
-      </div>
-    </section>` : `<div class="grid grid-phases">
-    ${state.order.map(folder => phaseCardMarkup(folder)).join('')}
-  </div>`;
+/* Pictures tab: every photo on one wall, grouped by day taken (newest first),
+   exactly like the S10 Gallery. Day order comes from the camera/WhatsApp
+   timestamp in the filename; unparseable names land in "Undated" at the end. */
+function picturesCards() {
+  return allImageCards().sort((a, b) => {
+    const ta = photoTs(a.img.name), tb = photoTs(b.img.name);
+    if (ta !== tb) return tb - ta; // newest first
+    return a.img.name.localeCompare(b.img.name, 'en', { numeric: true });
+  });
+}
 
-  // First paint: raw.githubusercontent sends Cache-Control: no-cache, so
-  // every visit pays DNS + TLS + a full GET unless we preconnect and preload
-  // the images the user actually sees first. Gallery media is same-origin on
-  // the Pages host now, so the preload links below are all that's needed.
-  if (!state._preloadedFirstPaint) {
-    state._preloadedFirstPaint = true;
-    // Preload the tiny thumb tile (-480 tier) so the first visible cards
-    // paint immediately; the sharper tier rides in behind it after reveal.
-    firstPaintImages().forEach(img => {
-      const pre = document.createElement('link');
-      pre.rel = 'preload'; pre.as = 'image'; pre.href = thumbSrc(img); pre.fetchPriority = 'high';
-      document.head.appendChild(pre);
-    });
+/* 'YYYY-MM-DD' → 'Fri, 17 Jul' (year added when it isn't the current one). */
+function fmtDay(iso, alwaysYear) {
+  const [y, m, d] = iso.split('-').map(Number);
+  const dt = new Date(y, m - 1, d);
+  const opts = { weekday: 'short', day: 'numeric', month: 'short' };
+  if (alwaysYear || y !== new Date().getFullYear()) opts.year = 'numeric';
+  return dt.toLocaleDateString('en-GB', opts);
+}
+
+function groupPictures(cards) {
+  const groups = [];
+  const byKey = new Map();
+  for (const c of cards) {
+    const iso = extractPhotoDate(c.img.name);
+    const key = iso || '__undated__';
+    let g = byKey.get(key);
+    if (!g) { g = { iso, items: [] }; byKey.set(key, g); groups.push(g); }
+    g.items.push(c);
   }
-  gallery.querySelectorAll('.card img').forEach(img => {
+  return groups;
+}
+
+function renderPictures() {
+  const groups = groupPictures(state.picturesList);
+  el('picturesView').innerHTML = groups.map(g => `
+    <section class="day">
+      <h2 class="day-head">${g.iso ? escapeHtml(fmtDay(g.iso)) : 'Undated'}<span class="day-count">${g.items.length}</span></h2>
+      <div class="grid grid-pictures">
+        ${g.items.map(c => cardMarkup(c.img, c.folder, c.index)).join('')}
+      </div>
+    </section>`).join('');
+}
+
+function renderAlbums() {
+  el('albumsView').innerHTML = `<div class="grid-albums">${state.order.map(albumCardMarkup).join('')}</div>`;
+}
+
+function wireGalleryEvents() {
+  const gallery = el('gallery');
+  gallery.querySelectorAll('img[data-full]').forEach(img => {
     // Blur-up: when the tiny thumb finishes, swap in the full-res image and
     // fade it in (CSS adds the blur + transition). Revisit with SW = instant.
     img.addEventListener('load', () => {
@@ -892,95 +881,73 @@ function renderGallery() {
     img.addEventListener('error', () => {
       if (img.src !== img.dataset.full && img.dataset.full) img.src = img.dataset.full;
     });
-
-    img.addEventListener('click', () => {
-      const card = img.closest('.card');
-      if (state.adminMode && state.batchSelect) return; // figure-level listener toggles selection
-      // Inside a phase collage the card's own listener opens the lightbox, so
-      // this one steps aside rather than opening the same photo twice.
-      if (card.closest('.phase-card')) return;
+  });
+  // Pictures tiles: tap opens the viewer; in selection mode tap toggles.
+  gallery.querySelectorAll('#picturesView .card').forEach(fig => {
+    fig.addEventListener('click', () => {
+      if (Date.now() < (state._suppressClickUntil || 0)) return;
+      if (state.adminMode && state.batchSelect) { toggleBatchSelect(fig.dataset.path); return; }
       // Hand the lightbox the exact image the card already loaded (a cache
-      // hit = instant, no re-download, no blur flash) and whether it was
-      // fully revealed. Null = card still loading → start at the sharp tier.
-      openLightbox(card.dataset.folder, Number(card.dataset.index),
-        (img.classList.contains('is-loaded') && img.currentSrc) ? img.currentSrc : null);
+      // hit = instant, no re-download, no blur flash). Null = card still
+      // loading → start at the sharp tier.
+      const img = fig.querySelector('img');
+      openLightbox(fig.dataset.folder, Number(fig.dataset.index),
+        (img && img.classList.contains('is-loaded') && img.currentSrc) ? img.currentSrc : null);
     });
+    wireLongPress(fig);
   });
-  gallery.querySelectorAll('.card-delete').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      deleteImage(btn.dataset.path, btn.dataset.sha, btn.dataset.name);
-    });
-  });
-  gallery.querySelectorAll('.card-tag').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      openTagModal(btn.dataset.path, btn.dataset.name);
-    });
-  });
-  // A phase card is one click target: the lightbox opens scoped to that phase.
-  // Clicking a specific tile inside the collage jumps to that exact photo.
-  gallery.querySelectorAll('.phase-card').forEach(fig => {
+  // Album covers open the viewer scoped to that album at the cover photo.
+  gallery.querySelectorAll('#albumsView .album').forEach(fig => {
     fig.addEventListener('click', (e) => {
-      if (state.adminMode && state.batchSelect) return;
-      const tile = e.target.closest('.card-tile');
-      const img = tile && tile.querySelector('img');
-      openLightbox(fig.dataset.folder, tile ? Number(tile.dataset.index) : 0,
+      if (e.target.closest('.album-more')) return;
+      const img = fig.querySelector('.album-cover img');
+      openLightbox(fig.dataset.folder, Number(fig.dataset.index),
         (img && img.classList.contains('is-loaded') && img.currentSrc) ? img.currentSrc : null);
     });
   });
-  // Sort selection mode: whole-card click toggles the photo's selection.
-  if (state.adminMode && state.batchSelect) {
-    gallery.querySelectorAll('.card[data-path]').forEach(fig => {
-      fig.addEventListener('click', () => toggleBatchSelect(fig.dataset.path));
-    });
-  }
-  gallery.querySelectorAll('.add-photos-btn').forEach(btn => {
+  gallery.querySelectorAll('.album-more').forEach(btn => {
     btn.addEventListener('click', (e) => {
-      // Sits on top of the phase card, so don't let it also open the lightbox.
       e.stopPropagation();
-      const input = document.createElement('input');
-      input.type = 'file'; input.multiple = true; input.accept = 'image/*';
-      input.onchange = () => { if (input.files.length) openUploadConfirm(input.files, btn.dataset.folder); };
-      input.click();
+      albumMenu(btn.dataset.folder);
     });
   });
-  setupScrollSpy();
 }
 
-let sectionObserver = null;
-function setupScrollSpy() {
-  if (typeof IntersectionObserver === 'undefined' || typeof document === 'undefined') return;
-  if (sectionObserver) sectionObserver.disconnect();
-  sectionObserver = new IntersectionObserver((entries) => {
-    for (const entry of entries) {
-      if (entry.isIntersecting) {
-        const folder = entry.target.dataset.folder;
-        if (!folder) continue;
-        const btns = document.querySelectorAll('.phase-btn');
-        btns.forEach(b => {
-          const active = b.dataset.folder === folder;
-          b.classList.toggle('is-active', active);
-          if (active && typeof window !== 'undefined' && window.innerWidth <= 800) {
-            b.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
-          }
-        });
-        break;
-      }
-    }
-  }, {
-    rootMargin: '-10% 0px -70% 0px',
-    threshold: 0.05
+/* S10 selection gesture: long-press a photo (touch) or right-click it
+   (desktop) to enter selection mode with that photo picked. */
+function wireLongPress(fig) {
+  let timer = null, sx = 0, sy = 0;
+  const cancel = () => { if (timer) { clearTimeout(timer); timer = null; } };
+  fig.addEventListener('touchstart', e => {
+    if (!state.adminMode || state.batchSelect) return;
+    if (!e.touches || e.touches.length !== 1) return;
+    sx = e.touches[0].clientX; sy = e.touches[0].clientY;
+    timer = setTimeout(() => {
+      timer = null;
+      state._suppressClickUntil = Date.now() + 700;
+      enterSelectMode(fig.dataset.path);
+      if (navigator.vibrate) navigator.vibrate(15);
+    }, 480);
+  }, { passive: true });
+  fig.addEventListener('touchend', cancel, { passive: true });
+  fig.addEventListener('touchcancel', cancel, { passive: true });
+  fig.addEventListener('touchmove', e => {
+    if (!timer || !e.touches[0]) return;
+    const dx = e.touches[0].clientX - sx, dy = e.touches[0].clientY - sy;
+    if (dx * dx + dy * dy > 100) cancel();
+  }, { passive: true });
+  fig.addEventListener('contextmenu', e => {
+    if (!state.adminMode) return;
+    e.preventDefault();
+    if (!state.batchSelect) enterSelectMode();
+    toggleBatchSelect(fig.dataset.path);
   });
-  // Only "phases" view has one element per phase; in "images" view there is
-  // nothing to spy on and the phase list is off the page anyway.
-  document.querySelectorAll('.phase-card').forEach(sec => sectionObserver.observe(sec));
 }
 
-/* One deliberate load moment: counters tick up, a trace line draws under the header. */
+/* One deliberate load moment: the header counters tick up. */
 function animateIntro(totalPhotos, totalFolders) {
-  // Switching the sidebar filter re-renders the gallery but changes no totals,
-  // so the count-up and the trace line only ever play on a real data change.
+  // Tab switches re-render nothing (both views stay mounted), so the count-up
+  // only ever plays on a real data change.
   const sig = `${totalPhotos}/${totalFolders}`;
   if (state._introSig === sig) return;
   state._introSig = sig;
@@ -988,10 +955,8 @@ function animateIntro(totalPhotos, totalFolders) {
   if (reduce) {
     el('statPhotos').textContent = totalPhotos;
     el('statFolders').textContent = totalFolders;
-    el('traceLine').style.transform = 'scaleX(1)';
     return;
   }
-  requestAnimationFrame(() => { el('traceLine').style.transform = 'scaleX(1)'; });
   animateCount(el('statPhotos'), totalPhotos);
   animateCount(el('statFolders'), totalFolders);
 }
@@ -1046,17 +1011,10 @@ function overlayClose(id) {
   }
 }
 
-function pushSectionScroll() {
-  if (location.protocol === 'file:') return;
-  try { history.pushState({ phaseScroll: { y: window.scrollY } }, ''); } catch (_) {}
-}
-
 window.addEventListener('popstate', (e) => {
   if (suppressPopstate) { suppressPopstate = false; return; }
   const id = overlayStack.pop();
   if (id) return overlayHide(id);
-  const s = e.state;
-  if (s && s.phaseScroll) window.scrollTo(0, s.phaseScroll.y);
 });
 
 /* Overlay close routines (shared by the X/Esc/outside handlers and the
@@ -1068,77 +1026,59 @@ function closeTagModal() { el('tagModalOverlay').hidden = true; state.taggingPat
 
 /* ── Admin: sign in / out ─────────────────────────────────────── */
 
-/* On phones the first scroll into the gallery folds the phase nav away — from
-   then on the caret beside the search is the only thing that opens it, so it
-   never fights the admin mid-scroll. The search field itself never moves. */
-const mobileNavQuery = window.matchMedia('(max-width: 800px)');
-let lastSidebarScrollY = 0;
-let navAutoFoldUsed = false;
-
-function setSidebarCollapsed(collapsed) {
-  const sidebar = el('sidebar');
-  if (!sidebar) return;
-  sidebar.classList.toggle('is-collapsed', collapsed);
-  const toggle = el('sidebarToggle');
-  if (toggle) {
-    toggle.setAttribute('aria-expanded', String(!collapsed));
-    toggle.textContent = collapsed ? '▴' : '▾';
-  }
-}
-
-function syncSidebarOnScroll() {
-  if (!mobileNavQuery.matches || !state.adminMode) {
-    setSidebarCollapsed(false);
-    lastSidebarScrollY = window.scrollY;
-    return;
-  }
-  const y = Math.max(0, window.scrollY);
-  const delta = y - lastSidebarScrollY;
-  lastSidebarScrollY = y;
-  if (navAutoFoldUsed) return;
-  // Folding the nav shrinks the page, so the bottom of the list is kept
-  // expanded — otherwise the shortened page would bounce straight back open.
-  const maxY = document.documentElement.scrollHeight - window.innerHeight;
-  const atBottom = y >= maxY - 24;
-  if (y < 8 || atBottom || delta < -4) setSidebarCollapsed(false);
-  else if (delta > 4 && y > 48) { navAutoFoldUsed = true; setSidebarCollapsed(true); }
-}
-
 function wireStaticEvents() {
+  // Bottom tabs
+  el('tabPictures').addEventListener('click', () => setView('images'));
+  el('tabAlbums').addEventListener('click', () => setView('phases'));
+
+  // ⋮ overflow → bottom sheet
+  el('menuBtn').addEventListener('click', mainMenu);
+  el('sheetOverlay').addEventListener('click', e => { if (e.target.id === 'sheetOverlay') overlayClose('sheetOverlay'); });
+
+  // Admin search (header pill)
   el('adminSearch').addEventListener('input', applyAdminFilter);
   el('adminSearch').addEventListener('keydown', e => {
-    if (e.key === 'Escape') { e.target.value = ''; applyAdminFilter(); }
+    if (e.key === 'Escape') { e.stopPropagation(); e.target.value = ''; applyAdminFilter(); }
   });
   el('adminSearchFilter').addEventListener('change', applyAdminFilter);
-  el('adminToggle').addEventListener('click', () => {
-    if (state.adminMode) signOut();
-    else { overlayPush('adminModalOverlay', closeModal); el('adminModalOverlay').hidden = false; el('tokenInput').focus(); }
+
+  // FAB + new-album dialog
+  el('fabAdd').addEventListener('click', () => pickFiles(null));
+  el('newFolderBtn').addEventListener('click', () => {
+    const name = sanitizeFilename(el('newFolderName').value).toLowerCase();
+    if (!name) return showToast('Enter an album name first.');
+    el('newFolderFiles').onchange = (e) => {
+      if (e.target.files.length) {
+        overlayClose('newAlbumOverlay');
+        openUploadConfirm(e.target.files, name);
+      }
+      el('newFolderName').value = '';
+    };
+    el('newFolderFiles').click();
   });
+  el('newFolderName').addEventListener('keydown', e => { if (e.key === 'Enter') el('newFolderBtn').click(); });
+  el('newAlbumCancel').addEventListener('click', () => overlayClose('newAlbumOverlay'));
+  el('newAlbumOverlay').addEventListener('click', e => { if (e.target.id === 'newAlbumOverlay') overlayClose('newAlbumOverlay'); });
+
+  // Selection action bar
+  el('selectClose').addEventListener('click', () => { exitBatchSelect(); render(); });
+  el('selectMove').addEventListener('click', openCategoryModal);
+  el('selectDelete').addEventListener('click', batchDeleteSelected);
+
+  // Sign-in modal
   el('toastClose').addEventListener('click', () => { el('toast').hidden = true; });
   el('tokenCancel').addEventListener('click', () => overlayClose('adminModalOverlay'));
   el('tokenSubmit').addEventListener('click', trySignIn);
   el('tokenInput').addEventListener('keydown', e => { if (e.key === 'Enter') trySignIn(); });
   el('adminModalOverlay').addEventListener('click', e => { if (e.target.id === 'adminModalOverlay') overlayClose('adminModalOverlay'); });
 
-  el('newFolderBtn').addEventListener('click', () => {
-    const name = sanitizeFilename(el('newFolderName').value).toLowerCase();
-    if (!name) return showToast('Enter a folder name first.');
-    el('newFolderFiles').onchange = (e) => {
-      if (e.target.files.length) openUploadConfirm(e.target.files, name);
-      el('newFolderName').value = '';
-    };
-    el('newFolderFiles').click();
-  });
-
-  el('sortPhotosBtn').addEventListener('click', () => { if (state.adminMode) toggleBatchSelectMode(); });
+  // Move (sort) modal
   el('sortCancel').addEventListener('click', () => overlayClose('sortModalOverlay'));
   el('sortConfirm').addEventListener('click', performBatchMove);
   el('sortModalOverlay').addEventListener('click', e => { if (e.target.id === 'sortModalOverlay') overlayClose('sortModalOverlay'); });
   el('categoryInput').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); performBatchMove(); } });
-  el('batchClearBtn').addEventListener('click', () => { state.batchSelected.clear(); updateBatchBar(); render(); });
-  el('batchSortBtn').addEventListener('click', openCategoryModal);
 
-  el('settingsBtn').addEventListener('click', openSettingsModal);
+  // Album settings modal
   el('settingsCancel').addEventListener('click', () => overlayClose('settingsModalOverlay'));
   el('settingsModalOverlay').addEventListener('click', e => { if (e.target.id === 'settingsModalOverlay') overlayClose('settingsModalOverlay'); });
   el('settingsPhase').addEventListener('change', () => { el('settingsPhaseRename').value = el('settingsPhase').value; });
@@ -1147,23 +1087,31 @@ function wireStaticEvents() {
   el('settingsUndoBtn').addEventListener('click', undoLastChange);
   el('settingsRevertBtn').addEventListener('click', revertAllChanges);
 
+  // Upload confirm modal
   el('uploadCancel').addEventListener('click', () => overlayClose('uploadModalOverlay'));
   el('uploadConfirm').addEventListener('click', performUploads);
   el('uploadModalOverlay').addEventListener('click', e => {
     if (e.target.id === 'uploadModalOverlay') overlayClose('uploadModalOverlay');
   });
 
+  // Classify modal
   el('tagCancel').addEventListener('click', () => overlayClose('tagModalOverlay'));
   el('tagSave').addEventListener('click', saveTagModal);
   el('tagModalOverlay').addEventListener('click', e => {
     if (e.target.id === 'tagModalOverlay') overlayClose('tagModalOverlay');
   });
 
+  // Viewer
   el('lightboxClose').addEventListener('click', () => overlayClose('lightbox'));
   el('lightboxPrev').addEventListener('click', () => lightboxStep(-1));
   el('lightboxNext').addEventListener('click', () => lightboxStep(1));
   el('lightboxDownload').addEventListener('click', downloadFromLightbox);
-  el('lightbox').addEventListener('click', e => { if (e.target.id === 'lightbox' || e.target.id === 'lightboxViewport') overlayClose('lightbox'); });
+  el('lightboxTag').addEventListener('click', viewerTag);
+  el('lightboxDelete').addEventListener('click', viewerDelete);
+  // Tap anywhere on the photo toggles the S10 immersive chrome.
+  el('lightboxViewport').addEventListener('click', () => {
+    el('lightbox').classList.toggle('chrome-off');
+  });
 
   // Touch swipe gestures for mobile gallery navigation
   const lbElem = el('lightbox');
@@ -1189,34 +1137,29 @@ function wireStaticEvents() {
   }, { passive: true });
 
   document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') {
+      const top = overlayStack[overlayStack.length - 1];
+      if (top) { overlayClose(top); return; }
+      if (!el('lightbox').hidden) closeLightbox(); // file:// has no history entries
+      return;
+    }
     if (el('lightbox').hidden) return;
-    if (e.key === 'Escape') overlayClose('lightbox');
+    if (e.target && e.target.matches && e.target.matches('input, select, textarea')) return;
+    const top = overlayStack[overlayStack.length - 1];
+    if (top && top !== 'lightbox') return; // a dialog sits above the viewer
     if (e.key === 'ArrowLeft') lightboxStep(-1);
     if (e.key === 'ArrowRight') lightboxStep(1);
     if (e.key === 'd' || e.key === 'D') downloadFromLightbox();
   });
 
-  el('sidebarToggle').addEventListener('click', () => {
-    setSidebarCollapsed(!el('sidebar').classList.contains('is-collapsed'));
-    lastSidebarScrollY = window.scrollY;
-  });
-
-  el('viewFilter').addEventListener('change', e => setView(e.target.value));
-
-  el('phaseGroupBtn').addEventListener('click', () => {
-    setPhaseGroupOpen(el('phaseGroupBtn').getAttribute('aria-expanded') !== 'true');
-  });
-
-  let sidebarScrollQueued = false;
+  // Hero header folds away as the wall scrolls
+  let appbarQueued = false;
   window.addEventListener('scroll', () => {
-    if (sidebarScrollQueued) return;
-    sidebarScrollQueued = true;
-    requestAnimationFrame(() => { sidebarScrollQueued = false; syncSidebarOnScroll(); });
+    if (appbarQueued) return;
+    appbarQueued = true;
+    requestAnimationFrame(() => { appbarQueued = false; syncAppbar(); });
   }, { passive: true });
-  window.addEventListener('resize', () => {
-    lastSidebarScrollY = window.scrollY;
-    syncSidebarOnScroll();
-  });
+  window.addEventListener('resize', syncAppbar);
 }
 
 async function trySignIn() {
@@ -1260,9 +1203,7 @@ async function trySignIn() {
 function signOut() {
   state.token = null;
   state.adminMode = false;
-  state.batchSelect = false;
-  state.batchSelected.clear();
-  updateBatchBar();
+  exitBatchSelect();
   sessionStorage.removeItem(TOKEN_KEY);
   updateAdminUI();
   render();
@@ -1270,17 +1211,17 @@ function signOut() {
 }
 
 function updateAdminUI() {
-  el('adminToggle').textContent = state.adminMode ? 'Sign out' : 'Admin';
-  el('settingsBtn').hidden = !state.adminMode;
-  el('newFolderPanel').hidden = !state.adminMode;
-  el('sortPhotosBtn').hidden = !state.adminMode;
-  el('sidebarSearch').hidden = !state.adminMode;
-  navAutoFoldUsed = false;
-  if (!state.adminMode) setSidebarCollapsed(false);
-  if (!state.adminMode && el('adminSearch').value) {
-    el('adminSearch').value = '';
-    el('adminSearchCount').textContent = '';
+  el('fabAdd').hidden = !state.adminMode;
+  el('searchWrap').hidden = !state.adminMode;
+  if (!state.adminMode) {
+    state.batchSelect = false;
+    state.batchSelected.clear();
+    if (el('adminSearch').value) {
+      el('adminSearch').value = '';
+      el('adminSearchCount').textContent = '';
+    }
   }
+  updateSelectBar();
   applyAdminFilter();
 }
 
@@ -1288,6 +1229,93 @@ function closeModal() {
   el('adminModalOverlay').hidden = true;
   el('tokenInput').value = '';
   el('tokenError').hidden = true;
+}
+
+function openAdminModal() {
+  overlayPush('adminModalOverlay', closeModal);
+  el('adminModalOverlay').hidden = false;
+  el('tokenInput').focus();
+}
+
+/* ── One UI bottom sheet ─────────────────────────────────────────
+   The ⋮ menus (header, album covers) are one dynamic sheet: a list of
+   icon + label rows built on open. Browser back and tapping the dim
+   both close it through the shared overlay registry. */
+const ICONS = {
+  ellipsis: '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg>',
+  photoAdd: '<svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true"><path d="M19 7v2.99s-1.99.01-2 0V7h-3s.01-1.99 0-2h3V2h2v3h3v2h-3zm-3 4V8h-3V5H5C3.9 5 3 5.9 3 7v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2v-8h-3zM5 19l3-4 2 3 3-4 4 5H5z"/></svg>',
+  folderAdd: '<svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true"><path d="M20 6h-8l-2-2H4C2.9 4 2 4.9 2 6v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2zm-1 9h-3v3h-2v-3h-3v-2h3V10h2v3h3v2z"/></svg>',
+  checkCircle: '<svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>',
+  gear: '<svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>',
+  signOut: '<svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true"><path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4C2.9 3 2 3.9 2 5v14c0 1.1.9 2 2 2h8v-2H4V5z"/></svg>',
+  signIn: '<svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true"><path d="M11 7 9.6 8.4l2.6 2.6H2v2h10.2l-2.6 2.6L11 17l5-5-5-5zm9 12h-8v2h8c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2h-8v2h8v14z"/></svg>',
+};
+
+function openSheet(cfg) {
+  const list = el('sheetList');
+  el('sheetTitle').hidden = !cfg.title;
+  if (cfg.title) el('sheetTitle').textContent = cfg.title;
+  list.innerHTML = '';
+  for (const item of cfg.items) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'sheet-item' + (item.danger ? ' sheet-item-danger' : '');
+    b.setAttribute('role', 'menuitem');
+    b.innerHTML = `<span class="sheet-ic">${item.icon || ''}</span><span>${escapeHtml(item.label)}</span>`;
+    b.addEventListener('click', () => {
+      overlayClose('sheetOverlay');
+      if (item.onTap) item.onTap();
+    });
+    list.appendChild(b);
+  }
+  overlayPush('sheetOverlay', closeSheet);
+  el('sheetOverlay').hidden = false;
+}
+
+function closeSheet() { el('sheetOverlay').hidden = true; }
+
+/* Header ⋮: a visitor gets sign-in; the admin gets the full tool set. */
+function mainMenu() {
+  const items = state.adminMode ? [
+    { icon: ICONS.photoAdd, label: 'Add photos', onTap: () => pickFiles(null) },
+    { icon: ICONS.folderAdd, label: 'New album…', onTap: openNewAlbumModal },
+    { icon: ICONS.checkCircle, label: 'Select photos', onTap: () => enterSelectMode() },
+    { icon: ICONS.gear, label: 'Album settings', onTap: () => openSettingsModal() },
+    { icon: ICONS.signOut, label: 'Sign out', onTap: signOut },
+  ] : [
+    { icon: ICONS.signIn, label: 'Admin sign in', onTap: openAdminModal },
+  ];
+  openSheet({ title: DEMO_MODE ? 'Demo data — nothing leaves this tab' : undefined, items });
+}
+
+/* Album cover ⋮: quick actions scoped to that one album. */
+function albumMenu(folder) {
+  const j = journeyFor(folder);
+  openSheet({
+    title: j ? j.stage : folder,
+    items: [
+      { icon: ICONS.photoAdd, label: 'Add photos', onTap: () => pickFiles(folder) },
+      { icon: ICONS.gear, label: 'Album settings', onTap: () => openSettingsModal(folder) },
+    ],
+  });
+}
+
+/* Shared file-picking entry point (FAB, sheet items, album menus). */
+function pickFiles(contextFolder) {
+  const input = document.createElement('input');
+  input.type = 'file'; input.multiple = true; input.accept = 'image/*';
+  input.onchange = () => { if (input.files.length) openUploadConfirm(input.files, contextFolder); };
+  input.click();
+}
+
+function openNewAlbumModal() {
+  overlayPush('newAlbumOverlay', closeNewAlbumModal);
+  el('newAlbumOverlay').hidden = false;
+  el('newFolderName').focus();
+}
+function closeNewAlbumModal() {
+  el('newAlbumOverlay').hidden = true;
+  el('newFolderName').value = '';
 }
 
 /* ── Admin: upload / delete via the GitHub Contents API ─────────── */
@@ -1527,36 +1555,84 @@ function resolveTarget(rawValue) {
   return match || normalizeCategory(value);
 }
 
-function toggleBatchSelectMode() {
-  state.batchSelect = !state.batchSelect;
-  if (!state.batchSelect) state.batchSelected.clear();
-  updateBatchBar();
+/* Selection mode (S10 long-press select). Entry points: the ⋮ menu's
+   "Select photos", a long-press on a tile, or a right-click. The contextual
+   top bar offers Move (into an album) and Delete, like the phone does. */
+function enterSelectMode(path) {
+  if (!state.adminMode) return;
+  if (state.view !== 'images') setView('images'); // tiles live on the Pictures tab
+  state.batchSelect = true;
+  if (path) state.batchSelected.add(path);
   render();
 }
 
 function toggleBatchSelect(path) {
   if (state.batchSelected.has(path)) state.batchSelected.delete(path);
   else state.batchSelected.add(path);
-  const card = document.querySelector(`.card[data-path="${CSS.escape(path)}"]`);
+  const card = document.querySelector(`#picturesView .card[data-path="${CSS.escape(path)}"]`);
   if (card) {
     card.classList.toggle('card-selected', state.batchSelected.has(path));
     const pick = card.querySelector('.card-pick');
     if (pick) pick.textContent = state.batchSelected.has(path) ? '✓' : '';
   }
-  updateBatchBar();
+  updateSelectBar();
 }
 
-function updateBatchBar() {
+function updateSelectBar() {
+  const on = state.adminMode && state.batchSelect;
   const n = state.batchSelected.size;
-  el('batchBar').hidden = !(state.adminMode && state.batchSelect);
-  el('batchCount').textContent = `${n} selected`;
-  el('batchSortBtn').disabled = n === 0;
+  el('selectBar').hidden = !on;
+  el('selectCount').textContent = `${n} selected`;
+  el('selectMove').disabled = n === 0;
+  el('selectDelete').disabled = n === 0;
+  document.body.classList?.toggle('is-selecting', on);
 }
 
 function exitBatchSelect() {
   state.batchSelect = false;
   state.batchSelected.clear();
-  updateBatchBar();
+  updateSelectBar();
+}
+
+/* Batch delete, mirroring removePhase: every selected asset goes with all of
+   its committed variants; failures are reported once at the end. */
+async function batchDeleteSelected() {
+  const paths = [...state.batchSelected];
+  if (!paths.length) return;
+  if (!confirm(`Delete ${paths.length} photo${paths.length === 1 ? '' : 's'}? This can't be undone from here.`)) return;
+
+  if (DEMO_MODE) {
+    for (const folder of state.order) {
+      state.folders[folder] = state.folders[folder].filter(f => !state.batchSelected.has(f.path));
+    }
+    exitBatchSelect();
+    render();
+    showToast(`Deleted ${paths.length} photo${paths.length === 1 ? '' : 's'} (demo).`);
+    return;
+  }
+
+  let done = 0, failed = 0;
+  const failedNames = [];
+  showToast(`Deleting 0/${paths.length}…`, true);
+  for (const path of paths) {
+    const asset = state.assets.find(a => a.canonical.path === path);
+    const items = asset ? [asset.canonical, ...asset.variants] : [];
+    try {
+      for (const item of items) {
+        await githubDelete(item.path, item.sha, `Remove ${item.name} via gallery admin`);
+      }
+    } catch (err) {
+      failed++;
+      failedNames.push(path.split('/').pop());
+    }
+    done++;
+    showToast(`Deleting ${done}/${paths.length}…`, true);
+  }
+  exitBatchSelect();
+  showToast(failed
+    ? `Deleted ${done - failed} photo${done - failed === 1 ? '' : 's'}${failureSuffix(failedNames)}.`
+    : `Deleted ${done} photo${done === 1 ? '' : 's'}.`);
+  await loadTree(true);
 }
 
 function openCategoryModal() {
@@ -1647,13 +1723,16 @@ async function performBatchMove() {
    Both operate on every photo in the category — canonical + its committed
    variants — and both keep gallery.json metadata in sync. ── */
 
-function openSettingsModal() {
+function openSettingsModal(preselect) {
   const options = availableCategories().map(folder => {
     const j = journeyFor(folder);
     const label = j ? `${j.stage}${folder !== j.stage ? ` (${folder})` : ''}` : folder;
     return `<option value="${escapeAttr(folder)}">${escapeHtml(label)}</option>`;
   }).join('');
   el('settingsPhase').innerHTML = options;
+  if (preselect && availableCategories().includes(preselect)) {
+    el('settingsPhase').value = preselect;
+  }
   el('settingsPhaseRename').value = '';
   overlayPush('settingsModalOverlay', closeSettingsModal);
   el('settingsModalOverlay').hidden = false;
@@ -1999,18 +2078,20 @@ function fileToDataUrl(file) {
 
 /* ── Lightbox ─────────────────────────────────────────────────── */
 
-/* In "images" view the lightbox walks every photo in phase order instead of
-   stopping at each phase boundary; in "phases" view it stays inside one phase. */
+/* On the Pictures tab the viewer walks the same day-sorted wall the user was
+   looking at; from an album it stays inside that album. */
 function lightboxItems(folder) {
-  return state.view === 'images' ? allImages() : (state.folders[folder] || []);
+  return state.view === 'images'
+    ? (state.picturesList || []).map(c => c.img)
+    : (state.folders[folder] || []);
 }
-/* Cards report a folder-local index; in "images" view translate it to the
-   position of that same photo in the flat list. */
+/* Cards report a folder-local index; on the Pictures tab translate it to the
+   position of that same photo in the day-sorted list. */
 function lightboxIndexFor(folder, index) {
   if (state.view !== 'images') return index;
   const target = (state.folders[folder] || [])[index];
   if (!target) return 0;
-  const at = allImages().findIndex(i => i.path === target.path);
+  const at = (state.picturesList || []).findIndex(c => c.img.path === target.path);
   return at >= 0 ? at : 0;
 }
 
@@ -2024,8 +2105,9 @@ function openLightbox(folder, index, startSrc) {
 }
 function updateLightbox() {
   const items = lightboxItems(state.lightboxFolder);
+  if (state.lightboxIndex >= items.length) state.lightboxIndex = Math.max(0, items.length - 1);
   const img = items[state.lightboxIndex];
-  if (!img) return;
+  if (!img) { if (!el('lightbox').hidden) overlayClose('lightbox'); return; }
   const lb = el('lightboxImg');
   // Always open crisp: the LARGEST committed variant (cached once the card
   // revealed, ~66KB if nav); full-res original layers in silently after.
@@ -2037,10 +2119,28 @@ function updateLightbox() {
   lb.onload = () => { if (lb.src !== lb.dataset.full && lb.dataset.full) lb.src = lb.dataset.full; };
   lb.onerror = () => { if (lb.src !== lb.dataset.full && lb.dataset.full) lb.src = lb.dataset.full; };
   lb.alt = prettyName(img.name);
-  const phase = state.view === 'images' ? (img.folder || state.lightboxFolder) : state.lightboxFolder;
-  if (el('lightboxCaption')) el('lightboxCaption').textContent = `${phase} / ${prettyName(img.name)}`;
-  if (el('lightboxCounter')) el('lightboxCounter').textContent = `${state.lightboxIndex + 1} / ${items.length}`;
-  if (el('lightboxPhase')) el('lightboxPhase').textContent = state.view === 'images' ? 'all images' : state.lightboxFolder;
+  const folder = state.view === 'images' ? (img.folder || state.lightboxFolder) : state.lightboxFolder;
+  const j = journeyFor(folder);
+  const iso = extractPhotoDate(img.name);
+  el('lightboxName').textContent = prettyName(img.name);
+  el('lightboxMeta').textContent = `${iso ? fmtDay(iso, true) : 'Undated'} · ${j ? j.stage : folder}`;
+  el('lightboxCounter').textContent = `${state.lightboxIndex + 1} / ${items.length}`;
+  el('lightboxTag').hidden = !state.adminMode;
+  el('lightboxDelete').hidden = !state.adminMode;
+  el('lightbox').classList.remove('chrome-off');
+}
+
+/* Viewer bottom-bar admin actions act on the photo on screen. */
+function viewerTag() {
+  const img = lightboxItems(state.lightboxFolder)[state.lightboxIndex];
+  if (img) openTagModal(img.path, prettyName(img.name));
+}
+
+async function viewerDelete() {
+  const img = lightboxItems(state.lightboxFolder)[state.lightboxIndex];
+  if (!img) return;
+  await deleteImage(img.path, img.sha, prettyName(img.name));
+  // deleteImage re-renders; updateLightbox (via render) clamps or closes.
 }
 function closeLightbox() { el('lightbox').hidden = true; }
 function lightboxStep(delta) {
@@ -2100,22 +2200,18 @@ async function downloadFromLightbox() {
 function rawUrl(path) {
   return `https://raw.githubusercontent.com/${CONFIG.owner}/${CONFIG.repo}/${CONFIG.branch}/${path.split('/').map(encodeURIComponent).join('/')}`;
 }
-/* The photos at the top of whatever is on screen: the head of the flat list in
-   "images" view, the head of the first phase in "phases" view. Recomputed once
-   per render and read per card, so the check stays O(1) for each image. */
+/* The photos at the top of the Pictures wall are what paints first (the
+   default tab). Recomputed once per render and read per card, so the check
+   stays O(1) for each image. */
 let firstPaintPaths = new Set();
 const FIRST_PAINT_EAGER = 3;   // eager/high-priority cards
 const FIRST_PAINT_PRELOAD = 6; // thumb preloads
 function firstPaintImages() {
-  const head = state.view === 'images'
-    ? allImages()
-    : ((state.folders[state.order[0]] || []));
-  return head.slice(0, FIRST_PAINT_PRELOAD);
+  return (state.picturesList || []).slice(0, FIRST_PAINT_PRELOAD).map(c => c.img);
 }
 function computeFirstPaintPaths() {
   firstPaintPaths = new Set(
-    (state.view === 'images' ? allImages() : (state.folders[state.order[0]] || []))
-      .slice(0, FIRST_PAINT_EAGER).map(i => i.path)
+    (state.picturesList || []).slice(0, FIRST_PAINT_EAGER).map(c => c.img.path)
   );
 }
 function isFirstPaint(img) {

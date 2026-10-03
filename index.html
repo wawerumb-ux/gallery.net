@@ -2,100 +2,144 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#000000">
+<meta name="color-scheme" content="dark">
 <title>Structured Cabling — Project Archive</title>
 <link rel="icon" type="image/png" href="logo/favi.png">
 <link rel="apple-touch-icon" href="logo/favi.png">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<div class="app">
+<div class="app" id="app">
 
-  <header class="header">
-    <div class="header-left">
-      <span class="header-title">Structured Cabling — Project Archive</span>
+  <!-- One UI app bar: compact row always visible, hero title collapses on scroll -->
+  <header class="appbar" id="appbar">
+    <div class="appbar-row">
+      <span class="appbar-mini" id="appbarMini">Gallery</span>
       <span class="demo-badge" id="demoBadge" hidden>demo data — repo not set</span>
-      <span class="header-stats" id="headerStats">
-        <span class="stat"><strong id="statPhotos">0</strong> photos</span>
-        <span class="stat-sep">·</span>
-        <span class="stat"><strong id="statFolders">0</strong> phases</span>
-      </span>
+      <div class="appbar-actions">
+        <button class="appbar-icon" id="menuBtn" aria-label="More options" aria-haspopup="true" title="More options">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="1.7"/><circle cx="12" cy="12" r="1.7"/><circle cx="12" cy="19" r="1.7"/></svg>
+        </button>
+      </div>
     </div>
-    <div class="header-right">
-      <button class="admin-link icon-btn" id="settingsBtn" hidden aria-label="Phase settings" title="Phase settings">⚙</button>
-      <button class="admin-link" id="adminToggle">Admin</button>
+    <div class="appbar-hero" id="appbarHero">
+      <div class="appbar-hero-inner">
+        <h1 class="appbar-title">Gallery</h1>
+        <p class="appbar-sub">Structured cabling archive — <strong id="statPhotos">0</strong> photos · <strong id="statFolders">0</strong> albums</p>
+      </div>
     </div>
-    <div class="trace-line" id="traceLine"></div>
+    <div class="search-pill" id="searchWrap" hidden>
+      <svg class="search-ic" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+      <input type="search" id="adminSearch" placeholder="Search photos or albums" autocomplete="off" aria-label="Search photos and albums">
+      <select id="adminSearchFilter" aria-label="Search scope">
+        <option value="all">All</option>
+        <option value="image">Photos</option>
+        <option value="phase">Albums</option>
+      </select>
+      <span class="search-count" id="adminSearchCount"></span>
+    </div>
   </header>
 
-  <div class="body">
-    <nav class="sidebar" id="sidebar">
-      <div class="sidebar-search" id="sidebarSearch" hidden>
-        <input type="search" id="adminSearch" class="text-input" placeholder="find image or phase" autocomplete="off" aria-label="Search images and phases">
-        <div class="search-meta">
-          <select id="adminSearchFilter" aria-label="Search scope">
-            <option value="all">all</option>
-            <option value="image">images</option>
-            <option value="phase">phases</option>
-          </select>
-          <span class="search-count" id="adminSearchCount"></span>
-          <button class="sidebar-toggle" id="sidebarToggle" type="button" aria-expanded="true" aria-controls="sidebarNav" aria-label="Show or hide phase navigation">▾</button>
-        </div>
-      </div>
-      <div class="sidebar-nav" id="sidebarNav">
-        <div class="sidebar-nav-inner">
-          <div class="view-filter">
-            <label class="sidebar-label" for="viewFilter">view</label>
-            <div class="view-select-wrap">
-              <select id="viewFilter" aria-label="Show all images, or group them by phase">
-                <option value="images">images</option>
-                <option value="phases">phases</option>
-              </select>
-              <span class="view-select-caret" aria-hidden="true">▾</span>
-            </div>
-          </div>
-          <div class="phase-group" id="phaseGroup">
-            <button class="phase-group-btn" id="phaseGroupBtn" type="button" aria-expanded="true" aria-controls="phaseGroupList">
-              <img class="phase-group-icon" src="logo/icon%202.png" alt="" aria-hidden="true" width="18" height="18">
-              <span class="phase-group-name">phases</span>
-              <span class="phase-count" id="phaseGroupCount">0</span>
-              <span class="phase-group-caret" aria-hidden="true">▾</span>
-            </button>
-            <div class="phase-group-list" id="phaseGroupList">
-              <ul class="phase-list" id="phaseList"></ul>
-            </div>
-          </div>
-          <div class="admin-panel" id="newFolderPanel" hidden>
-            <div class="sidebar-label">new phase</div>
-            <input type="text" id="newFolderName" placeholder="folder-name" class="text-input">
-            <input type="file" id="newFolderFiles" multiple accept="image/*" hidden>
-            <button class="btn btn-ghost" id="newFolderBtn">+ Create with photos</button>
-            <button class="btn btn-ghost" id="sortPhotosBtn">Sort photos</button>
-          </div>
-        </div>
-      </div>
-    </nav>
+  <!-- Selection mode replaces the app bar (S10 contextual action bar) -->
+  <div class="selectbar" id="selectBar" hidden>
+    <button class="viewer-icon" id="selectClose" aria-label="Exit selection" title="Exit selection">
+      <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+    </button>
+    <span class="select-count" id="selectCount">0 selected</span>
+    <div class="select-actions">
+      <button class="select-action" id="selectDelete" disabled>Delete</button>
+      <button class="select-action select-action-primary" id="selectMove" disabled>Move</button>
+    </div>
+  </div>
 
-    <main class="main" id="main">
-      <div class="loading" id="loadingState" aria-live="polite">
-        <div class="loading-caption">loading images...</div>
-        <div class="load-bar-wrap">
-          <pre class="load-bar" id="loadingBar" aria-hidden="true">[------------------------]   0%</pre>
-          <span class="load-cursor" aria-hidden="true">█</span>
-        </div>
+  <main class="main" id="main">
+    <div class="loading" id="loadingState" aria-live="polite">
+      <div class="loading-caption">Loading photos…</div>
+      <div class="load-bar-wrap">
+        <pre class="load-bar" id="loadingBar" aria-hidden="true">[------------------------]   0%</pre>
+        <span class="load-cursor" aria-hidden="true">█</span>
       </div>
-      <div class="empty" id="emptyState" hidden aria-live="polite">
-        <p>No images found yet.</p>
-        <p class="empty-sub">Add photos under <code id="emptyPath">images/</code> in the repo, grouped into subfolders by phase.</p>
-      </div>
-      <div id="gallery"></div>
-    </main>
+    </div>
+    <div class="empty" id="emptyState" hidden aria-live="polite">
+      <svg viewBox="0 0 24 24" width="56" height="56" fill="currentColor" aria-hidden="true"><path d="M21 19V5c0-1.1-.9-2-2-2H5C3.9 3 3 3.9 3 5v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>
+      <p>No photos yet.</p>
+      <p class="empty-sub">Add photos under <code id="emptyPath">images/</code> in the repo, grouped into one folder per phase.</p>
+    </div>
+    <div id="gallery">
+      <section id="picturesView" aria-label="Pictures"></section>
+      <section id="albumsView" aria-label="Albums" hidden></section>
+    </div>
+  </main>
+
+  <button class="fab" id="fabAdd" hidden aria-label="Add photos" title="Add photos">
+    <svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor" aria-hidden="true"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+  </button>
+
+  <!-- S10 bottom tab bar -->
+  <nav class="tabbar" id="tabbar" aria-label="Gallery views">
+    <button class="tab is-active" id="tabPictures" data-view="images" role="tab" aria-selected="true">
+      <svg class="tab-ic" viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true"><path d="M21 19V5c0-1.1-.9-2-2-2H5C3.9 3 3 3.9 3 5v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>
+      <span>Pictures</span>
+    </button>
+    <button class="tab" id="tabAlbums" data-view="phases" role="tab" aria-selected="false">
+      <svg class="tab-ic" viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true"><path d="M4 6H2v14c0 1.1.9 2 2 2h14v-2H4V6zm16-4H8c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zm0 14H8V4h12v12z"/></svg>
+      <span>Albums</span>
+    </button>
+  </nav>
+</div>
+
+<!-- One UI bottom sheet (overflow menus) -->
+<div class="sheet-overlay" id="sheetOverlay" hidden>
+  <div class="sheet" role="menu" aria-label="Options">
+    <div class="sheet-handle" aria-hidden="true"></div>
+    <div class="sheet-title" id="sheetTitle" hidden></div>
+    <div class="sheet-list" id="sheetList"></div>
   </div>
 </div>
 
+<!-- S10 fullscreen photo viewer -->
+<div class="viewer" id="lightbox" hidden role="dialog" aria-modal="true" aria-label="Photo viewer">
+  <div class="viewer-top" id="viewerTop">
+    <button class="viewer-icon" id="lightboxClose" aria-label="Back" title="Back">
+      <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+    </button>
+    <div class="viewer-title">
+      <span class="viewer-name" id="lightboxName"></span>
+      <span class="viewer-meta" id="lightboxMeta"></span>
+    </div>
+    <span class="viewer-counter" id="lightboxCounter">1 / 1</span>
+  </div>
+  <button class="viewer-nav viewer-prev" id="lightboxPrev" aria-label="Previous photo">
+    <svg viewBox="0 0 24 24" width="30" height="30" fill="currentColor" aria-hidden="true"><path d="M15.41 7.41 14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
+  </button>
+  <div class="viewer-stage" id="lightboxViewport">
+    <img class="viewer-img" id="lightboxImg" alt="">
+  </div>
+  <button class="viewer-nav viewer-next" id="lightboxNext" aria-label="Next photo">
+    <svg viewBox="0 0 24 24" width="30" height="30" fill="currentColor" aria-hidden="true"><path d="M8.59 16.59 10 18l6-6-6-6-1.41 1.41L13.17 12z"/></svg>
+  </button>
+  <div class="viewer-bottom" id="viewerBottom">
+    <button class="viewer-action" id="lightboxDownload" type="button">
+      <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true"><path d="M11 3h2v10.17l2.59-2.58L17 12l-5 5-5-5 1.41-1.41L11 13.17V3zM5 19h14v2H5z"/></svg>
+      <span>Download</span>
+    </button>
+    <button class="viewer-action" id="lightboxTag" type="button" hidden>
+      <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true"><path d="M17.63 5.84C17.27 5.33 16.67 5 16 5L5 5.01C3.9 5.01 3 5.9 3 7v10c0 1.1.9 1.99 2 1.99L16 19c.67 0 1.27-.33 1.63-.84L22 12l-4.37-6.16z"/></svg>
+      <span>Classify</span>
+    </button>
+    <button class="viewer-action" id="lightboxDelete" type="button" hidden>
+      <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true"><path d="M16 9v10H8V9h8m-1.5-6h-5l-1 1H5v2h14V4h-3.5l-1-1z"/></svg>
+      <span>Delete</span>
+    </button>
+  </div>
+</div>
+
+<!-- Admin sign-in -->
 <div class="modal-overlay" id="adminModalOverlay" hidden>
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="adminModalTitle">
     <h2 id="adminModalTitle">Admin sign-in</h2>
@@ -103,35 +147,28 @@
     <input type="password" id="tokenInput" class="text-input" placeholder="github_pat_..." autocomplete="off">
     <p class="modal-error" id="tokenError" hidden></p>
     <div class="modal-actions">
-      <button class="btn btn-ghost" id="tokenCancel" style="width:auto;">Cancel</button>
+      <button class="btn btn-ghost" id="tokenCancel">Cancel</button>
       <button class="btn btn-primary" id="tokenSubmit">Sign in</button>
     </div>
     <p class="modal-note">The token stays only in this browser tab's session storage. It's never written to the repo and never sent anywhere but api.github.com.</p>
   </div>
 </div>
 
-<div class="lightbox" id="lightbox" hidden role="dialog" aria-modal="true" aria-label="Photo viewer">
-  <div class="lightbox-topbar">
-    <button class="lightbox-close" id="lightboxClose" aria-label="Close viewer">✕</button>
-    <div class="lightbox-title-wrap">
-      <span class="lightbox-counter" id="lightboxCounter">1 / 1</span>
-      <span class="lightbox-phase" id="lightboxPhase"></span>
-    </div>
-    <div style="width:40px;"></div>
-  </div>
-  <button class="lightbox-nav lightbox-prev" id="lightboxPrev" aria-label="Previous photo">‹</button>
-  <div class="lightbox-viewport" id="lightboxViewport">
-    <img class="lightbox-img" id="lightboxImg" alt="">
-  </div>
-  <button class="lightbox-nav lightbox-next" id="lightboxNext" aria-label="Next photo">›</button>
-  <div class="lightbox-captionbar">
-    <span class="lightbox-caption" id="lightboxCaption"></span>
-    <div class="lightbox-actions">
-      <button class="lightbox-download" id="lightboxDownload" type="button">⭳ Download</button>
+<!-- New album -->
+<div class="modal-overlay" id="newAlbumOverlay" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="newAlbumTitle">
+    <h2 id="newAlbumTitle">New album</h2>
+    <p class="modal-copy">Name the album, then choose the photos to start it with.</p>
+    <input type="text" id="newFolderName" class="text-input" placeholder="album-name" autocomplete="off">
+    <input type="file" id="newFolderFiles" multiple accept="image/*" hidden>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="newAlbumCancel">Cancel</button>
+      <button class="btn btn-primary" id="newFolderBtn">Choose photos</button>
     </div>
   </div>
 </div>
 
+<!-- Upload confirm -->
 <div class="modal-overlay" id="uploadModalOverlay" hidden>
   <div class="modal modal-wide" role="dialog" aria-modal="true" aria-labelledby="uploadModalTitle">
     <h2 id="uploadModalTitle">Confirm upload</h2>
@@ -144,14 +181,15 @@
   </div>
 </div>
 
+<!-- Move photos (selection) -->
 <div class="modal-overlay" id="sortModalOverlay" hidden>
   <div class="modal modal-wide sort-modal" role="dialog" aria-modal="true" aria-labelledby="sortModalTitle">
-    <h2 id="sortModalTitle">Move photos to a category</h2>
+    <h2 id="sortModalTitle">Move photos to an album</h2>
     <p class="modal-copy" id="sortModalCopy"></p>
-    <label class="tag-field" for="categoryInput">Category</label>
-    <input type="text" id="categoryInput" class="text-input" list="categoryDatalist" placeholder="Pick a category or type a new one…" autocomplete="off">
+    <label class="tag-field" for="categoryInput">Album</label>
+    <input type="text" id="categoryInput" class="text-input" list="categoryDatalist" placeholder="Pick an album or type a new one…" autocomplete="off">
     <datalist id="categoryDatalist"></datalist>
-    <p class="modal-note">Typing a new name adds a new category on save.</p>
+    <p class="modal-note">Typing a new name adds a new album on save.</p>
     <div class="pick-list sort-list" id="sortPickList"></div>
     <div class="modal-actions">
       <button class="btn btn-ghost" id="sortCancel">Cancel</button>
@@ -160,29 +198,31 @@
   </div>
 </div>
 
+<!-- Album settings -->
 <div class="modal-overlay" id="settingsModalOverlay" hidden>
   <div class="modal modal-wide" role="dialog" aria-modal="true" aria-labelledby="settingsModalTitle">
-    <h2 id="settingsModalTitle">Phase settings</h2>
-    <p class="modal-copy" id="settingsCopy">Rename a phase, or remove it (every photo inside is deleted).</p>
-    <label class="tag-field" for="settingsPhase">Phase</label>
+    <h2 id="settingsModalTitle">Album settings</h2>
+    <p class="modal-copy" id="settingsCopy">Rename an album, or remove it (every photo inside is deleted).</p>
+    <label class="tag-field" for="settingsPhase">Album</label>
     <select id="settingsPhase" class="text-input"></select>
     <label class="tag-field" for="settingsPhaseRename">Rename to</label>
-    <input type="text" id="settingsPhaseRename" class="text-input" placeholder="new-folder-name" autocomplete="off">
+    <input type="text" id="settingsPhaseRename" class="text-input" placeholder="new-album-name" autocomplete="off">
     <div class="modal-actions">
       <button class="btn btn-ghost" id="settingsRenameBtn">Rename</button>
-      <button class="btn btn-danger" id="settingsRemoveBtn">Remove phase</button>
+      <button class="btn btn-danger" id="settingsRemoveBtn">Remove album</button>
       <button class="btn btn-ghost" id="settingsCancel">Cancel</button>
     </div>
     <hr class="modal-divider">
-    <p class="modal-note">Every admin action is recorded as a commit. Undo steps back the last one; Revert all returns every photo and phase to how the gallery started.</p>
+    <p class="modal-note">Every admin action is recorded as a commit. Undo steps back the last one; Revert all returns every photo and album to how the gallery started.</p>
     <div class="modal-actions">
       <button class="btn btn-ghost" id="settingsUndoBtn">Undo last change</button>
       <button class="btn btn-ghost" id="settingsRevertBtn">Revert all</button>
     </div>
-    <p class="modal-note">Removing a phase deletes it and all of its photos from the repo.</p>
+    <p class="modal-note">Removing an album deletes it and all of its photos from the repo.</p>
   </div>
 </div>
 
+<!-- Classify photo -->
 <div class="modal-overlay" id="tagModalOverlay" hidden>
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="tagModalTitle">
     <h2 id="tagModalTitle">Classify photo</h2>
@@ -199,12 +239,6 @@
       <button class="btn btn-primary" id="tagSave">Save</button>
     </div>
   </div>
-</div>
-
-<div class="batch-bar" id="batchBar" hidden>
-  <span class="batch-count" id="batchCount">0 selected</span>
-  <button class="btn btn-ghost btn-sm" id="batchClearBtn">Clear</button>
-  <button class="btn btn-primary btn-sm" id="batchSortBtn" disabled>Done</button>
 </div>
 
 <div class="toast" id="toast" hidden role="alert" aria-live="assertive">
