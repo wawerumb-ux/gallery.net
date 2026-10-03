@@ -297,6 +297,25 @@ body.is-selecting .tabbar, body.is-selecting .fab { transform: translateY(110%);
 .load-cursor { color: var(--accent-text); font-size: 13px; animation: load-blink 1.1s steps(2, start) infinite; }
 @keyframes load-blink { to { visibility: hidden; } }
 
+/* Error state: the progress bar is replaced by a Retry pill.
+   The gate ignores clicks while loading, so the button
+   re-enables them; the caption turns the danger tone. */
+.loading.is-error .loading-caption { color: var(--danger); }
+.load-retry {
+  margin-top: 12px;
+  padding: 9px 28px;
+  border: none; border-radius: var(--radius-pill);
+  background: var(--accent);
+  color: #ffffff;
+  font-family: inherit; font-size: 13.5px; font-weight: 500;
+  cursor: pointer;
+  pointer-events: auto;
+  transition: background var(--duration-fast) ease,
+              transform var(--duration-fast) var(--ease-spring);
+}
+.load-retry:hover { background: #0060d6; }
+.load-retry:active { transform: scale(0.94); }
+
 /* Empty state */
 .empty {
   color: var(--text-dim);

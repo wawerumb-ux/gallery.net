@@ -293,6 +293,9 @@ const loadProg = {
 
 // Fetch timeout in milliseconds
 const FETCH_TIMEOUT = 10000;
+// Backoff between retries of a transient GitHub failure (ms,
+// scaled by attempt number)
+const FETCH_RETRY_BACKOFF = 700;
 
 // Rate limit warning threshold
 const RATE_LIMIT_WARNING = 20;
@@ -311,9 +314,11 @@ function cancelRequests() {
   }
 }
 
-// Helper: fetch with timeout and rate limit tracking.
-// Only unauthenticated requests are throttled — a PAT rides a separate quota,
-// so a stalling public rate limit must never block signing in or uploads.
+// Helper: fetch with timeout, rate limit tracking and a short
+// retry on transient GitHub failures. Only unauthenticated
+// requests are throttled — a PAT rides a separate quota,
+// so a stalling public rate limit must never block signing in
+// or uploads.
 async function githubFetch(url, options = {}) {
   const authHeader = options.headers && (options.headers.Authorization || options.headers.authorization);
   const authed = !!authHeader;
@@ -326,47 +331,64 @@ async function githubFetch(url, options = {}) {
     el('toast').hidden = true;
   }
 
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT);
+  // GitHub's API occasionally hiccups (5xx, network blips).
+  // Two retries with a short backoff ride those out — a single
+  // 500 must not dead-end the whole gallery. 4xx (bad
+  // owner/repo/branch, bad token) and aborts fail fast.
+  const MAX_ATTEMPTS = 3;
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT);
 
-  abortController = controller;
+    abortController = controller;
 
-  try {
-    const res = await fetch(url, {
-      ...options,
-      signal: controller.signal
-    });
-    clearTimeout(timeoutId);
-    abortController = null;
+    try {
+      const res = await fetch(url, {
+        ...options,
+        signal: controller.signal
+      });
+      clearTimeout(timeoutId);
+      abortController = null;
 
-    // Track rate limits. Only arm the auto-wait when an unauthenticated call
-    // is actually exhausted; a healthy response's reset time is the *quota*
-    // reset (up to an hour away) and must not stall the next request.
-    const remaining = res.headers.get('X-RateLimit-Remaining');
-    const reset = res.headers.get('X-RateLimit-Reset');
-    if (remaining !== null) {
-      const remainingNum = parseInt(remaining);
-      const resetNum = parseInt(reset) || 0;
-      const exhausted = resetNum > 0 && (remainingNum === 0 || res.status === 403 || res.status === 429);
-      if (exhausted && !authed) {
-        rateLimitReset = resetNum;
-      } else {
-        rateLimitReset = 0;
-        if (remainingNum < RATE_LIMIT_WARNING && remainingNum > 0) {
-          const resetDate = new Date(resetNum * 1000);
-          console.warn(`GitHub rate limit: ${remainingNum} requests remaining, resets at ${resetDate}`);
+      // Track rate limits. Only arm the auto-wait when an unauthenticated call
+      // is actually exhausted; a healthy response's reset time is the *quota*
+      // reset (up to an hour away) and must not stall the next request.
+      const remaining = res.headers.get('X-RateLimit-Remaining');
+      const reset = res.headers.get('X-RateLimit-Reset');
+      if (remaining !== null) {
+        const remainingNum = parseInt(remaining);
+        const resetNum = parseInt(reset) || 0;
+        const exhausted = resetNum > 0 && (remainingNum === 0 || res.status === 403 || res.status === 429);
+        if (exhausted && !authed) {
+          rateLimitReset = resetNum;
+        } else {
+          rateLimitReset = 0;
+          if (remainingNum < RATE_LIMIT_WARNING && remainingNum > 0) {
+            const resetDate = new Date(resetNum * 1000);
+            console.warn(`GitHub rate limit: ${remainingNum} requests remaining, resets at ${resetDate}`);
+          }
         }
       }
-    }
 
-    return res;
-  } catch (err) {
-    clearTimeout(timeoutId);
-    abortController = null;
-    if (err.name === 'AbortError') {
-      throw new Error('Request timed out after ' + FETCH_TIMEOUT / 1000 + 's');
+      if (res.status >= 500 && attempt < MAX_ATTEMPTS) {
+        await new Promise(r => setTimeout(r, FETCH_RETRY_BACKOFF * attempt));
+        continue;
+      }
+      return res;
+    } catch (err) {
+      clearTimeout(timeoutId);
+      abortController = null;
+      // Network blips are worth another try; aborts (timeouts,
+      // page-unload cancels) are not.
+      if (err.name !== 'AbortError' && attempt < MAX_ATTEMPTS) {
+        await new Promise(r => setTimeout(r, FETCH_RETRY_BACKOFF * attempt));
+        continue;
+      }
+      if (err.name === 'AbortError') {
+        throw new Error('Request timed out after ' + FETCH_TIMEOUT / 1000 + 's');
+      }
+      throw err;
     }
-    throw err;
   }
 }
 
@@ -374,6 +396,7 @@ document.addEventListener('DOMContentLoaded', init);
 
 async function init() {
   el('demoBadge').hidden = !DEMO_MODE;
+  LOADING_MARKUP = el('loadingState').innerHTML;
   state.token = sessionStorage.getItem(TOKEN_KEY);
   state.adminMode = DEMO_MODE ? false : !!state.token;
   updateAdminUI();
@@ -592,7 +615,9 @@ async function loadTree(auth = false) {
     );
     if (!rootRes.ok) {
       const errData = await rootRes.json().catch(() => ({}));
-      throw new Error(errData.message || `GitHub API error (${rootRes.status})`);
+      const err = new Error(errData.message || `GitHub API error (${rootRes.status})`);
+      err.status = rootRes.status;
+      throw err;
     }
     const rootData = await rootRes.json();
     loadProg.set(32);
@@ -619,7 +644,9 @@ async function loadTree(auth = false) {
     );
     if (!imagesRes.ok) {
       const errData = await imagesRes.json().catch(() => ({}));
-      throw new Error(errData.message || `GitHub API error (${imagesRes.status})`);
+      const err = new Error(errData.message || `GitHub API error (${imagesRes.status})`);
+      err.status = imagesRes.status;
+      throw err;
     }
     loadProg.set(58);
     const data = await imagesRes.json();
@@ -631,9 +658,48 @@ async function loadTree(auth = false) {
     loadProg.set(74);
     render();
   } catch (err) {
-    el('loadingState').textContent = 'Could not read the repository — check owner/repo/branch in app.js.';
-    showToast(err.message || 'Could not read repository.');
+    loadError(err);
   }
+}
+
+/* The loading gate becomes an error card with a Retry — a
+   transient GitHub failure shouldn't cost a full page reload,
+   and the message should say what actually went wrong (the old
+   blanket "check owner/repo/branch" showed for every failure,
+   even GitHub-side 500s). */
+function loadError(err) {
+  const status = err.status || 0;
+  const text = err.message || '';
+  let msg;
+  if (status === 404) {
+    msg = 'Repository not found — check owner/repo/branch in app.js.';
+  } else if (status >= 500) {
+    msg = `GitHub's API is having trouble (HTTP ${status}). Tap Retry.`;
+  } else if (/timed out/i.test(text)) {
+    msg = 'The request timed out — GitHub is slow. Tap Retry.';
+  } else if (/failed|network|fetch|aborted/i.test(text)) {
+    msg = 'Network trouble reaching GitHub. Tap Retry.';
+  } else {
+    msg = text || 'Could not read repository.';
+  }
+  const gate = el('loadingState');
+  gate.classList.add('is-error');
+  const caption = gate.querySelector('.loading-caption');
+  if (caption) caption.textContent = msg;
+  const wrap = gate.querySelector('.load-bar-wrap');
+  if (wrap) {
+    wrap.innerHTML = `<button class="load-retry" id="loadRetry" type="button">Retry</button>`;
+    el('loadRetry').addEventListener('click', () => {
+      // Put the loading UI back and run the tree load again.
+      gate.classList.remove('is-error');
+      gate.innerHTML = LOADING_MARKUP;
+      loadProg._pct = 0;
+      loadProg._images = 0;
+      loadProg._loaded = 0;
+      loadTree(state.adminMode);
+    });
+  }
+  showToast(msg);
 }
 
 function loadDemoData() {
@@ -2305,6 +2371,9 @@ function rawUrl(path) {
    default tab). Recomputed once per render and read per card, so the check
    stays O(1) for each image. */
 let firstPaintPaths = new Set();
+/* The loading gate's original markup, cached at boot so the
+   Retry button can restore it after an error. */
+let LOADING_MARKUP = '';
 const FIRST_PAINT_EAGER = 3;   // eager/high-priority cards
 const FIRST_PAINT_PRELOAD = 6; // thumb preloads
 function firstPaintImages() {
