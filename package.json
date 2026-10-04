@@ -1,0 +1,37 @@
+{
+  "name": "gallery.net",
+  "version": "1.0.0",
+  "description": "A gallery site for your networking install photos, grouped by phase, hosted on GitHub Pages. The interface follows the Samsung Gallery app (One UI, dark): a **Pictures** tab with every photo on a day-grouped wall, an **Albums** tab with one cover per phase, a bottom tab bar, and a fullscreen swipe viewer. Desktop defaults to a landscape layout (wide column, denser wall); phones and tablets follow the device orientation — portrait keeps the phone-width column, landscape widens to match.",
+  "main": "app.js",
+  "directories": {
+    "test": "tests"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build:shader": "vite build",
+    "dev:shader": "vite"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wawerumb-ux/gallery.net.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "bugs": {
+    "url": "https://github.com/wawerumb-ux/gallery.net/issues"
+  },
+  "homepage": "https://github.com/wawerumb-ux/gallery.net#readme",
+  "dependencies": {
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.2"
+  }
+}

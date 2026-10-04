@@ -11,9 +11,18 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="./walkthrough.css">
+<!-- The ThreeUI GenerativeTree background: one React island, built from the
+     authored source in ../src (see ../src/Scene.tsx and vite.config.js). It
+     paints behind the collage; the walkthrough's own runtime below is still a
+     classic script and is untouched. -->
+<link rel="stylesheet" href="./shader-build/assets/shader.css">
+<link rel="modulepreload" href="./shader-build/assets/shader.js">
 </head>
 <body class="wt" data-depth="1">
 <div class="wt-ambient" id="wtAmbient" aria-hidden="true"></div>
+<!-- The tree is decorative and sits behind everything, so it is hidden from
+     assistive tech; the landing's own copy carries the meaning. -->
+<div id="wt-shader-root" aria-hidden="true"></div>
 <main class="wt-page">
   <div class="wt-media" id="wtMedia"></div>
   <section class="wt-panel">
@@ -26,5 +35,6 @@
 </main>
 <script src="./steps.js"></script>
 <script src="./walkthrough.js"></script>
+<script type="module" src="./shader-build/assets/shader.js"></script>
 </body>
 </html>
