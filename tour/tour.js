@@ -19,6 +19,7 @@
    ──────────────────────────────────────────────────────────────────── */
 
 const TOUR_STORAGE_KEY = 'walkthrough.tourState';
+const TOUR_HISTORY_FLAG = 'guidedTour';   // the marker the tour pushes on its entry
 const ACTION_DEBOUNCE_MS = 200;   // spec: rapid-duplicate guard window (functional, not motion)
 const TARGET_WAIT_MS = 10000;     // operational grace for async-rendered targets
 /* Spec holds are mapped onto D tokens (the download-button.js
@@ -118,6 +119,9 @@ function createGuidedTour(config) {
   let settleTimer = null;
   let phaseTimer = null;
   let ended = false;
+  // True between the gallery announcing a history pop and the
+  // popstate it causes. See onPopState.
+  let overlayPop = false;
 
   /* ── Persistence ─────────────────────────────────────────── */
 
@@ -778,9 +782,28 @@ function createGuidedTour(config) {
 
   /* Browser back, Escape → End tour: exits the tour entirely.
      The exit is recorded (escapedAt) so it is never mistaken
-     for a completion. */
+     for a completion.
+
+     The gallery closes its own overlays by popping a history entry,
+     which produces the very same popstate a real back-press does —
+     closing the viewer with its Back button, or dismissing any
+     dialog. Those are not the user leaving, and treating them as one
+     ended the tour at its first "close something" step. Two guards:
+
+       1. the gallery announces its pops (gallery:history-pop) just
+          before making them — ordering-safe, since its own
+          suppressPopstate flag is consumed by its own listener before
+          any later listener runs;
+       2. a pop that lands back on the tour's own history entry is
+          unwinding an overlay the gallery pushed after the tour
+          began, not carrying the user away. */
+  function onGalleryHistoryPop() { overlayPop = true; }
+
   function onPopState() {
     if (ended) return;
+    if (overlayPop) { overlayPop = false; return; }
+    if (window.history && window.history.state &&
+        window.history.state[TOUR_HISTORY_FLAG]) return;
     exitTour();
   }
 
@@ -827,6 +850,7 @@ function createGuidedTour(config) {
     // menu and must not also close gallery overlays underneath.
     window.addEventListener('keydown', onKeyDown, true);
     window.addEventListener('popstate', onPopState);
+    window.addEventListener('gallery:history-pop', onGalleryHistoryPop);
     window.addEventListener('resize', onAnchor, { passive: true });
     window.addEventListener('scroll', onAnchor, { passive: true, capture: true });
   }
@@ -834,6 +858,7 @@ function createGuidedTour(config) {
   function unbindGlobal() {
     window.removeEventListener('keydown', onKeyDown, true);
     window.removeEventListener('popstate', onPopState);
+    window.removeEventListener('gallery:history-pop', onGalleryHistoryPop);
     window.removeEventListener('resize', onAnchor);
     window.removeEventListener('scroll', onAnchor, true);
     if (anchorObserver) { anchorObserver.disconnect(); anchorObserver = null; }
@@ -901,7 +926,7 @@ function createGuidedTour(config) {
     buildOverlay();
     bindGlobal();
     // A history entry makes browser-back exit the tour entirely.
-    try { window.history.pushState({ guidedTour: true }, ''); } catch (_) {}
+    try { window.history.pushState({ [TOUR_HISTORY_FLAG]: true }, ''); } catch (_) {}
     renderStep(startAt);
     return true;
   }

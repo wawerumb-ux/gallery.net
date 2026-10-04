@@ -1193,6 +1193,12 @@ function overlayClose(id) {
     overlayStack.splice(i, 1);
     if (location.protocol !== 'file:') {
       suppressPopstate = true;
+      // Closing an overlay pops a history entry, which is a popstate —
+      // the same event the guided tour reads as "the user left". Say
+      // so before popping: the tour ignores our pops. (It cannot read
+      // suppressPopstate itself — our own listener consumes and
+      // clears that flag before any later listener runs.)
+      try { window.dispatchEvent(new CustomEvent('gallery:history-pop')); } catch (_) {}
       try { history.go(-1); } catch (_) {}
     }
   }

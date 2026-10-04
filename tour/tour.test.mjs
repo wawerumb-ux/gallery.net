@@ -400,6 +400,21 @@ function setup({ reducedMotion = false, multiplierPatch = null, seedState = null
     addEventListener: () => {},
   };
 
+  // A tiny history stack: pushState records state, and the tour reads
+  // history.state to tell "the user left" from "the gallery unwound
+  // an overlay". Declared before `window`, which closes over it.
+  // Real history starts at the page it loaded on (state null); the tour
+  // pushes its own entry on top, which is where the cursor then sits.
+  const historyStack = [null];
+  const history = {
+    get state() { return historyStack[historyStack.length - 1] || null; },
+    pushState: (s) => { pushStates.push(s); historyStack.push(s); },
+    // Test affordances: `back()` steps the cursor down and fires
+    // popstate, exactly as a browser back-press does.
+    back() { historyStack.pop(); (winListeners.popstate || []).slice().forEach(fn => fn({})); },
+    landOn(i) { historyStack.length = i + 1; },
+  };
+
   const window = {
     innerWidth: 1280,
     innerHeight: 800,
@@ -413,15 +428,23 @@ function setup({ reducedMotion = false, multiplierPatch = null, seedState = null
       (winListeners[t] || []).slice().forEach(fn => fn(e));
       return e;
     },
-    history: { pushState: (s) => pushStates.push(s) },
+    // A tiny history stack: pushState records state, and the tour reads
+    // history.state to tell "the user left" from "the gallery unwound
+    // an overlay". popstate fires without changing it unless the test
+    // moves the cursor, which is what a real back-press does.
+    history,
     location: { pathname: '/', search: '?tour=1', assign: (url) => navigations.push(url) },
   };
+
+  // localStorage sits alongside the DOM stubs; `history` is declared above.
 
   const localStorage = {
     getItem: (k) => (store.has(k) ? store.get(k) : null),
     setItem: (k, v) => { store.set(k, String(v)); },
     removeItem: (k) => { store.delete(k); },
   };
+
+  // localStorage sits alongside the DOM stubs; `history` is declared above.
 
   const getComputedStyle = (el) => ({
     getPropertyValue: (prop) => (prop === 'border-radius' ? (el.__radius || '4px') : ''),
@@ -458,6 +481,7 @@ function setup({ reducedMotion = false, multiplierPatch = null, seedState = null
     pushStates,
     store,
     window,
+    history,
     document,
     tabPictures,
     tabAlbums,
@@ -641,7 +665,7 @@ describe('G — gating: the action is the only way forward', () => {
     const tour = h.X.createGuidedTour({ steps: tourOf(clickStep('s1', 1, 'tab-albums')) });
     tour.start();
     h.advance(h.X.D.base);
-    h.window.dispatchEvent('popstate');
+    h.history.back(); // a real back-press steps below the tour's entry
     assert.equal(tour.getPhase(), 'complete');
     const saved = h.X.parseTourState(h.store.get('walkthrough.tourState'));
     assert.equal(saved.finished, true);
@@ -1298,6 +1322,72 @@ describe('T — the real TOUR_STEPS integration', () => {
     const tour = h.X.createGuidedTour({ steps: h.X.TOUR_STEPS });
     tour.start();
     sameDeep(h.pushStates, [{ guidedTour: true }]);
+  });
+
+  test('T2b — the gallery unwinding an overlay is NOT the user leaving', () => {
+    // Regression: the gallery closes overlays by popping a history
+    // entry, so closing the viewer with its Back button fires a
+    // popstate. The tour used to read that as "back pressed" and tore
+    // itself down — which ended the visitor walk at step 4 of 11.
+    const h = setup();
+    const tour = h.X.createGuidedTour({ steps: tourOf(
+      clickStep('s1', 1, 'tab-albums'),
+      clickStep('s2', 2, 'album-cover'),
+    ) });
+    tour.start();
+    h.advance(h.X.D.base);
+    // The gallery pushes its overlay entry, then closes it: announce,
+    // then pop.
+    h.window.dispatchEvent('gallery:history-pop');
+    h.history.back();
+    assert.equal(tour.getPhase(), 'waiting', 'an overlay close must not exit the tour');
+    assert.notEqual(tour.getCurrentStepId(), null);
+    assert.equal(h.document.querySelectorAll('.tour-root').length, 1, 'the overlay stays up');
+    // And the tour still works afterwards.
+    h.tabAlbums.dispatch('click');
+    h.advance(h.X.D.base + h.X.D.short + h.X.D.base + h.X.D.base);
+    assert.equal(tour.getCurrentStepId(), 's2');
+  });
+
+  test('T2c — a pop landing on the tour entry is not an exit either', () => {
+    // Covers an overlay opened before the announcement path: the pop
+    // lands on the tour's own entry, so the user has not left.
+    const h = setup();
+    const tour = h.X.createGuidedTour({ steps: tourOf(clickStep('s1', 1, 'tab-albums')) });
+    tour.start();
+    h.advance(h.X.D.base);
+    h.window.dispatchEvent('popstate'); // cursor still on the tour entry
+    assert.equal(tour.getPhase(), 'waiting');
+    assert.equal(h.document.querySelectorAll('.tour-root').length, 1);
+  });
+
+  test('T2d — a genuine back-press still exits the tour', () => {
+    // The guard must not blunt the real escape hatch: stepping below
+    // the tour's own entry is the user leaving.
+    const h = setup();
+    const tour = h.X.createGuidedTour({ steps: tourOf(clickStep('s1', 1, 'tab-albums')) });
+    tour.start();
+    h.advance(h.X.D.base);
+    assert.equal(h.history.state && h.history.state.guidedTour, true);
+    h.history.back(); // now below the tour entry
+    assert.equal(tour.getPhase(), 'complete');
+    const saved = h.X.parseTourState(h.store.get('walkthrough.tourState'));
+    assert.equal(saved.finished, true);
+    assert.ok(saved.escapedAt, 'a real escape is recorded as escaped, not completed');
+  });
+
+  test('T2e — the announcement is consumed once, not sticky', () => {
+    // If the flag never cleared, a later REAL back-press would be
+    // swallowed and the tour would refuse to exit.
+    const h = setup();
+    const tour = h.X.createGuidedTour({ steps: tourOf(clickStep('s1', 1, 'tab-albums')) });
+    tour.start();
+    h.advance(h.X.D.base);
+    h.window.dispatchEvent('gallery:history-pop');
+    h.history.back(); // consumed by this pop
+    // A second, unannounced back-press (below the tour entry) must exit.
+    h.history.back();
+    assert.equal(tour.getPhase(), 'complete');
   });
 
   test('T3 — selectTourSteps splits the audiences and renumbers', () => {
