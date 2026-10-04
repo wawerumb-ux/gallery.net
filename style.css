@@ -1,8 +1,10 @@
 /* ────────────────────────────────────────────────────────────────────
    Structured Cabling — Project Archive
    Design language: Samsung Galaxy S10 Gallery (One UI, dark).
-   True-black OLED canvas, phone-width column on every screen,
-   collapsible hero header, bottom tab bar, bottom sheets, FAB.
+   True-black OLED canvas, collapsible hero header, bottom tab bar,
+   bottom sheets, FAB. Phones and tablets keep the phone-width column
+   and follow the device orientation; desktop defaults to the
+   landscape layout (see "Orientation-aware layout" below).
    ──────────────────────────────────────────────────────────────────── */
 
 :root {
@@ -888,6 +890,34 @@ select.text-input option { background: var(--surface-3); color: var(--text); }
   .appbar-title { font-size: 30px; }
   .modal-overlay { padding: 14px; }
   .modal { padding: 20px 16px 16px; }
+}
+
+/* ── Orientation-aware layout ───────────────────────────────────────
+   Desktop (fine pointer — mouse/trackpad) always gets the landscape
+   layout: a wide column and a denser wall. Phones & tablets (touch)
+   follow the device orientation — portrait keeps the phone column,
+   landscape widens to use the turned screen. Viewports narrower than
+   the phone column always keep the phone layout so tiles stay large.
+   Every fixed chrome piece (tab bar, sheets, FAB, toast) centers on
+   --col, so widening the column re-frames the whole UI at once. */
+
+/* Desktop — landscape by default */
+@media (pointer: fine) and (min-width: 600px) {
+  :root { --col: 1060px; }
+  .grid-pictures { grid-template-columns: repeat(6, 1fr); }
+  .grid-albums { grid-template-columns: repeat(4, 1fr); }
+}
+/* Wider desktop screens */
+@media (pointer: fine) and (min-width: 1500px) {
+  :root { --col: 1320px; }
+  .grid-pictures { grid-template-columns: repeat(8, 1fr); }
+  .grid-albums { grid-template-columns: repeat(5, 1fr); }
+}
+/* Phones & tablets turned sideways */
+@media (pointer: coarse) and (orientation: landscape) and (min-width: 600px) {
+  :root { --col: 860px; }
+  .grid-pictures { grid-template-columns: repeat(6, 1fr); }
+  .grid-albums { grid-template-columns: repeat(4, 1fr); }
 }
 
 /* ── Reduced motion ──────────────────────────────────────────────── */

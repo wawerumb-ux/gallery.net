@@ -3,8 +3,10 @@
 A gallery site for your networking install photos, grouped by phase, hosted on
 GitHub Pages. The interface follows the Samsung Gallery app (One UI, dark):
 a **Pictures** tab with every photo on a day-grouped wall, an **Albums** tab
-with one cover per phase, a bottom tab bar, and a fullscreen swipe viewer —
-on desktop it all sits in a centered phone-width column.
+with one cover per phase, a bottom tab bar, and a fullscreen swipe
+viewer. Desktop defaults to a landscape layout (wide column, denser
+wall); phones and tablets follow the device orientation — portrait
+keeps the phone-width column, landscape widens to match.
 
 Public visitors (your bosses) just browse. Signing in with an admin token lets
 you add or remove photos straight from the browser — no backend, no database,

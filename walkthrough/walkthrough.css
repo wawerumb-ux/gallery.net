@@ -267,3 +267,52 @@ body.wt {
   }
   .wt-ambient-inner { animation: none !important; }
 }
+
+/* ── Orientation-aware layout ───────────────────────────────────────
+   Desktop (fine pointer) defaults to a landscape spread: photography
+   on the left, copy and controls on the right. Phones & tablets
+   (touch) follow the device orientation — portrait keeps the stacked
+   phone layout, landscape spreads side-by-side. Narrow viewports
+   always keep the stacked layout. The panel scrolls internally so
+   the photo stays pinned beside it. */
+
+/* Desktop — landscape spread by default */
+@media (pointer: fine) and (min-width: 600px) {
+  :root { --wt-col: 1060px; }
+  .wt-page { flex-direction: row; }
+  .wt-media {
+    width: 50%;
+    height: 100vh;
+    height: 100dvh;
+    min-height: 0;
+  }
+  .wt-panel {
+    flex: 1;
+    justify-content: flex-start;
+    max-height: 100vh;
+    max-height: 100dvh;
+    overflow-y: auto;
+  }
+}
+/* Wider desktop screens */
+@media (pointer: fine) and (min-width: 1500px) {
+  :root { --wt-col: 1320px; }
+}
+/* Phones & tablets turned sideways — same spread, narrower column */
+@media (pointer: coarse) and (orientation: landscape) and (min-width: 600px) {
+  :root { --wt-col: 860px; }
+  .wt-page { flex-direction: row; }
+  .wt-media {
+    width: 50%;
+    height: 100vh;
+    height: 100dvh;
+    min-height: 0;
+  }
+  .wt-panel {
+    flex: 1;
+    justify-content: flex-start;
+    max-height: 100vh;
+    max-height: 100dvh;
+    overflow-y: auto;
+  }
+}
