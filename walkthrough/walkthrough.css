@@ -49,6 +49,23 @@
 
   --wt-font: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
   --wt-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* The step's hue (set by the runtime from steps.js `accent`). The
+     ambient wash and the mono eyebrow both read it, so the walk is a
+     colour journey rather than seven identical pages. The call to
+     action deliberately does not: it stays the gallery's One UI blue,
+     so the walkthrough still feels like part of the same site. */
+  --wt-h: 212;
+  --wt-wash: hsl(var(--wt-h) 92% 62% / 0.3);
+  --wt-wash-soft: hsl(var(--wt-h) 88% 66% / 0.17);
+  --wt-tint: hsl(var(--wt-h) 90% 72%);
+
+  /* The poster's frame and gutter. Named once because the collage is
+     inset by the frame and the landing's copy block is sized from the
+     same numbers, so it lands exactly on the cells the collage left
+     empty. */
+  --wt-frame: 26px;
+  --wt-gutter: 10px;
 }
 
 * { box-sizing: border-box; }
@@ -68,9 +85,11 @@ body.wt {
 }
 
 /* ── The backdrop ─────────────────────────────────────────────────
-   Two soft light sources behind the deck and a vignette to seat it.
-   Both are painted on the body, under the ambient layer and the deck,
-   and neither is filtered — so they cost one paint, not a blur. */
+   A mesh wash: two soft light sources in the step's hue, plus a
+   vignette to seat the deck. Painted on the body, under the ambient
+   layer and the deck, and never filtered — so it costs one paint,
+   not a blur. The hue is what makes each step feel like a different
+   room of the same building. */
 body.wt::before {
   content: '';
   position: fixed;
@@ -78,8 +97,10 @@ body.wt::before {
   z-index: 0;
   pointer-events: none;
   background:
-    radial-gradient(120% 82% at 16% 4%, rgba(0, 114, 239, 0.17), transparent 58%),
-    radial-gradient(92% 72% at 94% 98%, rgba(0, 114, 239, 0.1), transparent 60%);
+    radial-gradient(74% 52% at 14% 0%, var(--wt-wash), transparent 62%),
+    radial-gradient(60% 48% at 88% 12%, var(--wt-wash-soft), transparent 66%),
+    radial-gradient(78% 56% at 96% 100%, var(--wt-wash-soft), transparent 64%),
+    radial-gradient(46% 38% at 32% 104%, var(--wt-wash), transparent 70%);
 }
 body.wt::after {
   content: '';
@@ -87,7 +108,7 @@ body.wt::after {
   inset: 0;
   z-index: 0;
   pointer-events: none;
-  background: radial-gradient(128% 104% at 50% 38%, transparent 42%, rgba(0, 0, 0, 0.62) 100%);
+  background: radial-gradient(128% 104% at 50% 38%, transparent 40%, rgba(0, 0, 0, 0.66) 100%);
 }
 
 /* ── Ambient layer ─────────────────────────────────────────────────
@@ -218,15 +239,15 @@ body.wt::after {
   font-weight: 500;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: var(--wt-accent-text);
+  color: var(--wt-tint);
 }
 .wt-counter .wt-count-of { color: var(--wt-faint); }
 .wt-title {
   margin: 0;
-  font-size: 29px;
+  font-size: 30px;
   font-weight: 600;
-  letter-spacing: -0.02em;
-  line-height: 1.12;
+  letter-spacing: -0.028em;
+  line-height: 1.1;
 }
 .wt-copy {
   margin: 0;
@@ -355,20 +376,119 @@ body.wt::after {
   box-shadow: var(--wt-lift-lift);
 }
 
-/* Landing: no slide, so no rail and no media — the lit backdrop and
-   the sharp ambient carry the whole frame. */
+/* Landing: no slide, so no rail and no media — the lit backdrop, the
+   sharp ambient and the collage carry the whole frame. */
 .wt-page-landing .wt-media,
 .wt-page-landing .wt-rail { display: none; }
-/* Centred and padded so the cover copy and both actions always fit —
-   the landing is the one page with no photo to carry the frame. */
+
+/* ── The montage — the hook ───────────────────────────────────────
+   The landing leads with the photography: every step's cover as a
+   tile, each one a link into that phase. The invitation and the table
+   of contents are the same object. Tiles lift on hover and carry their
+   own phase hue on the border. */
+
+/* The desktop poster. 4 columns × 3 rows = 12 cells, filled like this:
+
+     ┌───────────┬─────┬─────┐
+     │           │ 02  │ 03  │
+     │    01     ├─────┼─────┤
+     │  (hero)   │ 04  │ 05  │
+     ├───────────┼─────┼─────┤
+     │   copy    │ 06  │ 07  │
+     └───────────┴─────┴─────┘
+
+   The copy block occupies the two lower-left cells and the collage
+   leaves them empty on purpose — the title has a home in the grid
+   instead of lying on top of two photographs. */
+
+/* Default: a plain flow grid. The desktop poster below takes it out of
+   flow and pins it to the frame; a phone keeps this. */
+.wt-montage {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--wt-gutter);
+}
+.wt-tile {
+  position: relative;
+  display: block;
+  min-width: 0;
+  min-height: 0;
+  border-radius: var(--wt-r-lg);
+  overflow: hidden;
+  background: var(--wt-slide);
+  border: 1px solid var(--wt-edge);
+  box-shadow: var(--wt-lift-rail);
+  text-decoration: none;
+  transition: transform var(--wt-base) var(--wt-ease),
+              box-shadow var(--wt-base) var(--wt-ease),
+              border-color var(--wt-base) var(--wt-ease);
+}
+/* The first tile leads: a 2×2 block, so the collage has a subject
+   rather than reading as a strip of thumbnails. */
+.wt-tile:first-child {
+  grid-column: 1 / 3;
+  grid-row: 1 / 3;
+}
+/* Tiles 6 and 7 are pinned to the right of the last row. Without this
+   they auto-flow into the lower-left cells, which are the copy block's
+   — the collage would sit underneath the title. */
+.wt-tile:nth-child(6) { grid-column: 3; grid-row: 3; }
+.wt-tile:nth-child(7) { grid-column: 4; grid-row: 3; }
+.wt-tile img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform var(--wt-long) var(--wt-ease);
+}
+.wt-tile-cap {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 20px 12px 9px;
+  font-family: var(--wt-mono);
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--wt-text);
+  /* A scrim, so the caption stays legible on any photograph */
+  background: linear-gradient(to top, rgba(6, 7, 10, 0.82), transparent);
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity var(--wt-base) var(--wt-ease),
+              transform var(--wt-base) var(--wt-ease);
+}
+.wt-tile:hover,
+.wt-tile:focus-visible {
+  transform: translateY(-3px);
+  /* The tile takes its own phase's hue on focus or hover, which is the
+     same colour the step page will wash the backdrop with. */
+  border-color: hsl(var(--wt-tile-h) 90% 68% / 0.55);
+  box-shadow: var(--wt-lift-lift);
+}
+.wt-tile:hover img { transform: scale(1.04); }
+.wt-tile:hover .wt-tile-cap,
+.wt-tile:focus-visible .wt-tile-cap { opacity: 1; transform: none; }
+/* Keyboard focus needs to read as focus, not as a hover tint — a
+   visible ring, since the border change alone is easy to lose. */
+.wt-tile:focus-visible {
+  outline: 2px solid hsl(var(--wt-tile-h) 90% 74%);
+  outline-offset: 2px;
+}
+
+/* The landing's copy block. Both layouts size it themselves — the
+   desktop poster places it on the collage's empty cells, the phone
+   stacks it under a two-up collage — so the defaults here are only
+   what they share. Deliberately no min-height: stretching the panel
+   to the viewport is what made the poster's absolutely-placed copy
+   anchor above the top of the frame. */
 .wt-page-landing .wt-panel {
-  justify-content: center;
-  min-height: 100vh;
-  min-height: 100dvh;
-  padding-bottom: calc(40px + env(safe-area-inset-bottom, 0px));
+  display: flex;
+  flex-direction: column;
   gap: 14px;
 }
-.wt-page-landing .wt-title { font-size: 34px; }
+.wt-page-landing .wt-title { font-size: 40px; letter-spacing: -0.03em; }
 .wt-page-landing .wt-copy { max-width: 42ch; }
 .wt-page-landing .wt-actions { margin-top: 6px; }
 
@@ -459,6 +579,50 @@ body.wt::after {
    for progress (the rail is a pointer-device affordance). */
 @media (max-width: 999px) {
   .wt-rail { display: none !important; }
+
+  /* Phone: a plain two-up collage in normal flow above the copy.
+     Everything the desktop poster sets — absolute inset, the explicit
+     4×3 placements, the panel's overlay geometry — is reset here,
+     because a phone has no room for a poster and the collage must not
+     be taken out of the document flow. */
+  .wt-page-landing {
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+    padding: 14px 14px calc(20px + env(safe-area-inset-bottom, 0px));
+    gap: 16px;
+    min-height: 0;
+  }
+  .wt-montage {
+    position: static;
+    inset: auto;
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    grid-template-rows: none;
+    gap: 8px;
+  }
+  .wt-tile { transform: none; aspect-ratio: 4 / 3; }
+  .wt-tile:first-child {
+    grid-column: 1 / -1;
+    grid-row: auto;
+    aspect-ratio: 16 / 9;
+  }
+  /* No copy cell to keep clear on a phone — the copy is below. */
+  .wt-tile:nth-child(6),
+  .wt-tile:nth-child(7) { grid-column: auto; grid-row: auto; }
+  /* Captions are always legible on a phone, where there is no hover. */
+  .wt-tile-cap { opacity: 1; transform: none; padding: 16px 10px 7px; font-size: 9.5px; }
+  .wt-page-landing .wt-panel {
+    position: static;
+    width: auto;
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+    justify-content: flex-start;
+    gap: 12px;
+  }
+  .wt-page-landing .wt-title { font-size: 30px; }
 }
 
 /* ── Layout: desktop — the presentation editor ────────────────────
@@ -478,8 +642,37 @@ body.wt::after {
     min-height: 0;
     max-width: var(--wt-col);
   }
-  .wt-page-landing { display: flex; }
-  .wt-page-landing .wt-panel { max-width: 520px; margin: 0 auto; }
+  /* The landing is a poster, not a deck: the collage is pinned to the
+     whole frame and the title and actions sit in the two grid cells it
+     deliberately leaves empty in its lower-left. */
+  .wt-page-landing {
+    display: flex;
+    position: relative;
+    padding: 0;
+    gap: 0;
+  }
+  .wt-page-landing .wt-montage {
+    position: absolute;
+    inset: var(--wt-frame);
+    grid-template-columns: repeat(4, 1fr);
+    grid-template-rows: repeat(3, 1fr);
+    width: auto;
+  }
+  .wt-page-landing .wt-tile { aspect-ratio: auto; }
+  .wt-page-landing .wt-tile:first-child { aspect-ratio: auto; }
+  .wt-page-landing .wt-panel {
+    position: absolute;
+    z-index: 2;
+    left: var(--wt-frame);
+    bottom: var(--wt-frame);
+    /* Two columns plus the gutter between them. */
+    width: calc((100% - 2 * var(--wt-frame) - 3 * var(--wt-gutter)) / 2 + var(--wt-gutter));
+    justify-content: flex-end;
+    padding: 0;
+    gap: 12px;
+  }
+  .wt-page-landing .wt-title { font-size: clamp(28px, 3.2vw, 42px); }
+  .wt-page-landing .wt-copy { max-width: 42ch; }
 
   /* The rail occupies column one; the slide and panel fill the rest. */
   .wt-rail {

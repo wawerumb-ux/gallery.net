@@ -23,6 +23,17 @@ label, title, one-sentence copy, hero + gallery photos pointing at the existing
 page from that array, so adding a step means adding one object plus one static
 folder — the progress ramp, the rail and navigation recompute themselves.
 
+**The landing is a poster, not a cover page.** It leads with the photography
+rather than a title floating in the dark: all seven step covers tiled as a
+collage, and *every tile is a link into its own phase* — the invitation and the
+table of contents are the same object, so a visitor can jump straight to the
+phase that interests them instead of pressing Next six times. The collage is a
+4×3 grid whose two lower-left cells are left deliberately empty for the title
+block, rather than floating the copy on top of two photographs. Tiles lift on
+hover and take their own phase's hue; captions reveal on hover and are always
+visible where there is no hover. On touch it becomes a two-up flow collage with
+the copy underneath, because a poster needs width the phone does not have.
+
 **The deck.** It is built to read like a presentation: a 16:9 slide floating
 on a lit backdrop, a numbered thumbnail rail doubling as the progress
 indicator, and the copy in a panel beside it — rail | slide | panel on a
@@ -36,6 +47,13 @@ space; the existing deterministic node-and-link field still floats over it and
 recedes with progress. Colour, radii (Fluent's 4/8/12), type and motion all
 still resolve to the site's own tokens and the One UI `D` scale — the deck
 invents no palette, no curve and no duration.
+
+**The walk is a colour journey.** Each step declares an `accent` hue in
+`steps.js`, and the runtime writes it to `--wt-h`; the backdrop wash and the
+mono eyebrow both derive from that one value, so survey is cool slate, pulling
+warms to amber and the reveal lands warm gold. The call to action deliberately
+does *not* take the hue — it stays the gallery's One UI blue, so the walkthrough
+never stops feeling like part of the same site.
 
 Slides move the way PowerPoint's transition gallery does. Each step declares
 the transition that *arrives* at it (`transition` in `steps.js`), matched to

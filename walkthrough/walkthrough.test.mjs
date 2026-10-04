@@ -418,13 +418,76 @@ describe('W — page assets', () => {
     }
   });
 
-  test('W29 — the deck is 16:9 and the landing fits its viewport', () => {
+  test('W29 — the deck is 16:9', () => {
     const deskBlock = cssSrc.slice(cssSrc.indexOf('@media (pointer: fine) and (min-width: 1000px)'));
     assert.match(deskBlock, /aspect-ratio:\s*16\s*\/\s*9/, 'the slide keeps a slide ratio');
-    // The landing centres its content, so it can never overflow.
-    const land = /\.wt-page-landing \.wt-panel\s*\{([\s\S]*?)\n\}/.exec(cssSrc);
-    assert.ok(land && /justify-content:\s*center/.test(land[1]),
-      'the landing panel centres instead of bottom-anchoring its overflow');
+  });
+
+  test('W29b — the landing copy is a grid cell, not a full-height overlay', () => {
+    // Regression: the landing panel used to carry min-height:100dvh from
+    // the shared rule. As the poster's absolutely-positioned copy block
+    // that anchored it ABOVE the top of the frame — a 900px-tall slab
+    // sitting on -34, covering the hero photo.
+    const base = /\.wt-page-landing \.wt-panel\s*\{([\s\S]*?)\n\}/.exec(cssSrc);
+    assert.ok(base, 'the shared landing panel rule exists');
+    assert.ok(!/min-height/.test(base[1]),
+      'the shared panel rule sets no min-height — the poster sizes it by content');
+    const deskPanel = /\.wt-page-landing \.wt-panel\s*\{([\s\S]*?)\n  \}/.exec(
+      cssSrc.slice(cssSrc.indexOf('@media (pointer: fine) and (min-width: 1000px)'))
+    );
+    assert.ok(deskPanel && /position:\s*absolute/.test(deskPanel[1]),
+      'on desktop the copy block is placed on the collage');
+  });
+
+  test('W30 — every step carries an accent hue, and the deck applies it', () => {
+    for (const s of authored) {
+      assert.ok(Number.isInteger(s.accent) && s.accent >= 0 && s.accent < 360,
+        s.slug + ' has an accent hue in range');
+    }
+    // The runtime writes the hue onto the page as --wt-h...
+    assert.match(runtimeSrc, /setProperty\('--wt-h',\s*String\(step\.accent\)\)/,
+      'the step page sets --wt-h from its accent');
+    // ...and the wash, eyebrow and tile all derive their colour from it,
+    // so a step's colour is one value rather than three hard-coded ones.
+    assert.match(cssSrc, /--wt-wash:\s*hsl\(var\(--wt-h\)/, 'the wash reads the hue');
+    assert.match(cssSrc, /--wt-tint:\s*hsl\(var\(--wt-h\)/, 'the tint reads the hue');
+    const eyebrow = /\.wt-counter\s*\{([\s\S]*?)\n\}/.exec(cssSrc);
+    assert.ok(eyebrow && /var\(--wt-tint\)/.test(eyebrow[1]),
+      'the eyebrow takes the step hue');
+    // The call to action must NOT: the walkthrough stays One UI blue.
+    const cta = /\.wt-cta\s*\{([\s\S]*?)\n\}/.exec(cssSrc);
+    assert.ok(cta && !/var\(--wt-h\)|var\(--wt-tint\)/.test(cta[1]),
+      'the primary action keeps the site accent, not the step hue');
+  });
+
+  test('W31 — the landing leads with the photography, and it links', () => {
+    assert.match(runtimeSrc, /function buildMontage/, 'the montage is built');
+    assert.match(runtimeSrc, /a\.href\s*=\s*stepUrl\(step\)/,
+      'each tile is a link into its own step');
+    assert.match(runtimeSrc, /wrap\.className\s*=\s*'wt-montage'/);
+    assert.match(runtimeSrc, /buildMontage\(\);\s*\n?\s*addAction\('Begin the walkthrough'/,
+      'the collage is built before the call to action');
+    // One tile per step, and every cover resolves to a real file.
+    assert.equal(authored.length, 7);
+    const repo = join(here, '..');
+    for (const s of authored) {
+      assert.ok(fs.existsSync(join(repo, s.hero)), s.slug + ' hero exists on disk');
+    }
+  });
+
+  test('W29c — the collage leaves the copy cell empty', () => {
+    // The poster is 4×3. The hero takes a 2×2 block and tiles 6 and 7
+    // are pinned to the right of the last row, so the two lower-left
+    // cells stay empty for the title. Without the pinning, auto-placement
+    // fills those cells and the copy ends up on top of two photographs.
+    assert.match(cssSrc, /\.wt-tile:nth-child\(6\)\s*\{\s*grid-column:\s*3;\s*grid-row:\s*3;/,
+      'tile 6 is pinned right of the last row');
+    assert.match(cssSrc, /\.wt-tile:nth-child\(7\)\s*\{\s*grid-column:\s*4;\s*grid-row:\s*3;/,
+      'tile 7 is pinned right of the last row');
+    // And the phone resets the pinning, since it has no copy cell.
+    const phone = cssSrc.slice(cssSrc.indexOf('@media (max-width: 999px)'));
+    assert.match(phone, /\.wt-tile:nth-child\(6\),\s*\.wt-tile:nth-child\(7\)\s*\{\s*grid-column:\s*auto/,
+      'the phone unpins tiles 6 and 7');
   });
 });
 

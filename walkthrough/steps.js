@@ -18,6 +18,13 @@
    tooltips — one word, so it sits beside the slide number without
    crowding it.
 
+   `accent` is a hue (0–360) that the deck's ambient wash adopts for
+   this step, so the walk reads as a colour journey rather than seven
+   identical pages: survey is cool slate, pulling warms to amber, the
+   reveal lands warm gold. Only the wash and the mono eyebrow take the
+   hue — the call to action stays the gallery's One UI blue, so the
+   walkthrough never stops feeling like part of the same site.
+
    Edit rules: titles 3–6 words sentence case, no period; copy one
    sentence 8–16 words, no period; slugs kebab-case, unique; labels
    one word; `transition` one of fade / morph / wipe-up / wipe-down /
@@ -28,6 +35,7 @@ const STEPS = [
     slug: 'site-survey',
     index: 1,
     label: 'Survey',
+    accent: 212,
     title: 'Before we began',
     copy: 'Every drop, pathway and rack position was walked, measured and photographed first',
     transition: 'wipe-up',
@@ -42,6 +50,7 @@ const STEPS = [
     slug: 'infrastructure',
     index: 2,
     label: 'Containment',
+    accent: 190,
     title: 'Pathways and containment',
     copy: 'Routes for every bundle were fixed on the plan before a cable was pulled',
     transition: 'push-left',
@@ -55,6 +64,7 @@ const STEPS = [
     slug: 'cabling',
     index: 3,
     label: 'Pulling',
+    accent: 34,
     title: 'Pulling and dressing',
     copy: 'Bundles came down in sequence and were dressed into the tray',
     transition: 'wipe-down',
@@ -69,6 +79,7 @@ const STEPS = [
     slug: 'termination',
     index: 4,
     label: 'Termination',
+    accent: 262,
     title: 'Termination at the panel',
     copy: 'Each pair landed on the panel and dressed to the back bar',
     transition: 'zoom-in',
@@ -83,6 +94,7 @@ const STEPS = [
     slug: 'testing',
     index: 5,
     label: 'Testing',
+    accent: 150,
     title: 'Testing and certification',
     copy: 'Every link passed certification before the rack went live',
     transition: 'fade',
@@ -97,6 +109,7 @@ const STEPS = [
     slug: 'rack-build',
     index: 6,
     label: 'Assembly',
+    accent: 20,
     title: 'The rack build',
     copy: 'Panels, switches and management went in as one assembly',
     transition: 'zoom-out',
@@ -111,6 +124,7 @@ const STEPS = [
     slug: 'final-reveal',
     index: 7,
     label: 'Handover',
+    accent: 42,
     title: 'The final result',
     copy: 'A labelled and tested plant, ready for handover',
     transition: 'morph',

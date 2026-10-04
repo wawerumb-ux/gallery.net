@@ -167,8 +167,44 @@
     elTitle.textContent = 'The build, end to end';
     elCopy.textContent = 'A photographic record of a structured cabling project, from first survey to certified handover';
     elDots.hidden = true;
+    buildMontage();
     addAction('Begin the walkthrough', stepUrl(STEPS[0]), true);
     addAction('Browse the gallery', galleryUrl(), false);
+  }
+
+  /* The hook: the landing leads with the photography, not with a
+     title in the dark. Every tile is a real step's cover and links
+     straight to it, so the montage is both the invitation and the
+     table of contents — a visitor can jump to the phase that
+     interests them instead of pressing Next seven times. */
+  function buildMontage() {
+    var wrap = document.createElement('div');
+    wrap.className = 'wt-montage';
+    wrap.setAttribute('aria-label', 'Jump to a phase');
+    for (var i = 0; i < N; i++) {
+      var step = STEPS[i];
+      var a = document.createElement('a');
+      a.className = 'wt-tile';
+      a.href = stepUrl(step);
+      a.setAttribute('aria-label', 'Step ' + step.index + ': ' + step.title);
+      // A slow per-tile wash so the collage breathes without animating
+      // anything that would fight the deck's own motion rules.
+      a.style.setProperty('--wt-tile-h', String(step.accent != null ? step.accent : 212));
+      a.style.setProperty('--wt-tile-i', String(i));
+      var img = document.createElement('img');
+      img.src = prefix + step.hero;
+      img.alt = '';
+      img.loading = i < 4 ? 'eager' : 'lazy';
+      img.decoding = 'async';
+      var cap = document.createElement('span');
+      cap.className = 'wt-tile-cap';
+      cap.textContent = (step.index < 10 ? '0' + step.index : step.index) + '  ' + (step.label || '');
+      a.appendChild(img);
+      a.appendChild(cap);
+      wrap.appendChild(a);
+    }
+    page.insertBefore(wrap, page.firstChild);
+    return wrap;
   }
 
   function initStep(index) {
@@ -186,6 +222,9 @@
     elCounter.appendChild(of);
     elTitle.textContent = step.title;
     elCopy.textContent = step.copy;
+    // The step's hue drives the ambient wash and the mono eyebrow, so
+    // the walk reads as a colour journey. The CTA keeps the site blue.
+    if (step.accent != null) page.style.setProperty('--wt-h', String(step.accent));
     for (var i = 0; i < N; i++) addDot(STEPS[i], STEPS[i].index === index);
     buildRail(index);
     if (index < N) {
