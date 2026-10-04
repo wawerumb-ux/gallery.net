@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#000000">
+<meta name="color-scheme" content="dark">
+<title>Guided Tour — Structured Cabling Project Archive</title>
+<link rel="icon" type="image/png" href="../logo/favi.png">
+<link rel="apple-touch-icon" href="../logo/favi.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<!-- The gallery stylesheet is the token source; the tour
+     stylesheet adds only tour-specific components. -->
+<link rel="stylesheet" href="../style.css">
+<link rel="stylesheet" href="./tour.css">
+</head>
+<body>
+<div class="tour-entry">
+  <div class="tour-entry-card">
+    <h1 class="tour-entry-title">Guided tour</h1>
+    <p class="tour-entry-copy">Five steps through the archive. Each one unlocks only when you do it for real — there is no Continue button.</p>
+    <p class="tour-entry-note" id="tourEntryNote"></p>
+    <a class="tour-entry-start" id="tourEntryStart" href="../index.html?tour=1">Start the tour</a>
+    <div><a class="tour-entry-skip" href="../">Skip — browse the gallery</a></div>
+  </div>
+</div>
+<script>
+/* Reads the persisted tour state (walkthrough.tourState) to label
+   the entry: a finished tour never restarts (persistence rule),
+   an in-progress tour offers resume. */
+(function () {
+  var note = document.getElementById('tourEntryNote');
+  var start = document.getElementById('tourEntryStart');
+  var saved = null;
+  try { saved = JSON.parse(localStorage.getItem('walkthrough.tourState')); } catch (e) {}
+  if (saved && saved.finished) {
+    note.textContent = saved.escapedAt ? 'Tour ended early — it will not restart on its own.'
+                                       : 'Tour completed — the archive is yours.';
+    start.textContent = 'Tour completed';
+    start.removeAttribute('href');
+    start.setAttribute('aria-disabled', 'true');
+    start.style.opacity = '0.5';
+    start.style.pointerEvents = 'none';
+  } else if (saved && saved.currentStepId) {
+    note.textContent = 'Tour in progress.';
+    start.textContent = 'Resume the tour';
+  }
+})();
+</script>
+</body>
+</html>

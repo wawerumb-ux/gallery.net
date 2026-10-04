@@ -23,6 +23,26 @@ title, one-sentence copy, hero + gallery photos pointing at the existing
 page from that array, so adding a step means adding one object plus one static
 folder — the progress ramp and navigation recompute themselves.
 
+## The guided tour
+
+`/tour/` is a different kind of guide: an **action-gated** tour of the real
+interface. Each step highlights a real control and the next step does not
+exist until you click the real thing — there is no Continue button. Clicking
+anywhere else, pressing Enter, or editing the URL does nothing; browser back
+exits the tour. Escape opens two muted hatches (skip this step / end tour),
+so the tour can never trap you. Steps are defined in `tour/steps.js`
+(targets are `data-tour-target` attributes on the real controls), the state
+machine and highlight engine live in `tour/tour.js`, and `tour/boot.js`
+starts it when the gallery is opened with `?tour=1`. Progress persists in
+`localStorage` (`walkthrough.tourState`): reloading resumes mid-tour, and a
+completed tour never restarts on its own.
+
+Run the tour's test suite with `node --test tour/` (Node 18+; same
+`node:test` + `vm`-sandbox harness as `tests/`). It covers gating, action
+detection (including synthetic-event rejection), the confirm/unlock
+hand-off, escapes, persistence, reduced-motion, a11y, and the speed
+multiplier.
+
 ## Testing it before you have a repo
 
 Open `index.html` with `owner`/`repo` still blank in `app.js` and the site
@@ -141,3 +161,5 @@ click "Sign out" when you're done to clear it early.
   faster loads for very large batches, the next step up would be generating
   thumbnails at upload time — not included here to keep this simple.
 - No frameworks, no build step — just the three files. Fork away.
+- Tests: `node --test tests/` (gallery logic) and `node --test tour/`
+  (guided tour).

@@ -1,0 +1,210 @@
+/* ────────────────────────────────────────────────────────────────────
+   tour/tour.css — the guided-tour overlay and the /tour entry page.
+
+   One UI compliant: every color is a site token (style.css :root),
+   one easing (ONE_UI_BASIC), and every duration arrives as an inline
+   style set by tour.js from D in oneui.js — never hardcoded here,
+   the same pattern as download-button.css. No blur (the dim is a
+   cutout), no glow, no gradients, no drop shadows.
+   ──────────────────────────────────────────────────────────────────── */
+
+/* The overlay root sits above every gallery layer (viewer 90,
+   modals 120, toast 130) but is pointer-transparent, so the
+   REAL interface underneath stays fully interactive. */
+.tour-root {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  pointer-events: none;
+  font-family: var(--font-sans);
+}
+
+/* The dim: tour.js positions this exactly on the target; its
+   box-shadow is the 40% black dim over everything else — a
+   soft cutout around the real element, never a blur. */
+.tour-dim {
+  position: absolute;
+  pointer-events: none;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.4);
+}
+
+/* The highlight ring: an SVG rect that draws in via
+   stroke-dashoffset. Stroke color is set by tour.js to the
+   accent token; rx follows the target's own border radius. */
+.tour-ring {
+  position: absolute;
+  display: block;
+  overflow: visible;
+  pointer-events: none;
+}
+
+/* The prompt card — 16px radius (the site's --radius-cover),
+   never a pill. Text only: title, prompt, hint, escape links. */
+.tour-card {
+  position: absolute;
+  pointer-events: auto;
+  width: 260px;
+  background: var(--surface-3);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-cover);
+  color: var(--text);
+  padding: 14px 16px;
+}
+.tour-card-count {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  color: var(--text-faint);
+  margin-bottom: 4px;
+  letter-spacing: 0.04em;
+}
+.tour-card-title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.tour-card-prompt {
+  margin: 4px 0 0;
+  font-size: 14px;
+}
+.tour-card-hint {
+  margin: 4px 0 0;
+  font-size: 12.5px;
+  color: var(--text-dim);
+}
+
+/* Escape hatches: muted text links, never buttons, never the
+   accent color, and they do not animate in. */
+.tour-card-escapes {
+  display: flex;
+  gap: 16px;
+  margin-top: 10px;
+}
+.tour-escape-link {
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: inherit;
+  font-size: 12px;
+  color: var(--text-faint);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.tour-escape-link:hover { color: var(--text-dim); }
+
+/* The tail: a soft rotated square on the card edge nearest the
+   target — positioned by tour.js, no hard lines. */
+.tour-card-tail {
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  background: var(--surface-3);
+  transform: rotate(45deg);
+}
+
+/* Toast: confirm.toast text and unlockMessages, top center. */
+.tour-toast {
+  position: absolute;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--surface-3);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-pill);
+  color: var(--text);
+  font-size: 13px;
+  padding: 9px 18px;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+/* The Escape-key hatch menu: the same two text links. */
+.tour-escape-menu {
+  position: absolute;
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: var(--surface-3);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-cover);
+  padding: 8px;
+}
+.tour-escape-menu .tour-escape-link {
+  font-size: 13px;
+  padding: 8px 12px;
+  text-align: left;
+}
+
+/* ── /tour entry page (tour/index.html) ────────────────────────
+   Loads ../style.css for the tokens, so this shares the whole
+   design system without redefining anything. */
+.tour-entry {
+  min-height: 100vh;
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.tour-entry-card {
+  max-width: 400px;
+  width: 100%;
+  background: var(--surface-3);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sheet);
+  padding: 28px 24px;
+  text-align: center;
+}
+.tour-entry-title {
+  margin: 0 0 8px;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.tour-entry-copy {
+  margin: 0 0 6px;
+  font-size: 14px;
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+.tour-entry-note {
+  margin: 0 0 18px;
+  font-size: 12px;
+  color: var(--text-faint);
+  font-family: var(--font-mono);
+}
+.tour-entry-start {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 0 24px;
+  border: none;
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+  color: #ffffff;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background var(--duration-fast) var(--ease-spring);
+}
+.tour-entry-start:hover { background: #0060d6; }
+.tour-entry-skip {
+  display: inline-block;
+  margin-top: 14px;
+  font-size: 12.5px;
+  color: var(--text-faint);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.tour-entry-skip:hover { color: var(--text-dim); }
+
+/* Reduced motion: no transition on the entry button. */
+@media (prefers-reduced-motion: reduce) {
+  .tour-entry-start { transition: none; }
+}
