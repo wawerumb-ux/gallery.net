@@ -1,19 +1,31 @@
 /* ── steps.js — the walkthrough arc ──────────────────────────────
    The guided tour, in seven movements: site survey → final reveal.
    Schema parity with the Step contract (slug / index / title / copy /
-   hero / gallery). Paths are repo-root-relative; the runtime prefixes
-   them per page depth. Photos are the site's own images/ assets —
-   nothing is duplicated.
+   hero / gallery / transition). Paths are repo-root-relative; the
+   runtime prefixes them per page depth. Photos are the site's own
+   images/ assets — nothing is duplicated.
+
+   `transition` is the PowerPoint-inspired slide transition that
+   ARRIVES at this step, matched to what the step is about — the plan
+   sheet unrolling (wipe-up), routes laid forward (push-left), bundles
+   pulled down (wipe-down), arrival on one panel (zoom-in), the quiet
+   verification beat (fade), pulling back for the whole assembly
+   (zoom-out), and the same rack in a new shot (morph). The outgoing
+   page plays the mirror of it, so the move reads as one continuous
+   transition across the static page load.
 
    Edit rules: titles 3–6 words sentence case, no period; copy one
-   sentence 8–16 words, no period; slugs kebab-case, unique. Renumber
-   `index` on every step after an insert or removal. */
+   sentence 8–16 words, no period; slugs kebab-case, unique;
+   `transition` one of fade / morph / wipe-up / wipe-down / push-left /
+   push-up / zoom-in / zoom-out. Renumber `index` on every step after
+   an insert or removal. */
 const STEPS = [
   {
     slug: 'site-survey',
     index: 1,
     title: 'Before we began',
     copy: 'Every drop, pathway and rack position was walked, measured and photographed first',
+    transition: 'wipe-up',
     hero: 'images/site-survey/20260619_130900-800.webp',
     gallery: [
       'images/site-survey/20260619_142909-800.webp',
@@ -26,6 +38,7 @@ const STEPS = [
     index: 2,
     title: 'Pathways and containment',
     copy: 'Routes for every bundle were fixed on the plan before a cable was pulled',
+    transition: 'push-left',
     hero: 'images/site-survey-map/20260619_130848-800.webp',
     gallery: [
       'images/site-survey-map/20260619_130849-800.webp',
@@ -37,6 +50,7 @@ const STEPS = [
     index: 3,
     title: 'Pulling and dressing',
     copy: 'Bundles came down in sequence and were dressed into the tray',
+    transition: 'wipe-down',
     hero: 'images/cable-pull/20260621_122750-800.webp',
     gallery: [
       'images/cable-pull/20260621_122823-800.webp',
@@ -49,6 +63,7 @@ const STEPS = [
     index: 4,
     title: 'Termination at the panel',
     copy: 'Each pair landed on the panel and dressed to the back bar',
+    transition: 'zoom-in',
     hero: 'images/termination-testing/20260621_123503-800.webp',
     gallery: [
       'images/termination-testing/20260621_123517-800.webp',
@@ -61,6 +76,7 @@ const STEPS = [
     index: 5,
     title: 'Testing and certification',
     copy: 'Every link passed certification before the rack went live',
+    transition: 'fade',
     hero: 'images/termination-testing/20260621_172314-800.webp',
     gallery: [
       'images/termination-testing/20260621_172336-800.webp',
@@ -73,6 +89,7 @@ const STEPS = [
     index: 6,
     title: 'The rack build',
     copy: 'Panels, switches and management went in as one assembly',
+    transition: 'zoom-out',
     hero: 'images/rack-build/20260624_161332-800.webp',
     gallery: [
       'images/rack-build/20260623_163934-800.webp',
@@ -85,6 +102,7 @@ const STEPS = [
     index: 7,
     title: 'The final result',
     copy: 'A labelled and tested plant, ready for handover',
+    transition: 'morph',
     hero: 'images/rack-build/20260805_163731-800.webp',
     gallery: [
       'images/rack-build/20260805_164143-800.webp',

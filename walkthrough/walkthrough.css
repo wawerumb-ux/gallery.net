@@ -94,6 +94,13 @@ body.wt {
   margin: 0 auto;
   display: flex;
   flex-direction: column;
+  /* The settled slide is the default; a transition kind only shifts
+     these four values off it (see the transition block below). */
+  --wt-t-x: 0px;
+  --wt-t-y: 0px;
+  --wt-t-s: 1;
+  --wt-t-c: inset(0);
+  --wt-t-o: 1;
 }
 @media (min-width: 481px) {
   .wt-page {
@@ -234,35 +241,77 @@ body.wt {
 .wt-page-landing .wt-media { display: none; }
 .wt-page-landing .wt-panel { justify-content: flex-end; min-height: 100vh; min-height: 100dvh; }
 
-/* ── Enter / exit fades ────────────────────────────────────────────
-   TEXT: sequential — old text fully gone before new text appears.
-   Across static pages we honour this by delaying incoming text 220ms
-   after the media starts, and fading outgoing text first. */
-.wt-panel > * {
-  opacity: 0;
-  transform: translateY(6px);
+/* ── Slide transitions (PowerPoint-inspired) ───────────────────────
+   Every step is its own static page, so a transition is split either
+   side of the load: the outgoing page plays the mirror of the move and
+   the incoming page plays the arrival (walkthrough.js) — which is why
+   it reads as one continuous move rather than a cut.
+
+   A kind is nothing but a few custom properties. An -in class sets the
+   start state with no transition, -go adds the single transition that
+   carries the slide home, and an -out class carries it off. One easing,
+   three durations: a slide leaves over --wt-base and arrives over
+   --wt-long, so both halves share a tempo. Only transform, opacity and
+   clip-path ever move — no blur, glow, gradient or shadow.
+
+   The settled state is the default, so a direct visit, a reload or an
+   unknown kind still shows the step plainly. */
+
+/* The two carriers: the arrival is handed to --wt-long, the departure
+   to --wt-base, and both read the same four values. */
+.wt-page.wt-t-go,
+.wt-page.wt-t-leave {
+  transform: translate(var(--wt-t-x), var(--wt-t-y)) scale(var(--wt-t-s));
+  clip-path: var(--wt-t-c);
+  opacity: var(--wt-t-o);
 }
-.wt-page.wt-enter .wt-panel > * {
-  opacity: 1;
-  transform: none;
-  transition: opacity var(--wt-base) var(--wt-ease) 220ms,
-              transform var(--wt-base) var(--wt-ease) 220ms;
+.wt-page.wt-t-go {
+  transition: transform var(--wt-long) var(--wt-ease),
+              opacity var(--wt-long) var(--wt-ease),
+              clip-path var(--wt-long) var(--wt-ease);
 }
-.wt-page.wt-exit .wt-panel > * {
-  opacity: 0;
-  transform: none;
-  transition: opacity var(--wt-base) var(--wt-ease);
-}
-.wt-page.wt-exit .wt-media img.is-on {
-  opacity: 0;
-  transition-duration: var(--wt-base);
+.wt-page.wt-t-leave {
+  transition: transform var(--wt-base) var(--wt-ease),
+              opacity var(--wt-base) var(--wt-ease),
+              clip-path var(--wt-base) var(--wt-ease);
 }
 
-/* Landing panel is visible by default path too (same enter rules) */
+/* Fade — the verification beat: nothing moves, only the light. */
+.wt-t-fade-in  { --wt-t-o: 0; }
+.wt-t-fade-out { --wt-t-o: 0; }
 
-/* Reduced motion: fades become cuts, drift stops */
+/* Morph — the same frame from a new shot: a small settle. */
+.wt-t-morph-in  { --wt-t-o: 0; --wt-t-s: 1.03; }
+.wt-t-morph-out { --wt-t-o: 0; --wt-t-s: 1.03; }
+
+/* Push — travelling one step along; a backwards jump uses push-right. */
+.wt-t-push-left-in   { --wt-t-x: 100%; }
+.wt-t-push-left-out  { --wt-t-x: -100%; }
+.wt-t-push-right-in  { --wt-t-x: -100%; }
+.wt-t-push-right-out { --wt-t-x: 100%; }
+.wt-t-push-up-in     { --wt-t-y: 100%; }
+.wt-t-push-up-out    { --wt-t-y: -100%; }
+
+/* Wipe — the plan sheet unrolling up; bundles pulled down. */
+.wt-t-wipe-up-in    { --wt-t-c: inset(100% 0 0 0); }
+.wt-t-wipe-up-out   { --wt-t-c: inset(0 0 100% 0); }
+.wt-t-wipe-down-in  { --wt-t-c: inset(0 0 100% 0); }
+.wt-t-wipe-down-out { --wt-t-c: inset(0 100% 0 0); }
+
+/* Zoom — arrival on one panel, and pulling back for the whole build. */
+.wt-t-zoom-in-in   { --wt-t-o: 0; --wt-t-s: 1.08; }
+.wt-t-zoom-in-out  { --wt-t-o: 0; --wt-t-s: 0.92; }
+.wt-t-zoom-out-in  { --wt-t-o: 0; --wt-t-s: 0.92; }
+.wt-t-zoom-out-out { --wt-t-o: 0; --wt-t-s: 1.08; }
+
+.wt-page.wt-t-arrive,
+.wt-page.wt-t-leave { will-change: transform, opacity, clip-path; }
+/* The hero's own fade would only double up against the slide's. */
+.wt-page.wt-t-arrive .wt-media img:first-child { transition: none; }
+
+/* Reduced motion: transitions become cuts, drift stops */
 @media (prefers-reduced-motion: reduce) {
-  .wt-ambient, .wt-media img, .wt-panel > *, .wt-cta, .wt-alt, .wt-dot {
+  .wt-ambient, .wt-media img, .wt-page, .wt-cta, .wt-alt, .wt-dot {
     transition: none !important;
   }
   .wt-ambient-inner { animation: none !important; }

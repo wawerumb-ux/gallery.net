@@ -22,6 +22,7 @@
 
   var NAV_KEY = 'wt-nav';
   var PROGRESS_KEY = 'wt-progress';
+  var TRANS_KEY = 'wt-transition';
 
   /* Progress model: landing 0.0 (ambient sharp); step 1 → 0.5;
      final step → 1.0 (ambient receded). The ramp maps the step's
@@ -217,22 +218,76 @@
 
   if (stepIndex) initStep(stepIndex); else initLanding();
 
-  /* ── Enter / exit fades ─────────────────────────────────────────
-     TEXT sequential, IMAGES overlapping — enforced across static page
-     loads: outgoing page fades its text first, incoming page delays
-     its text 220ms behind the media reveal. */
-  requestAnimationFrame(function () {
-    requestAnimationFrame(function () { page.classList.add('wt-enter'); });
-  });
+  /* ── Slide transitions ────────────────────────────────────────────
+     PowerPoint-inspired, across a static page load: every step is its
+     own document, so the outgoing page plays the MIRROR of the move
+     the destination declares and records its kind in sessionStorage;
+     the incoming page reads it back and plays the arrival. One move,
+     split either side of the load — which is why it reads as one
+     continuous transition rather than a cut.
+
+     The kind is authored per step (steps.js `transition`) and matched
+     to what that step is about. A jump backwards mirrors a push, the
+     way stepping back through a deck does. Unknown kinds, a direct
+     visit, or a reload fall back to fade — never to no motion. */
+  var TRANSITIONS = ['fade', 'morph', 'wipe-up', 'wipe-down',
+                     'push-left', 'push-right', 'push-up',
+                     'zoom-in', 'zoom-out'];
+
+  function stepForHref(href) {
+    for (var i = 0; i < N; i++) {
+      if (href.indexOf('/' + STEPS[i].slug + '/') !== -1) return STEPS[i];
+    }
+    return null;
+  }
+
+  /* The kind to play, given where we are going. Backwards through a
+     push flips its direction; everything else keeps its own kind. */
+  function transitionFor(step) {
+    if (!step || !step.transition) return 'fade';
+    var kind = TRANSITIONS.indexOf(step.transition) !== -1 ? step.transition : 'fade';
+    if (stepIndex && kind === 'push-left' && step.index < stepIndex) return 'push-right';
+    return kind;
+  }
+
+  /* Arrival: the kind's start state lands with no transition, then one
+     class adds the single transition that carries the slide home. Two
+     frames, so the start state is always painted first — no flash. */
+  function playArrive(kind) {
+    page.classList.add('wt-t-arrive', 'wt-t-' + kind + '-in');
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () { page.classList.add('wt-t-go'); });
+    });
+  }
+
+  /* Departure: the click is the user gesture, so the end state and its
+     transition can go on together. */
+  function playLeave(kind) {
+    page.classList.add('wt-t-leave', 'wt-t-' + kind + '-out');
+  }
+
+  var arriving = 'fade';
+  try {
+    var recorded = sessionStorage.getItem(TRANS_KEY);
+    sessionStorage.removeItem(TRANS_KEY);
+    if (recorded && TRANSITIONS.indexOf(recorded) !== -1) arriving = recorded;
+  } catch (e) {}
+  // Reduced motion: the step is simply there — no start state, no
+  // transition. The settled slide is the CSS default, so there is
+  // nothing to add.
+  if (!reduce) playArrive(arriving);
+
   sessionStorage.removeItem(NAV_KEY);
 
   var navigating = false;
   function exitTo(href) {
     if (navigating) return;
     navigating = true;
+    var kind = transitionFor(stepForHref(href));
+    try { sessionStorage.setItem(TRANS_KEY, kind); } catch (e) {}
     sessionStorage.setItem(NAV_KEY, '1');
     if (reduce) { window.location.href = href; return; }
-    page.classList.add('wt-exit');
+    playLeave(kind);
     setTimeout(function () { window.location.href = href; }, 320);
   }
 

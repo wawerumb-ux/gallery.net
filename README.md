@@ -23,6 +23,21 @@ title, one-sentence copy, hero + gallery photos pointing at the existing
 page from that array, so adding a step means adding one object plus one static
 folder — the progress ramp and navigation recompute themselves.
 
+Slides move the way PowerPoint's transition gallery does. Each step declares
+the transition that *arrives* at it (`transition` in `steps.js`), matched to
+what the step is about — `wipe-up` for the plan sheet unrolling, `push-left`
+for routes laid forward, `wipe-down` for bundles pulled down, `zoom-in` for
+arrival on one panel, `fade` for the verification beat, `zoom-out` to pull
+back for the whole build, and `morph` for the same rack in a new shot. Because
+every step is its own document, the transition is split either side of the
+page load: the outgoing page records the destination's kind in `sessionStorage`
+and plays the mirror of it, the incoming page reads it back and plays the
+arrival, so the move reads as one continuous transition rather than a cut.
+Stepping backwards through the dots mirrors a push, like a deck does. Every
+kind moves only `transform`, `opacity` and `clip-path` over the same three
+D-derived durations and the one easing; reduced motion drops all of it and the
+step is simply there.
+
 ## The guided tour
 
 `/tour/` is a different kind of guide: an **action-gated** tour of the real
