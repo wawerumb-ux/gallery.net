@@ -214,19 +214,97 @@ function setup({ reducedMotion = false, multiplierPatch = null, seedState = null
   albumDetailView.appendChild(photoCard);
   const lightbox = reg(makeEl('div'));
   lightbox.id = 'lightbox';
+  const viewerPrev = reg(makeEl('button', { rect: { top: 400, left: 850, right: 894, bottom: 444, width: 44, height: 44 } }));
+  viewerPrev.id = 'lightboxPrev';
+  viewerPrev.setAttribute('data-tour-target', 'viewer-prev');
   const viewerNext = reg(makeEl('button', { rect: { top: 400, left: 1000, right: 1044, bottom: 444, width: 44, height: 44 } }));
   viewerNext.id = 'lightboxNext';
   viewerNext.setAttribute('data-tour-target', 'viewer-next');
   const viewerClose = reg(makeEl('button', { rect: { top: 20, left: 20, right: 62, bottom: 62, width: 42, height: 42 } }));
   viewerClose.id = 'lightboxClose';
   viewerClose.setAttribute('data-tour-target', 'viewer-close');
+  const lightboxTag = reg(makeEl('button', { rect: { top: 740, left: 480, right: 560, bottom: 784, width: 80, height: 44 } }));
+  lightboxTag.id = 'lightboxTag';
+  lightboxTag.setAttribute('data-tour-target', 'viewer-classify');
+  const lightboxDelete = reg(makeEl('button', { rect: { top: 740, left: 580, right: 660, bottom: 784, width: 80, height: 44 } }));
+  lightboxDelete.id = 'lightboxDelete';
+  lightboxDelete.setAttribute('data-tour-target', 'viewer-delete');
+  lightbox.appendChild(viewerPrev);
   lightbox.appendChild(viewerNext);
   lightbox.appendChild(viewerClose);
+  lightbox.appendChild(lightboxTag);
+  lightbox.appendChild(lightboxDelete);
   body.appendChild(tabPictures);
   body.appendChild(tabAlbums);
   body.appendChild(albumsView);
   body.appendChild(albumDetailView);
   body.appendChild(lightbox);
+
+  // The admin-era controls the expanded tour targets. In the
+  // real app these render and hide with adminMode, the ⋮ sheet,
+  // and the modals; the fixture is a static approximation —
+  // the engine only needs querySelector to find the attribute.
+  tabPictures.setAttribute('data-tour-target', 'tab-pictures');
+  const menuBtn = reg(makeEl('button', { rect: { top: 20, left: 1200, right: 1244, bottom: 64, width: 44, height: 44 } }));
+  menuBtn.id = 'menuBtn';
+  menuBtn.setAttribute('data-tour-target', 'menu-btn');
+  const sheetOverlay = reg(makeEl('div'));
+  sheetOverlay.id = 'sheetOverlay';
+  const sheetList = reg(makeEl('div'));
+  sheetList.id = 'sheetList';
+  const sheetItem = (target) => {
+    const b = reg(makeEl('button', { rect: { top: 400, left: 780, right: 1020, bottom: 448, width: 240, height: 48 } }));
+    b.setAttribute('data-tour-target', target);
+    sheetList.appendChild(b);
+    return b;
+  };
+  const menuAdminSignin = sheetItem('menu-admin-signin');
+  const menuAddPhotos = sheetItem('menu-add-photos');
+  const menuNewAlbum = sheetItem('menu-new-album');
+  const menuSelectPhotos = sheetItem('menu-select-photos');
+  const menuAlbumSettings = sheetItem('menu-album-settings');
+  const menuSignOut = sheetItem('menu-sign-out');
+  sheetOverlay.appendChild(sheetList);
+  const searchWrap = reg(makeEl('div'));
+  searchWrap.id = 'searchWrap';
+  const adminSearch = reg(makeEl('input', { value: '' }));
+  adminSearch.id = 'adminSearch';
+  adminSearch.setAttribute('data-tour-target', 'admin-search');
+  const adminSearchFilter = reg(makeEl('select'));
+  adminSearchFilter.id = 'adminSearchFilter';
+  adminSearchFilter.setAttribute('data-tour-target', 'admin-search-filter');
+  searchWrap.appendChild(adminSearch);
+  searchWrap.appendChild(adminSearchFilter);
+  const selectBar = reg(makeEl('div'));
+  selectBar.id = 'selectBar';
+  const selectClose = reg(makeEl('button', { rect: { top: 20, left: 20, right: 64, bottom: 64, width: 44, height: 44 } }));
+  selectClose.id = 'selectClose';
+  selectClose.setAttribute('data-tour-target', 'select-close');
+  const selectMove = reg(makeEl('button', { rect: { top: 20, left: 1000, right: 1080, bottom: 64, width: 80, height: 44 } }));
+  selectMove.id = 'selectMove';
+  selectMove.setAttribute('data-tour-target', 'select-move');
+  selectBar.appendChild(selectClose);
+  selectBar.appendChild(selectMove);
+  body.appendChild(menuBtn);
+  body.appendChild(sheetOverlay);
+  body.appendChild(searchWrap);
+  body.appendChild(selectBar);
+  // The six modal Cancel buttons (each lives inside its own
+  // overlay in the real markup; the fixture keeps them on the
+  // body — the engine resolves them by attribute either way).
+  const modalCancel = (id, target) => {
+    const b = reg(makeEl('button', { rect: { top: 500, left: 600, right: 660, bottom: 540, width: 60, height: 40 } }));
+    b.id = id;
+    b.setAttribute('data-tour-target', target);
+    body.appendChild(b);
+    return b;
+  };
+  const tokenCancel = modalCancel('tokenCancel', 'admin-modal-cancel');
+  const newAlbumCancel = modalCancel('newAlbumCancel', 'new-album-cancel');
+  const uploadCancel = modalCancel('uploadCancel', 'upload-cancel');
+  const sortCancel = modalCancel('sortCancel', 'move-cancel');
+  const settingsCancel = modalCancel('settingsCancel', 'album-settings-cancel');
+  const tagCancel = modalCancel('tagCancel', 'classify-cancel');
 
   class FakeDate {
     static now() { return fakeNow; }
@@ -311,7 +389,7 @@ function setup({ reducedMotion = false, multiplierPatch = null, seedState = null
   const src = (multiplierPatch
     ? oneuiSrc.replace('SPEED_MULTIPLIER = 1.25', `SPEED_MULTIPLIER = ${multiplierPatch}`)
     : oneuiSrc) + '\n' + tourSrc + '\n' + stepsSrc
-    + '\n;globalThis.__T = { createGuidedTour, TOUR_STEPS, parseTourState, shouldAutoStartTour, TOUR_STORAGE_KEY, TOUR_TRANSITIONS, D, SPEED_MULTIPLIER, ONE_UI_EASING, TOAST_HOLD, CHECKMARK_HOLD };';
+    + '\n;globalThis.__T = { createGuidedTour, TOUR_STEPS, selectTourSteps, parseTourState, shouldAutoStartTour, TOUR_STORAGE_KEY, TOUR_TRANSITIONS, D, SPEED_MULTIPLIER, ONE_UI_EASING, TOAST_HOLD, CHECKMARK_HOLD };';
   vm.runInContext(src, vm.createContext(sandbox), { filename: 'tour.js' });
 
   return {
@@ -323,11 +401,32 @@ function setup({ reducedMotion = false, multiplierPatch = null, seedState = null
     store,
     window,
     document,
+    tabPictures,
     tabAlbums,
     albumCover,
     photoCard,
+    viewerPrev,
     viewerNext,
     viewerClose,
+    lightboxTag,
+    lightboxDelete,
+    menuBtn,
+    menuAdminSignin,
+    menuAddPhotos,
+    menuNewAlbum,
+    menuSelectPhotos,
+    menuAlbumSettings,
+    menuSignOut,
+    adminSearch,
+    adminSearchFilter,
+    selectClose,
+    selectMove,
+    tokenCancel,
+    newAlbumCancel,
+    uploadCancel,
+    sortCancel,
+    settingsCancel,
+    tagCancel,
     // Drain the timer queue: run everything due now, including
     // zero-delay chains scheduled by timers that just ran
     // (matches how a browser drains the macrotask queue).
@@ -973,40 +1072,102 @@ describe('S — the speed multiplier is the single timing source', () => {
 /* ── Integration: the real authored tour ──────────────────── */
 
 describe('T — the real TOUR_STEPS integration', () => {
-  test('T1 — the authored five-step tour runs end to end on the real targets', () => {
+  test('T1 — the authored 36-step tour runs end to end on the real targets', () => {
     const h = setup();
-    assert.equal(h.X.TOUR_STEPS.length, 5);
+    assert.equal(h.X.TOUR_STEPS.length, 36);
     const tour = h.X.createGuidedTour({ steps: h.X.TOUR_STEPS });
     tour.start();
     // A step's action listener is bound when it reaches
     // waiting — so every advance chain below runs
     // confirm + unlock + the NEXT step's settle, leaving
-    // each step armed (waiting) before its click.
+    // each step armed (waiting) before its action.
     const arm = h.X.D.base + h.X.D.short + h.X.D.base + h.X.D.base;
+    // A toast confirm holds (D.short + TOAST_HOLD + D.short)
+    // before the unlock fade; a NON-final toast step needs
+    // one more D.base so the next step settles into waiting.
+    const toastArm = h.X.D.short + h.X.TOAST_HOLD + h.X.D.short + h.X.D.base;
+    const toastArmNext = toastArm + h.X.D.base;
+    const step = (id, targetEl, advanceAfter = arm) => {
+      assert.equal(tour.getCurrentStepId(), id);
+      targetEl.dispatch('click');
+      h.advance(advanceAfter);
+    };
+    const type = (id, value) => {
+      assert.equal(tour.getCurrentStepId(), id);
+      h.adminSearch.value = value;
+      h.adminSearch.dispatch('input');
+      h.advance(arm);
+    };
     h.advance(h.X.D.base); // step 1 arms
-    // Step 1: Albums tab.
-    assert.equal(tour.getCurrentStepId(), 'open-albums');
-    h.tabAlbums.dispatch('click');
+    // Segment 1 — the shared path (every visitor).
+    step('wall-photo', h.photoCard);
+    step('viewer-next', h.viewerNext);
+    step('viewer-prev', h.viewerPrev);
+    step('viewer-close', h.viewerClose);
+    step('albums-tab', h.tabAlbums);
+    step('album-open', h.albumCover);
+    step('album-photo', h.photoCard);
+    step('album-viewer-close', h.viewerClose);
+    step('menu-open', h.menuBtn);
+    // Segment 2 — the visitor-only sign-in reveal.
+    step('menu-admin-signin', h.menuAdminSignin);
+    step('admin-modal-cancel', h.tokenCancel, toastArmNext);
+    // Segment 3 — the admin tool set. The raw authored
+    // array walks it end to end here; boot.js hands these
+    // steps to the engine only when the tour starts signed
+    // in as admin (see T3).
+    step('menu-add-photos', h.menuAddPhotos);
+    step('upload-cancel', h.uploadCancel);
+    step('pictures-tab', h.tabPictures);
+    type('search-type', 'sunset');
+    // The scope step is an input action on a <select>.
+    assert.equal(tour.getCurrentStepId(), 'search-scope');
+    h.adminSearchFilter.value = 'image';
+    h.adminSearchFilter.dispatch('input');
     h.advance(arm);
-    // Step 2: album cover.
-    assert.equal(tour.getCurrentStepId(), 'open-album');
-    h.albumCover.dispatch('click');
+    // The clear step counts only an EMPTY box: typing more
+    // text fires input but never advances.
+    assert.equal(tour.getCurrentStepId(), 'search-clear');
+    h.adminSearch.value = 'still typing';
+    h.adminSearch.dispatch('input');
+    assert.equal(tour.getPhase(), 'waiting');
+    h.adminSearch.value = '';
+    h.adminSearch.dispatch('input');
     h.advance(arm);
-    // Step 3: photo card inside the album detail.
-    assert.equal(tour.getCurrentStepId(), 'open-photo');
-    h.photoCard.dispatch('click');
-    h.advance(arm);
-    // Step 4: viewer Next arrow (checkmark confirm: D.base + D.short).
-    assert.equal(tour.getCurrentStepId(), 'next-photo');
-    h.viewerNext.dispatch('click');
-    h.advance(arm);
-    // Step 5: viewer Back arrow (toast confirm: D.short + TOAST_HOLD + D.short, then unlock).
-    assert.equal(tour.getCurrentStepId(), 'close-viewer');
-    h.viewerClose.dispatch('click');
-    h.advance(h.X.D.short + h.X.TOAST_HOLD + h.X.D.short + h.X.D.base);
+    step('menu-open-2', h.menuBtn);
+    step('menu-new-album', h.menuNewAlbum);
+    step('new-album-cancel', h.newAlbumCancel);
+    step('menu-open-3', h.menuBtn);
+    step('menu-select-photos', h.menuSelectPhotos);
+    step('pick-photo', h.photoCard);
+    step('select-move', h.selectMove);
+    step('move-cancel', h.sortCancel);
+    step('select-close', h.selectClose);
+    step('menu-open-4', h.menuBtn);
+    step('menu-album-settings', h.menuAlbumSettings);
+    step('album-settings-cancel', h.settingsCancel);
+    step('wall-photo-2', h.photoCard);
+    step('viewer-classify', h.lightboxTag);
+    step('classify-cancel', h.tagCancel);
+    step('viewer-delete', h.lightboxDelete);
+    step('viewer-close-2', h.viewerClose);
+    step('menu-open-5', h.menuBtn);
+    step('menu-sign-out', h.menuSignOut, toastArm);
     assert.equal(tour.getPhase(), 'complete');
     const saved = h.X.parseTourState(h.store.get('walkthrough.tourState'));
-    assert.deepEqual(saved.completed, ['open-albums', 'open-album', 'open-photo', 'next-photo', 'close-viewer']);
+    assert.deepEqual(saved.completed, [
+      'wall-photo', 'viewer-next', 'viewer-prev', 'viewer-close',
+      'albums-tab', 'album-open', 'album-photo', 'album-viewer-close',
+      'menu-open', 'menu-admin-signin', 'admin-modal-cancel',
+      'menu-add-photos', 'upload-cancel', 'pictures-tab',
+      'search-type', 'search-scope', 'search-clear',
+      'menu-open-2', 'menu-new-album', 'new-album-cancel',
+      'menu-open-3', 'menu-select-photos', 'pick-photo',
+      'select-move', 'move-cancel', 'select-close',
+      'menu-open-4', 'menu-album-settings', 'album-settings-cancel',
+      'wall-photo-2', 'viewer-classify', 'classify-cancel',
+      'viewer-delete', 'viewer-close-2', 'menu-open-5', 'menu-sign-out',
+    ]);
     assert.equal(saved.finished, true);
     assert.equal(saved.currentStepId, null);
   });
@@ -1016,5 +1177,92 @@ describe('T — the real TOUR_STEPS integration', () => {
     const tour = h.X.createGuidedTour({ steps: h.X.TOUR_STEPS });
     tour.start();
     assert.deepEqual(h.pushStates, [{ guidedTour: true }]);
+  });
+
+  test('T3 — selectTourSteps splits the audiences and renumbers', () => {
+    const h = setup();
+    const visitor = h.X.selectTourSteps(h.X.TOUR_STEPS, false);
+    const admin = h.X.selectTourSteps(h.X.TOUR_STEPS, true);
+    // Visitors never see admin steps; admins never see the
+    // sign-in reveal — the tour never renders a step the
+    // user cannot perform.
+    assert.ok(visitor.every(s => !s.adminOnly));
+    assert.ok(admin.every(s => !s.visitorOnly));
+    assert.equal(visitor.length, 11);
+    assert.equal(admin.length, 34);
+    // Orders renumber 1..N for the audience's own walk.
+    assert.deepEqual(visitor.map(s => s.order), visitor.map((_, i) => i + 1));
+    assert.deepEqual(admin.map(s => s.order), admin.map((_, i) => i + 1));
+    // The shared path is identical for both audiences.
+    assert.deepEqual(visitor.slice(0, 9).map(s => s.id), admin.slice(0, 9).map(s => s.id));
+    // Each walk ends on its own completion toast.
+    assert.equal(visitor[visitor.length - 1].id, 'admin-modal-cancel');
+    assert.equal(admin[admin.length - 1].id, 'menu-sign-out');
+    // The authored array itself is never mutated.
+    assert.equal(h.X.TOUR_STEPS.length, 36);
+    assert.equal(h.X.TOUR_STEPS[0].order, 1);
+    assert.equal(h.X.TOUR_STEPS[35].order, 36);
+  });
+
+  test('T4 — an input step with valueMatches "" counts only an empty box', () => {
+    const h = setup();
+    const clearStep = {
+      id: 'clear', order: 1, title: 'Clear the search', prompt: 'Delete the text.',
+      target: { kind: 'selector', selector: '[data-tour-target="admin-search"]', label: 'search box' },
+      action: { kind: 'input', valueMatches: '' }, confirm: { kind: 'pulse' },
+    };
+    const tour = h.X.createGuidedTour({ steps: tourOf(clearStep) });
+    tour.start();
+    h.advance(h.X.D.base);
+    assert.equal(tour.getPhase(), 'waiting');
+    // Typing more text fires input but does not count…
+    h.adminSearch.value = 'still typing';
+    h.adminSearch.dispatch('input');
+    assert.equal(tour.getPhase(), 'waiting');
+    // …an empty box does.
+    h.adminSearch.value = '';
+    h.adminSearch.dispatch('input');
+    assert.equal(tour.getPhase(), 'confirming');
+    h.advance(h.X.D.base + h.X.D.short + h.X.D.base + h.X.D.base);
+    assert.equal(tour.getPhase(), 'complete');
+  });
+
+  test('T5 — an input action works on a select (the scope picker)', () => {
+    const h = setup();
+    const scopeStep = {
+      id: 'scope', order: 1, title: 'Pick a scope', prompt: 'Pick one.',
+      target: { kind: 'selector', selector: '[data-tour-target="admin-search-filter"]', label: 'scope dropdown' },
+      action: { kind: 'input' }, confirm: { kind: 'pulse' },
+    };
+    const tour = h.X.createGuidedTour({ steps: tourOf(scopeStep) });
+    tour.start();
+    h.advance(h.X.D.base);
+    assert.equal(tour.getPhase(), 'waiting');
+    h.adminSearchFilter.value = 'image';
+    h.adminSearchFilter.dispatch('input');
+    assert.equal(tour.getPhase(), 'confirming');
+  });
+
+  test('T6 — the authored tour is well-formed', () => {
+    const h = setup();
+    const ids = new Set();
+    h.X.TOUR_STEPS.forEach((s, i) => {
+      assert.ok(s.id && !ids.has(s.id), 'unique id at ' + i);
+      ids.add(s.id);
+      assert.equal(s.order, i + 1, 'sequential order at ' + i);
+      assert.ok(s.title && s.prompt, 'title and prompt at ' + i);
+      assert.ok(s.target && s.target.kind === 'selector' && s.target.selector, 'selector target at ' + i);
+      assert.ok(s.action && s.action.kind, 'action at ' + i);
+      assert.ok(s.confirm && s.confirm.kind, 'confirm at ' + i);
+      if (s.confirm.kind === 'toast') assert.ok(s.confirm.text, 'toast text at ' + i);
+    });
+    // Exactly one step ends each audience's walk, on a toast.
+    assert.deepEqual(
+      h.X.TOUR_STEPS.filter(s => s.confirm.kind === 'toast').map(s => s.id),
+      ['admin-modal-cancel', 'menu-sign-out']);
+    // The segments: 9 shared, 2 visitor-only, 25 admin-only.
+    assert.equal(h.X.TOUR_STEPS.filter(s => s.visitorOnly).length, 2);
+    assert.equal(h.X.TOUR_STEPS.filter(s => s.adminOnly).length, 25);
+    assert.equal(h.X.TOUR_STEPS.filter(s => !s.adminOnly && !s.visitorOnly).length, 9);
   });
 });

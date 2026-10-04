@@ -27,7 +27,7 @@ folder — the progress ramp and navigation recompute themselves.
 
 `/tour/` is a different kind of guide: an **action-gated** tour of the real
 interface. Each step highlights a real control and the next step does not
-exist until you click the real thing — there is no Continue button. Clicking
+exist until you do the real thing — there is no Continue button. Clicking
 anywhere else, pressing Enter, or editing the URL does nothing; browser back
 exits the tour. Escape opens two muted hatches (skip this step / end tour),
 so the tour can never trap you. Steps are defined in `tour/steps.js`
@@ -37,11 +37,21 @@ starts it when the gallery is opened with `?tour=1`. Progress persists in
 `localStorage` (`walkthrough.tourState`): reloading resumes mid-tour, and a
 completed tour never restarts on its own.
 
+The tour has two audiences. Everyone walks the shared path: the photo wall,
+the viewer's arrows, the Albums tab, an album, and the ⋮ menu — including
+where admins sign in. A user who is already signed in as admin when the tour
+starts walks the admin tool set instead (sign in *before* starting the tour
+to see it): add photos and the upload dialog, search (type, scope, clear),
+new album, select + move, album settings, classify, delete (the
+confirmation is canceled — the tour deletes nothing), and sign out. Admin
+steps are filtered out for visitors — the tour never renders a step the
+signed-out user cannot perform.
+
 Run the tour's test suite with `node --test tour/` (Node 18+; same
 `node:test` + `vm`-sandbox harness as `tests/`). It covers gating, action
 detection (including synthetic-event rejection), the confirm/unlock
-hand-off, escapes, persistence, reduced-motion, a11y, and the speed
-multiplier.
+hand-off, escapes, persistence, reduced-motion, a11y, the speed multiplier,
+the audience filter, and the full 36-step authored tour end to end.
 
 ## Testing it before you have a repo
 

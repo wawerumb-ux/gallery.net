@@ -78,6 +78,21 @@ function shouldAutoStartTour(saved, params) {
   return !!(saved && saved.currentStepId);
 }
 
+/* Audience selection (boot): the authored tour carries
+   visitorOnly steps (the admin sign-in reveal) and adminOnly
+   steps (the tool set). A tour that starts signed in walks
+   the admin segment and never sees the sign-in reveal; a
+   tour that starts signed out walks the sign-in reveal and
+   never sees the tool set. The tour must never render a
+   step the user cannot perform, so the filtering happens
+   HERE, before the engine arms anything. Orders renumber so
+   the on-screen "N / total" is right for the audience. */
+function selectTourSteps(steps, adminMode) {
+  const picked = steps.filter(s =>
+    s.adminOnly ? !!adminMode : s.visitorOnly ? !adminMode : true);
+  return picked.map((s, i) => ({ ...s, order: i + 1 }));
+}
+
 /* The engine. config: { steps, refs?, navigate? }
      steps   — TourStep[] (from tour/steps.js)
      refs    — optional { refName: element } for { kind: 'element' } targets
@@ -546,7 +561,9 @@ function createGuidedTour(config) {
     } else if (a.kind === 'input') {
       const onInput = (e) => {
         if (e.isTrusted === false) return;
-        if (a.valueMatches && target.value !== a.valueMatches) return;
+        // '' is a real value (the clear-the-search step counts
+        // only an empty box), so the guard is on definedness.
+        if (a.valueMatches !== undefined && target.value !== a.valueMatches) return;
         success();
       };
       target.addEventListener('input', onInput);

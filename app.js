@@ -252,6 +252,12 @@ const state = {
 
 const el = (id) => document.getElementById(id);
 
+/* The guided tour reads the live admin sign-in state through
+   this getter (tour/boot.js): a tour that starts signed in
+   walks the admin tool set; one that starts signed out never
+   sees those steps. Read once, at tour start. */
+window.__gallery = { get adminMode() { return state.adminMode; } };
+
 // Loading status: "loading images..." + Arch-style ASCII progress bar.
 const LOAD_PROG_WIDTH = 24;
 const loadProg = {
@@ -1453,6 +1459,9 @@ function openSheet(cfg) {
     b.type = 'button';
     b.className = 'sheet-item' + (item.danger ? ' sheet-item-danger' : '');
     b.setAttribute('role', 'menuitem');
+    // Sheet items the guided tour highlights carry the same
+    // data-tour-target hook as every other real control.
+    if (item.tourTarget) b.setAttribute('data-tour-target', item.tourTarget);
     b.innerHTML = `<span class="sheet-ic">${item.icon || ''}</span><span>${escapeHtml(item.label)}</span>`;
     b.addEventListener('click', () => {
       overlayClose('sheetOverlay');
@@ -1473,13 +1482,13 @@ function mainMenu() {
     { icon: ICONS.route, label: 'Project walkthrough', onTap: () => { window.location.href = 'walkthrough/'; } },
     { icon: ICONS.play, label: 'Guided tour', onTap: () => { window.location.href = 'tour/'; } },
     ...(state.adminMode ? [
-      { icon: ICONS.photoAdd, label: 'Add photos', onTap: () => pickFiles(null) },
-      { icon: ICONS.folderAdd, label: 'New album…', onTap: openNewAlbumModal },
-      { icon: ICONS.checkCircle, label: 'Select photos', onTap: () => enterSelectMode() },
-      { icon: ICONS.gear, label: 'Album settings', onTap: () => openSettingsModal() },
-      { icon: ICONS.signOut, label: 'Sign out', onTap: signOut },
+      { icon: ICONS.photoAdd, label: 'Add photos', tourTarget: 'menu-add-photos', onTap: () => pickFiles(null) },
+      { icon: ICONS.folderAdd, label: 'New album…', tourTarget: 'menu-new-album', onTap: openNewAlbumModal },
+      { icon: ICONS.checkCircle, label: 'Select photos', tourTarget: 'menu-select-photos', onTap: () => enterSelectMode() },
+      { icon: ICONS.gear, label: 'Album settings', tourTarget: 'menu-album-settings', onTap: () => openSettingsModal() },
+      { icon: ICONS.signOut, label: 'Sign out', tourTarget: 'menu-sign-out', onTap: signOut },
     ] : [
-      { icon: ICONS.signIn, label: 'Admin sign in', onTap: openAdminModal },
+      { icon: ICONS.signIn, label: 'Admin sign in', tourTarget: 'menu-admin-signin', onTap: openAdminModal },
     ]),
   ];
   openSheet({ title: DEMO_MODE ? 'Demo data — nothing leaves this tab' : undefined, items });
