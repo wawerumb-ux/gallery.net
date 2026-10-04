@@ -409,7 +409,7 @@ function setup({ reducedMotion = false, multiplierPatch = null, seedState = null
       winListeners[t] = (winListeners[t] || []).filter(f => f !== fn);
     },
     dispatchEvent: (t, ev = {}) => {
-      const e = { preventDefault: () => { e.defaultPrevented = true; }, stopPropagation: () => {}, isTrusted: true, ...ev };
+      const e = { preventDefault: () => { e.defaultPrevented = true; }, stopPropagation: () => {}, isTrusted: true, defaultPrevented: false, ...ev };
       (winListeners[t] || []).slice().forEach(fn => fn(e));
       return e;
     },
@@ -499,19 +499,29 @@ function setup({ reducedMotion = false, multiplierPatch = null, seedState = null
     sortCancel,
     settingsCancel,
     tagCancel,
-    // Drain the timer queue: run everything due now, including
-    // zero-delay chains scheduled by timers that just ran
-    // (matches how a browser drains the macrotask queue).
+    // Drain the timer queue the way a browser does: fire the
+    // EARLIEST due timer and move the clock to its due time, so a
+    // timer scheduled from inside a callback counts from when that
+    // callback actually ran. (Jumping the clock to the end of the
+    // window first would restart every nested chain from the
+    // overshot time and make honest timing arithmetic fail.)
     advance: (ms) => {
-      fakeNow += ms;
+      const until = fakeNow + ms;
       let ran = 0;
       for (;;) {
-        const due = timers.filter(t => !t.cancelled && t.at <= fakeNow).sort((a, b) => a.at - b.at);
-        if (!due.length) break;
-        due.forEach(t => { timers.splice(timers.indexOf(t), 1); t.fn(); });
-        ran += due.length;
+        let next = null;
+        for (const t of timers) {
+          if (t.cancelled || t.at > until) continue;
+          if (!next || t.at < next.at) next = t;
+        }
+        if (!next) break;
+        fakeNow = next.at;
+        timers.splice(timers.indexOf(next), 1);
+        next.fn();
+        ran++;
         if (ran > 100000) throw new Error('timer drain loop');
       }
+      fakeNow = until;
       return ran;
     },
     pending: () => timers.filter(t => !t.cancelled),
@@ -519,6 +529,17 @@ function setup({ reducedMotion = false, multiplierPatch = null, seedState = null
     allStyleSets: () => created.flatMap(e => e.styleSets),
   };
 }
+
+/* ── Cross-realm comparison ──────────────────────────────────────
+   The sandbox is its own JavaScript realm, so every array and object
+   the engine produces carries THAT realm's Array/Object prototype.
+   node:assert/strict's deepEqual is deepStrictEqual, which compares
+   prototypes — so an identical ['s1'] from the sandbox fails against
+   an identical ['s1'] written here. Round-tripping through JSON
+   normalises the value into this realm without loosening the
+   comparison: same members, same types, same order. */
+const plain = (v) => (v === undefined ? undefined : JSON.parse(JSON.stringify(v)));
+const sameDeep = (actual, expected, msg) => assert.deepStrictEqual(plain(actual), plain(expected), msg);
 
 /* Synthetic step sets — the engine is driven with small
    deterministic scenarios; the real TOUR_STEPS get one
@@ -708,8 +729,9 @@ describe('D — action detection', () => {
     assert.equal(tour.getPhase(), 'waiting');
     h.albumCover.value = 'archive';
     h.albumCover.dispatch('input');
-    // Silent confirm: the machine advances past confirming
-    // within the same drain.
+    // Silent confirm: the machine advances past confirming on the
+    // next macrotask, so the queue must drain before we look.
+    h.advance(0);
     assert.equal(tour.getPhase(), 'unlocking');
   });
 
@@ -760,8 +782,9 @@ describe('D — action detection', () => {
     assert.equal(tour.getPhase(), 'waiting');
     // The real thing.
     h.window.dispatchEvent('tour:action', { detail: { name: 'panel-open' } });
-    // Silent confirm: honored, and the machine has advanced
-    // through confirming into the unlock hand-off.
+    // Silent confirm: honored, and the machine advances through
+    // confirming on the next macrotask, so drain before looking.
+    h.advance(0);
     assert.equal(tour.getPhase(), 'unlocking');
   });
 });
@@ -782,7 +805,7 @@ describe('C — confirmation and the unlock hand-off', () => {
     assert.equal(h.pending().filter(t => t.ms === h.X.D.base).length, 1);
     assert.equal(h.pending().filter(t => t.ms === h.X.D.base / 2).length, 0);
     const saved = h.X.parseTourState(h.store.get('walkthrough.tourState'));
-    assert.deepEqual(saved.completed, ['s1']); // recorded once, never twice
+    sameDeep(saved.completed, ['s1']); // recorded once, never twice
   });
 
   test('C2 — the current highlight fully fades before the next appears', () => {
@@ -802,7 +825,7 @@ describe('C — confirmation and the unlock hand-off', () => {
     h.advance(h.X.D.base - 1);
     assert.equal(textTree(card), '1 / 2Step s1Do the s1 thing.Skip this stepEnd tour'); // not yet re-populated
     h.advance(1);                                // unlock fires
-    assert.equal(textTree(card), '1 / 2Step s2Do the s2 thing.Skip this stepEnd tour'); // next step's text exists now
+    assert.equal(textTree(card), '2 / 2Step s2Do the s2 thing.Skip this stepEnd tour'); // next step's text exists now, count and title together
   });
 
   test('C3 — no overlap between outgoing and incoming prompt cards', () => {
@@ -864,8 +887,8 @@ describe('E — escape hatches', () => {
     assert.equal(tour.getPhase(), 'prompting');
     assert.equal(tour.getCurrentStepId(), 's2');
     const saved = h.X.parseTourState(h.store.get('walkthrough.tourState'));
-    assert.deepEqual(saved.completed, []);      // NOT completed
-    assert.deepEqual(saved.skipped, ['s1']);    // recorded as skipped
+    sameDeep(saved.completed, []);      // NOT completed
+    sameDeep(saved.skipped, ['s1']);    // recorded as skipped
   });
 
   test('E2 — skip-tour ends the tour and routes to the archive root', () => {
@@ -876,7 +899,7 @@ describe('E — escape hatches', () => {
     const skipLinks = h.document.querySelectorAll('.tour-card-escapes .tour-escape-link');
     skipLinks[1].dispatch('click'); // "End tour"
     assert.equal(tour.getPhase(), 'complete');
-    assert.deepEqual(h.navigations, ['/'], 'routes to the archive root');
+    sameDeep(h.navigations, ['/'], 'routes to the archive root');
     const saved = h.X.parseTourState(h.store.get('walkthrough.tourState'));
     assert.equal(saved.finished, true);
     assert.ok(saved.escapedAt);
@@ -920,7 +943,7 @@ describe('E — escape hatches', () => {
     assert.ok(!h.allText().includes('Ghost step'));
     assert.ok(!h.allText().includes('Never rendered.'));
     const saved = h.X.parseTourState(h.store.get('walkthrough.tourState'));
-    assert.deepEqual(saved.skipped, ['s2']);
+    sameDeep(saved.skipped, ['s2']);
     assert.ok(h.warns.some(w => w.includes('s2')), 'the skip is logged');
   });
 });
@@ -966,7 +989,7 @@ describe('P — persistence', () => {
     h.advance(h.X.D.base + h.X.D.short);
     h.advance(h.X.D.base);
     const saved = h.X.parseTourState(h.store.get('walkthrough.tourState'));
-    assert.deepEqual(saved.completed, ['s1', 's2']); // in order, no duplicates
+    sameDeep(saved.completed, ['s1', 's2']); // in order, no duplicates
   });
 
   test('P3 — finished: true prevents re-starting on the next visit', () => {
@@ -987,8 +1010,8 @@ describe('P — persistence', () => {
     const tour = h.X.createGuidedTour({ steps: tourOf(clickStep('s1', 1, 'tab-albums')) });
     tour.start(); // no resume → fresh start
     const saved = h.X.parseTourState(h.store.get('walkthrough.tourState'));
-    assert.deepEqual(saved.completed, []);
-    assert.deepEqual(saved.skipped, []);
+    sameDeep(saved.completed, []);
+    sameDeep(saved.skipped, []);
   });
 });
 
@@ -1247,7 +1270,7 @@ describe('T — the real TOUR_STEPS integration', () => {
     step('menu-sign-out', h.menuSignOut, toastArm);
     assert.equal(tour.getPhase(), 'complete');
     const saved = h.X.parseTourState(h.store.get('walkthrough.tourState'));
-    assert.deepEqual(saved.completed, [
+    sameDeep(saved.completed, [
       'wall-photo', 'viewer-next', 'viewer-prev', 'viewer-close',
       'albums-tab', 'album-open', 'album-photo', 'album-viewer-close',
       'menu-open', 'menu-admin-signin', 'admin-modal-cancel',
@@ -1274,7 +1297,7 @@ describe('T — the real TOUR_STEPS integration', () => {
     const h = setup();
     const tour = h.X.createGuidedTour({ steps: h.X.TOUR_STEPS });
     tour.start();
-    assert.deepEqual(h.pushStates, [{ guidedTour: true }]);
+    sameDeep(h.pushStates, [{ guidedTour: true }]);
   });
 
   test('T3 — selectTourSteps splits the audiences and renumbers', () => {
@@ -1289,10 +1312,10 @@ describe('T — the real TOUR_STEPS integration', () => {
     assert.equal(visitor.length, 11);
     assert.equal(admin.length, 54);
     // Orders renumber 1..N for the audience's own walk.
-    assert.deepEqual(visitor.map(s => s.order), visitor.map((_, i) => i + 1));
-    assert.deepEqual(admin.map(s => s.order), admin.map((_, i) => i + 1));
+    sameDeep(visitor.map(s => s.order), visitor.map((_, i) => i + 1));
+    sameDeep(admin.map(s => s.order), admin.map((_, i) => i + 1));
     // The shared path is identical for both audiences.
-    assert.deepEqual(visitor.slice(0, 9).map(s => s.id), admin.slice(0, 9).map(s => s.id));
+    sameDeep(visitor.slice(0, 9).map(s => s.id), admin.slice(0, 9).map(s => s.id));
     // Each walk ends on its own completion toast.
     assert.equal(visitor[visitor.length - 1].id, 'admin-modal-cancel');
     assert.equal(admin[admin.length - 1].id, 'menu-sign-out');
@@ -1355,7 +1378,7 @@ describe('T — the real TOUR_STEPS integration', () => {
       if (s.confirm.kind === 'toast') assert.ok(s.confirm.text, 'toast text at ' + i);
     });
     // Exactly one step ends each audience's walk, on a toast.
-    assert.deepEqual(
+    sameDeep(
       h.X.TOUR_STEPS.filter(s => s.confirm.kind === 'toast').map(s => s.id),
       ['admin-modal-cancel', 'menu-sign-out']);
     // The segments: 9 shared, 2 visitor-only, 45 admin-only.
@@ -1388,7 +1411,7 @@ describe('U — every button is toured', () => {
       const hit = selectors.some(sel => sel.includes('"' + t[1] + '"') || sel.includes('#' + id));
       if (!hit) gaps.push(id + ' (' + t[1] + ' targeted by no step)');
     }
-    assert.deepEqual(gaps, []);
+    sameDeep(gaps, []);
   });
 
   test('U2 — the runtime-built controls are toured too', () => {
@@ -1399,7 +1422,11 @@ describe('U — every button is toured', () => {
     for (const t of ['album-menu', 'album-menu-add-photos', 'album-menu-album-settings',
                      'menu-add-photos', 'menu-new-album', 'menu-select-photos',
                      'menu-album-settings', 'menu-sign-out', 'menu-admin-signin']) {
-      assert.ok(app.includes('"' + t + '"'), t + ' is not hooked in app.js');
+      // A menu item is hooked via tourTarget: '…'; the album chip
+      // carries data-tour-target="…" inside its template. Accept either.
+      const hooked = app.includes('data-tour-target="' + t + '"') ||
+                     app.includes("tourTarget: '" + t + "'");
+      assert.ok(hooked, t + ' is not hooked in app.js');
       assert.ok(h.X.TOUR_STEPS.some(s => s.target.selector.includes('"' + t + '"')),
         t + ' is targeted by no step');
     }
@@ -1408,7 +1435,7 @@ describe('U — every button is toured', () => {
   test('U3 — the unguarded commit buttons are flagged and say how to pass them', () => {
     const h = setup();
     const marked = h.X.TOUR_STEPS.filter(s => s.commit).map(s => s.id);
-    assert.deepEqual(marked, ['upload-confirm', 'settings-undo']);
+    sameDeep(marked, ['upload-confirm', 'settings-undo']);
     for (const id of marked) {
       const s = h.X.TOUR_STEPS.find(x => x.id === id);
       assert.ok(/skip/i.test(s.prompt), id + ' prompt must offer the way past');

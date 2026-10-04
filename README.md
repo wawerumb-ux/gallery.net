@@ -36,7 +36,10 @@ arrival, so the move reads as one continuous transition rather than a cut.
 Stepping backwards through the dots mirrors a push, like a deck does. Every
 kind moves only `transform`, `opacity` and `clip-path` over the same three
 D-derived durations and the one easing; reduced motion drops all of it and the
-step is simply there.
+step is simply there. `walkthrough/walkthrough.test.mjs` drives the real
+runtime in a `node:vm` sandbox and asserts the arrival order, the
+sessionStorage hand-off, the backwards push and the CSS contract — the suite
+exists because the transitions first shipped with every arrival dead.
 
 ## The guided tour
 
@@ -70,7 +73,7 @@ which write to the repo with no guard and no confirmation. Those two are still
 shown, but their hint says what the click really does and the way past is the
 existing *Skip this step* escape. Nothing forces them.
 
-Run the tour's test suite with `node --test tour/` (Node 18+; same
+Run the tour's test suite with `node --test` (Node 18+; same
 `node:test` + `vm`-sandbox harness as `tests/`). It covers gating, action
 detection (including synthetic-event rejection), the confirm/unlock
 hand-off, escapes, persistence, reduced-motion, a11y, the speed multiplier,
@@ -195,5 +198,7 @@ click "Sign out" when you're done to clear it early.
   faster loads for very large batches, the next step up would be generating
   thumbnails at upload time — not included here to keep this simple.
 - No frameworks, no build step — just the three files. Fork away.
-- Tests: `node --test tests/` (gallery logic) and `node --test tour/`
-  (guided tour).
+- Tests: `node --test` runs all three suites (gallery logic, guided tour,
+  walkthrough transitions) — 94 tests. Pass a glob or path to run one:
+  `node --test "tour/*.test.mjs"`. Note that `node --test <dir>` fails on
+  Node 22+ ("Cannot find module"); use plain `node --test`.

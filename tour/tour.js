@@ -31,15 +31,17 @@ const TOAST_HOLD = D.long * 2;
 
 /* The legal state transitions. The ONLY forward path is the
    step's action succeeding (waiting → confirming → unlocking).
-   The extra → unlocking edges are the escape hatches: a step
-   whose target never appears (or cannot render) is skipped
-   before it ever arms, and a skip during the highlight settle
-   window unwinds the same way. Nothing else transitions — URL
+   The extra → unlocking edges are the escape hatches, and they are
+   not decoration: "skip this step" is offered on every waiting
+   step, so a step must be able to unwind from waiting (and from
+   prompting, if the user skips during the highlight settle)
+   without its action ever succeeding. A step whose target never
+   appears is skipped the same way. Nothing else transitions — URL
    edits, Enter, and clicks anywhere but the target are ignored. */
 const TOUR_TRANSITIONS = {
   idle: ['prompting', 'unlocking'],
   prompting: ['waiting', 'unlocking'],
-  waiting: ['confirming'],
+  waiting: ['confirming', 'unlocking'],
   confirming: ['unlocking'],
   unlocking: ['prompting', 'complete'],
   complete: [],

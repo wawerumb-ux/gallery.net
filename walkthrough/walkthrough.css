@@ -295,11 +295,13 @@ body.wt {
 .wt-t-push-up-in     { --wt-t-y: 100%; }
 .wt-t-push-up-out    { --wt-t-y: -100%; }
 
-/* Wipe — the plan sheet unrolling up; bundles pulled down. */
+/* Wipe — one direction for both halves, the way a deck's wipe works:
+   the plan sheet unrolling up, the bundles pulled down. Clipping the
+   top edge makes the slide travel up; clipping the bottom, down. */
 .wt-t-wipe-up-in    { --wt-t-c: inset(100% 0 0 0); }
-.wt-t-wipe-up-out   { --wt-t-c: inset(0 0 100% 0); }
+.wt-t-wipe-up-out   { --wt-t-c: inset(100% 0 0 0); }
 .wt-t-wipe-down-in  { --wt-t-c: inset(0 0 100% 0); }
-.wt-t-wipe-down-out { --wt-t-c: inset(0 100% 0 0); }
+.wt-t-wipe-down-out { --wt-t-c: inset(0 0 100% 0); }
 
 /* Zoom — arrival on one panel, and pulling back for the whole build. */
 .wt-t-zoom-in-in   { --wt-t-o: 0; --wt-t-s: 1.08; }
