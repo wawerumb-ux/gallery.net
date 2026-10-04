@@ -26,5 +26,21 @@
   "images/rack-build/20260804_173957.jpg": {
     "phase": "Labelling & Identification",
     "activity": ""
+  },
+  "images/rack-build/20260804_174006.jpg": {
+    "phase": "Labelling & Identification",
+    "activity": ""
+  },
+  "images/cable-pull/20260804_173156.jpg": {
+    "phase": "Patch Panels & Termination",
+    "activity": ""
+  },
+  "images/cable-pull/20260804_173054.jpg": {
+    "phase": "Patch Panels & Termination",
+    "activity": ""
+  },
+  "images/rack-build/20260804_172908.jpg": {
+    "phase": "Cable Installation",
+    "activity": ""
   }
 }
