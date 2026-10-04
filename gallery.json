@@ -62,5 +62,9 @@
   "images/rack-build/20260804_171410.jpg": {
     "phase": "",
     "activity": "Server Rack Build"
+  },
+  "images/rack-build/20260804_094139.jpg": {
+    "phase": "Network Integration",
+    "activity": ""
   }
 }
