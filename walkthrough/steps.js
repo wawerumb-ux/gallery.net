@@ -14,15 +14,20 @@
    page plays the mirror of it, so the move reads as one continuous
    transition across the static page load.
 
+   `label` is the short phase name for the deck's eyebrow and the rail's
+   tooltips — one word, so it sits beside the slide number without
+   crowding it.
+
    Edit rules: titles 3–6 words sentence case, no period; copy one
-   sentence 8–16 words, no period; slugs kebab-case, unique;
-   `transition` one of fade / morph / wipe-up / wipe-down / push-left /
-   push-up / zoom-in / zoom-out. Renumber `index` on every step after
-   an insert or removal. */
+   sentence 8–16 words, no period; slugs kebab-case, unique; labels
+   one word; `transition` one of fade / morph / wipe-up / wipe-down /
+   push-left / push-up / zoom-in / zoom-out. Renumber `index` on every
+   step after an insert or removal. */
 const STEPS = [
   {
     slug: 'site-survey',
     index: 1,
+    label: 'Survey',
     title: 'Before we began',
     copy: 'Every drop, pathway and rack position was walked, measured and photographed first',
     transition: 'wipe-up',
@@ -36,6 +41,7 @@ const STEPS = [
   {
     slug: 'infrastructure',
     index: 2,
+    label: 'Containment',
     title: 'Pathways and containment',
     copy: 'Routes for every bundle were fixed on the plan before a cable was pulled',
     transition: 'push-left',
@@ -48,6 +54,7 @@ const STEPS = [
   {
     slug: 'cabling',
     index: 3,
+    label: 'Pulling',
     title: 'Pulling and dressing',
     copy: 'Bundles came down in sequence and were dressed into the tray',
     transition: 'wipe-down',
@@ -61,6 +68,7 @@ const STEPS = [
   {
     slug: 'termination',
     index: 4,
+    label: 'Termination',
     title: 'Termination at the panel',
     copy: 'Each pair landed on the panel and dressed to the back bar',
     transition: 'zoom-in',
@@ -74,6 +82,7 @@ const STEPS = [
   {
     slug: 'testing',
     index: 5,
+    label: 'Testing',
     title: 'Testing and certification',
     copy: 'Every link passed certification before the rack went live',
     transition: 'fade',
@@ -87,6 +96,7 @@ const STEPS = [
   {
     slug: 'rack-build',
     index: 6,
+    label: 'Assembly',
     title: 'The rack build',
     copy: 'Panels, switches and management went in as one assembly',
     transition: 'zoom-out',
@@ -100,6 +110,7 @@ const STEPS = [
   {
     slug: 'final-reveal',
     index: 7,
+    label: 'Handover',
     title: 'The final result',
     copy: 'A labelled and tested plant, ready for handover',
     transition: 'morph',

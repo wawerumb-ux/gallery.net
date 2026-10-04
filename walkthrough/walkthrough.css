@@ -1,16 +1,38 @@
 /* ────────────────────────────────────────────────────────────────────
-   Walkthrough — "One UI Spices" on the site's existing tokens.
-   Depth = blur + dim, never 3D perspective or heavy shadows.
-   One easing, three durations, content on top, controls on the bottom.
+   Walkthrough — a presentation deck for a photographic archive.
+
+   Inspired by PowerPoint for the Web: the slide is a distinct canvas
+   floating on a lit backdrop, a numbered thumbnail rail doubles as the
+   progress indicator, and surfaces sit on layered elevation — a sharp
+   KEY shadow that defines the edge plus a soft AMBIENT shadow that
+   implies distance (Fluent 2's system), both low-opacity because the
+   deck is dark.
+
+   Colour, radii, type and motion all come from the site's own tokens
+   (style.css) and the One UI D-scale in oneui.js — nothing here
+   invents a palette, a curve or a duration. The one departure from
+   the earlier flat-black treatment is elevation: soft, layered and
+   directional, never a heavy drop shadow.
    ──────────────────────────────────────────────────────────────────── */
 
 :root {
-  /* Site tokens govern (walkthrough is not its own surface) */
-  --wt-bg: #000000;
-  --wt-text: #ffffff;
-  --wt-muted: rgba(255, 255, 255, 0.6);
-  --wt-faint: rgba(255, 255, 255, 0.28);
-  --wt-accent: #0072ef;            /* used sparingly: active dot, CTA, one node */
+  /* The backdrop — not pure black: a space for the deck to sit in */
+  --wt-bg: #08090c;
+  --wt-slide: #0b0d10;          /* the slide canvas */
+  --wt-deck: #101216;           /* the panel surface */
+  --wt-edge: rgba(255, 255, 255, 0.09);
+  --wt-edge-strong: rgba(255, 255, 255, 0.16);
+
+  --wt-text: #f5f5f7;
+  --wt-muted: rgba(245, 245, 247, 0.58);
+  --wt-faint: rgba(245, 245, 247, 0.3);
+  --wt-accent: #0072ef;
+  --wt-accent-text: #5e9dff;
+
+  /* Elevation — key (edge) + ambient (distance), dark-mode opacities */
+  --wt-lift-slide: 0 1px 2px rgba(0, 0, 0, 0.34), 0 12px 32px rgba(0, 0, 0, 0.48);
+  --wt-lift-rail: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --wt-lift-lift: 0 2px 8px rgba(0, 0, 0, 0.42);
 
   /* One UI motion: fast start, gentle settle. No bounce, no overshoot. */
   --wt-ease: cubic-bezier(0.22, 0.25, 0.00, 1.00);
@@ -18,33 +40,61 @@
   --wt-base: 300ms;
   --wt-long: 500ms;
 
-  --wt-radius-pill: 999px;
-  --wt-radius-card: 16px;
+  /* Fluent 2 radius tokens: 4 medium, 8 large, 12 x-large */
+  --wt-r-sm: 4px;
+  --wt-r-md: 8px;
+  --wt-r-lg: 12px;
+  --wt-r-pill: 999px;
   --wt-col: 480px;
 
   --wt-font: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+  --wt-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
 * { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
+
 body.wt {
   margin: 0;
   background: var(--wt-bg);
   color: var(--wt-text);
   font-family: var(--wt-font);
-  font-size: 15.5px;
-  line-height: 1.5;
+  font-size: 15px;
+  line-height: 1.55;
   min-height: 100vh;
   min-height: 100dvh;
   overflow-x: clip;
   -webkit-font-smoothing: antialiased;
 }
 
+/* ── The backdrop ─────────────────────────────────────────────────
+   Two soft light sources behind the deck and a vignette to seat it.
+   Both are painted on the body, under the ambient layer and the deck,
+   and neither is filtered — so they cost one paint, not a blur. */
+body.wt::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(120% 82% at 16% 4%, rgba(0, 114, 239, 0.17), transparent 58%),
+    radial-gradient(92% 72% at 94% 98%, rgba(0, 114, 239, 0.1), transparent 60%);
+}
+body.wt::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: radial-gradient(128% 104% at 50% 38%, transparent 42%, rgba(0, 0, 0, 0.62) 100%);
+}
+
 /* ── Ambient layer ─────────────────────────────────────────────────
-   The vanilla Depth Triad stand-in for the WebGL network: a fixed field
-   of translucent nodes and hairline links, identical on every page.
-   It never unmounts; navigation only re-dims and re-blurs it.
-   State is driven by --wt-progress (0 = sharp context, 1 = receded). */
+   A deterministic field of translucent nodes and hairline links —
+   identical on every page, so navigation only re-dims and re-blurs it
+   (Depth Triad: blur + dim, never 3D perspective). State is driven by
+   --wt-progress (0 = sharp context, 1 = receded). */
 .wt-ambient {
   position: fixed;
   inset: 0;
@@ -62,7 +112,7 @@ body.wt {
 .wt-ambient-inner {
   position: absolute;
   inset: -12%;
-  /* Drift: slow, continuous, tied to time — the only idle motion allowed */
+  /* Drift: slow, continuous, tied to time — the only idle motion */
   animation: wt-drift 240s linear infinite;
 }
 @keyframes wt-drift {
@@ -82,9 +132,10 @@ body.wt {
   transform-origin: 0 50%;
 }
 
-/* ── Page skeleton ─────────────────────────────────────────────────
-   Top ~55%: full-bleed photography. Bottom: counter, title, copy,
-   dots, primary CTA — everything actionable within thumb reach. */
+/* ── The deck ──────────────────────────────────────────────────────
+   Phone-first: the slide on top, the controls in the thumb zone.
+   Desktop turns this into rail | slide | panel (see the media
+   queries at the foot of this file). */
 .wt-page {
   position: relative;
   z-index: 1;
@@ -102,21 +153,16 @@ body.wt {
   --wt-t-c: inset(0);
   --wt-t-o: 1;
 }
-@media (min-width: 481px) {
-  .wt-page {
-    border-left: 1px solid rgba(255, 255, 255, 0.08);
-    border-right: 1px solid rgba(255, 255, 255, 0.08);
-  }
-}
 
-/* Photography */
+/* ── The slide canvas ──────────────────────────────────────────── */
 .wt-media {
   position: relative;
-  height: 55vh;
-  height: 55dvh;
-  min-height: 280px;
+  height: 52vh;
+  height: 52dvh;
+  min-height: 260px;
   overflow: hidden;
-  background: var(--wt-bg);
+  background: var(--wt-slide);
+  border-radius: 0;
   cursor: pointer;
 }
 .wt-media img {
@@ -135,55 +181,64 @@ body.wt {
   opacity: 0;
   transition-duration: var(--wt-base);
 }
+/* A Fluent badge: hairline stroke over a scrim, never a solid chip */
 .wt-media-hint {
   position: absolute;
-  right: 16px;
+  right: 14px;
   bottom: 12px;
   z-index: 2;
-  font-size: 11px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.55);
-  background: rgba(0, 0, 0, 0.45);
-  border-radius: var(--wt-radius-pill);
-  padding: 4px 12px;
+  font-family: var(--wt-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.06em;
+  color: var(--wt-text);
+  background: rgba(8, 9, 12, 0.6);
+  border: 1px solid var(--wt-edge);
+  border-radius: var(--wt-r-pill);
+  padding: 4px 11px;
   pointer-events: none;
 }
 
-/* Controls — the thumb zone */
+/* ── Controls — the thumb zone ─────────────────────────────────── */
 .wt-panel {
   flex: 1;
   display: flex;
   flex-direction: column;
   justify-content: flex-end;
-  gap: 8px;
-  padding: 20px 24px calc(24px + env(safe-area-inset-bottom, 0px));
+  gap: 10px;
+  padding: 22px 24px calc(24px + env(safe-area-inset-bottom, 0px));
 }
+/* The eyebrow: phase label and slide number, mono and letterspaced —
+   the architectural register of the deck. */
 .wt-counter {
-  font-size: 11px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--wt-mono);
+  font-size: 10.5px;
   font-weight: 500;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: var(--wt-muted);
+  color: var(--wt-accent-text);
 }
+.wt-counter .wt-count-of { color: var(--wt-faint); }
 .wt-title {
   margin: 0;
-  font-size: 30px;
+  font-size: 29px;
   font-weight: 600;
-  letter-spacing: -0.01em;
-  line-height: 1.2;
+  letter-spacing: -0.02em;
+  line-height: 1.12;
 }
 .wt-copy {
   margin: 0;
-  font-size: 15.5px;
+  font-size: 15px;
   color: var(--wt-muted);
-  max-width: 34ch;
+  max-width: 36ch;
 }
 .wt-dots {
   display: flex;
   align-items: center;
   gap: 10px;
-  margin: 16px 0 8px;
+  margin: 14px 0 6px;
 }
 .wt-dot {
   width: 6px;
@@ -201,6 +256,12 @@ body.wt {
   background: var(--wt-accent);
   transform: scale(1.35);
 }
+.wt-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+}
 .wt-cta {
   display: flex;
   align-items: center;
@@ -208,7 +269,7 @@ body.wt {
   width: 100%;
   height: 52px;
   border: none;
-  border-radius: var(--wt-radius-pill);
+  border-radius: var(--wt-r-md);
   background: var(--wt-accent);
   color: #ffffff;
   font-family: inherit;
@@ -217,11 +278,12 @@ body.wt {
   letter-spacing: 0.01em;
   text-decoration: none;
   cursor: pointer;
+  box-shadow: var(--wt-lift-rail);
   transition: filter var(--wt-short) var(--wt-ease),
               transform var(--wt-short) var(--wt-ease);
 }
-.wt-cta:hover { filter: brightness(1.12); }
-.wt-cta:active { transform: scale(0.98); }
+.wt-cta:hover { filter: brightness(1.1); }
+.wt-cta:active { transform: scale(0.99); }
 .wt-alt {
   align-self: center;
   margin-top: 4px;
@@ -237,11 +299,80 @@ body.wt {
 }
 .wt-alt:hover { color: var(--wt-text); }
 
-/* Landing: no media region — the sharp ambient is the whole visual */
-.wt-page-landing .wt-media { display: none; }
-.wt-page-landing .wt-panel { justify-content: flex-end; min-height: 100vh; min-height: 100dvh; }
+/* ── The slide rail ────────────────────────────────────────────────
+   PowerPoint's signature: numbered thumbnails down the left, the
+   active one ringed in the accent. It is the progress indicator, so
+   the dots are hidden wherever the rail is shown. */
+.wt-rail {
+  display: none;
+  flex-direction: column;
+  gap: 10px;
+  overflow-y: auto;
+  scrollbar-width: none;
+  padding: 2px;
+}
+.wt-rail::-webkit-scrollbar { display: none; }
+.wt-slide {
+  position: relative;
+  display: block;
+  flex: none;
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  border-radius: var(--wt-r-sm);
+  overflow: hidden;
+  background: var(--wt-slide);
+  border: 1px solid var(--wt-edge);
+  box-shadow: var(--wt-lift-rail);
+  text-decoration: none;
+  transition: transform var(--wt-short) var(--wt-ease),
+              border-color var(--wt-short) var(--wt-ease),
+              box-shadow var(--wt-short) var(--wt-ease),
+              opacity var(--wt-short) var(--wt-ease);
+  opacity: 0.62;
+}
+.wt-slide img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.wt-slide-num {
+  position: absolute;
+  left: 4px;
+  bottom: 3px;
+  font-family: var(--wt-mono);
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  color: var(--wt-text);
+  background: rgba(8, 9, 12, 0.66);
+  border-radius: 3px;
+  padding: 1px 4px;
+}
+.wt-slide:hover { opacity: 0.9; transform: translateY(-1px); }
+.wt-slide[aria-current="step"] {
+  opacity: 1;
+  border-color: var(--wt-accent);
+  box-shadow: var(--wt-lift-lift);
+}
 
-/* ── Slide transitions (PowerPoint-inspired) ───────────────────────
+/* Landing: no slide, so no rail and no media — the lit backdrop and
+   the sharp ambient carry the whole frame. */
+.wt-page-landing .wt-media,
+.wt-page-landing .wt-rail { display: none; }
+/* Centred and padded so the cover copy and both actions always fit —
+   the landing is the one page with no photo to carry the frame. */
+.wt-page-landing .wt-panel {
+  justify-content: center;
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding-bottom: calc(40px + env(safe-area-inset-bottom, 0px));
+  gap: 14px;
+}
+.wt-page-landing .wt-title { font-size: 34px; }
+.wt-page-landing .wt-copy { max-width: 42ch; }
+.wt-page-landing .wt-actions { margin-top: 6px; }
+
+/* ── Slide transitions ─────────────────────────────────────────────
    Every step is its own static page, so a transition is split either
    side of the load: the outgoing page plays the mirror of the move and
    the incoming page plays the arrival (walkthrough.js) — which is why
@@ -252,7 +383,8 @@ body.wt {
    carries the slide home, and an -out class carries it off. One easing,
    three durations: a slide leaves over --wt-base and arrives over
    --wt-long, so both halves share a tempo. Only transform, opacity and
-   clip-path ever move — no blur, glow, gradient or shadow.
+   clip-path ever move — the elevation and the backdrop are not animated,
+   so the deck never smears while it travels.
 
    The settled state is the default, so a direct visit, a reload or an
    unknown kind still shows the step plainly. */
@@ -314,59 +446,123 @@ body.wt {
 /* The hero's own fade would only double up against the slide's. */
 .wt-page.wt-t-arrive .wt-media img:first-child { transition: none; }
 
-/* Reduced motion: transitions become cuts, drift stops */
+/* ── Reduced motion: the deck is simply there ──────────────────── */
 @media (prefers-reduced-motion: reduce) {
-  .wt-ambient, .wt-media img, .wt-page, .wt-cta, .wt-alt, .wt-dot {
+  .wt-ambient, .wt-media img, .wt-page, .wt-cta, .wt-alt, .wt-dot, .wt-slide {
     transition: none !important;
   }
   .wt-ambient-inner { animation: none !important; }
 }
 
-/* ── Orientation-aware layout ───────────────────────────────────────
-   Desktop (fine pointer) defaults to a landscape spread: photography
-   on the left, copy and controls on the right. Phones & tablets
-   (touch) follow the device orientation — portrait keeps the stacked
-   phone layout, landscape spreads side-by-side. Narrow viewports
-   always keep the stacked layout. The panel scrolls internally so
-   the photo stays pinned beside it. */
+/* ── Layout: phone ─────────────────────────────────────────────────
+   Stacked and thumb-reachable: slide on top, controls below, dots
+   for progress (the rail is a pointer-device affordance). */
+@media (max-width: 999px) {
+  .wt-rail { display: none !important; }
+}
 
-/* Desktop — landscape spread by default */
-@media (pointer: fine) and (min-width: 600px) {
-  :root { --wt-col: 1060px; }
-  .wt-page { flex-direction: row; }
-  .wt-media {
-    width: 50%;
+/* ── Layout: desktop — the presentation editor ────────────────────
+   Rail | slide | panel, on a lit backdrop. The slide is a real
+   canvas: hairline stroke, 12px radius, layered elevation. */
+@media (pointer: fine) and (min-width: 1000px) {
+  :root { --wt-col: 1560px; }
+  .wt-page {
+    display: grid;
+    grid-template-columns: 92px minmax(0, 1fr) minmax(340px, 27%);
+    grid-template-rows: 1fr;
+    gap: 22px;
+    align-items: stretch;
+    padding: 26px;
     height: 100vh;
     height: 100dvh;
     min-height: 0;
+    max-width: var(--wt-col);
+  }
+  .wt-page-landing { display: flex; }
+  .wt-page-landing .wt-panel { max-width: 520px; margin: 0 auto; }
+
+  /* The rail occupies column one; the slide and panel fill the rest. */
+  .wt-rail {
+    display: flex;
+    grid-row: 1;
+    align-self: stretch;
+  }
+  .wt-slide:first-child { margin-top: 0; }
+
+  /* A slide is 16:9. The grid row is sized to the slide's own ratio
+     and the slide centres inside the full-height row, so the canvas
+     keeps its ratio without the deck sitting off-centre. */
+  .wt-page { grid-template-rows: minmax(0, 1fr); align-content: stretch; }
+  .wt-media {
+    grid-row: 1;
+    height: auto;
+    width: 100%;
+    align-self: center;
+    justify-self: center;
+    aspect-ratio: 16 / 9;
+    min-height: 0;
+    max-height: 100%;
+    max-width: 100%;
+    border-radius: var(--wt-r-lg);
+    border: 1px solid var(--wt-edge);
+    box-shadow: var(--wt-lift-slide);
   }
   .wt-panel {
-    flex: 1;
-    justify-content: flex-start;
-    max-height: 100vh;
-    max-height: 100dvh;
+    grid-row: 1;
+    justify-content: center;
+    max-height: 100%;
     overflow-y: auto;
+    padding: 8px 6px 8px 2px;
+    gap: 12px;
   }
+  /* The rail IS the progress indicator here, so the dots step aside. */
+  .wt-dots { display: none; }
+  .wt-title { font-size: 34px; }
+  .wt-copy { font-size: 15.5px; max-width: 34ch; }
+  .wt-actions { margin-top: 8px; }
+  .wt-media-hint { right: 16px; bottom: 16px; }
 }
-/* Wider desktop screens */
+
+/* Wider desktops: a little more room for the panel. */
 @media (pointer: fine) and (min-width: 1500px) {
-  :root { --wt-col: 1320px; }
+  .wt-page { grid-template-columns: 104px minmax(0, 1fr) minmax(380px, 26%); gap: 26px; padding: 30px; }
 }
-/* Phones & tablets turned sideways — same spread, narrower column */
-@media (pointer: coarse) and (orientation: landscape) and (min-width: 600px) {
-  :root { --wt-col: 860px; }
-  .wt-page { flex-direction: row; }
-  .wt-media {
-    width: 50%;
+
+/* ── Phones & tablets turned sideways — same deck, narrower ────── */
+@media (pointer: coarse) and (orientation: landscape) and (min-width: 900px) {
+  :root { --wt-col: 1180px; }
+  .wt-page {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(300px, 38%);
+    gap: 18px;
+    padding: 18px;
     height: 100vh;
     height: 100dvh;
     min-height: 0;
   }
-  .wt-panel {
-    flex: 1;
-    justify-content: flex-start;
-    max-height: 100vh;
-    max-height: 100dvh;
-    overflow-y: auto;
+  .wt-rail { display: none; }
+  .wt-media {
+    height: 100%;
+    min-height: 0;
+    border-radius: var(--wt-r-lg);
+    border: 1px solid var(--wt-edge);
+    box-shadow: var(--wt-lift-slide);
   }
+  .wt-panel {
+    justify-content: center;
+    max-height: 100%;
+    overflow-y: auto;
+    padding: 4px;
+  }
+}
+
+/* ── Short viewports ───────────────────────────────────────────────
+   A 16:9 slide and a full panel will not both fit a short desktop
+   window; below this height the deck tightens its rhythm rather than
+   pushing the copy off the bottom. */
+@media (pointer: fine) and (max-height: 720px) {
+  .wt-page { padding: 16px; gap: 16px; }
+  .wt-title { font-size: 28px; }
+  .wt-panel { gap: 8px; }
+  .wt-cta { height: 46px; }
 }

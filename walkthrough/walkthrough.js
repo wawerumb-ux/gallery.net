@@ -119,6 +119,40 @@
     elDots.appendChild(a);
   }
 
+  /* The deck's slide rail — PowerPoint's signature, and this deck's
+     progress indicator: every step's cover as a numbered thumbnail,
+     the current one ringed in the accent. It is a pointer-device
+     affordance, so the CSS hides it (and the dots take over) wherever
+     touch is primary. Built here rather than in seven static pages so
+     a new step needs no markup. */
+  function buildRail(index) {
+    var nav = document.createElement('nav');
+    nav.className = 'wt-rail';
+    nav.setAttribute('aria-label', 'Walkthrough slides');
+    for (var i = 0; i < N; i++) {
+      var step = STEPS[i];
+      var a = document.createElement('a');
+      a.className = 'wt-slide';
+      a.href = stepUrl(step);
+      a.setAttribute('aria-label', 'Step ' + step.index + ': ' + step.title);
+      if (step.index === index) a.setAttribute('aria-current', 'step');
+      var img = document.createElement('img');
+      img.src = prefix + step.hero;
+      img.alt = '';
+      img.loading = i < 3 ? 'eager' : 'lazy';
+      img.decoding = 'async';
+      var num = document.createElement('span');
+      num.className = 'wt-slide-num';
+      num.textContent = step.index < 10 ? '0' + step.index : String(step.index);
+      a.appendChild(img);
+      a.appendChild(num);
+      nav.appendChild(a);
+    }
+    if (page.firstChild) page.insertBefore(nav, page.firstChild);
+    else page.appendChild(nav);
+    return nav;
+  }
+
   function addAction(label, href, primary) {
     var a = document.createElement('a');
     a.className = primary ? 'wt-cta' : 'wt-alt';
@@ -139,10 +173,21 @@
 
   function initStep(index) {
     var step = STEPS[index - 1];
-    elCounter.textContent = 'Step ' + index + ' of ' + N;
+    // Eyebrow: the phase label and the slide number, mono and
+    // letterspaced — the deck's architectural register.
+    elCounter.innerHTML = '';
+    var lab = document.createElement('span');
+    lab.className = 'wt-count-label';
+    lab.textContent = step.label || ('Step ' + step.index);
+    var of = document.createElement('span');
+    of.className = 'wt-count-of';
+    of.textContent = step.index < 10 ? '0' + step.index + ' / 0' + N : step.index + ' / ' + N;
+    elCounter.appendChild(lab);
+    elCounter.appendChild(of);
     elTitle.textContent = step.title;
     elCopy.textContent = step.copy;
     for (var i = 0; i < N; i++) addDot(STEPS[i], STEPS[i].index === index);
+    buildRail(index);
     if (index < N) {
       addAction('Next: ' + STEPS[index].title, stepUrl(STEPS[index]), true);
       addAction('Exit the walkthrough', galleryUrl(), false);

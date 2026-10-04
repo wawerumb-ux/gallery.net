@@ -18,10 +18,24 @@ just this repo.
 final reveal — with real URLs (`/walkthrough/cabling/` etc., one static page
 per step, so deep links are shareable). Visitors reach it from the ⋮ menu →
 **Project walkthrough**. Step content lives in `walkthrough/steps.js` (slug,
-title, one-sentence copy, hero + gallery photos pointing at the existing
+label, title, one-sentence copy, hero + gallery photos pointing at the existing
 `images/` assets); the runtime (`walkthrough/walkthrough.js`) renders each
 page from that array, so adding a step means adding one object plus one static
-folder — the progress ramp and navigation recompute themselves.
+folder — the progress ramp, the rail and navigation recompute themselves.
+
+**The deck.** It is built to read like a presentation: a 16:9 slide floating
+on a lit backdrop, a numbered thumbnail rail doubling as the progress
+indicator, and the copy in a panel beside it — rail | slide | panel on a
+desktop, stacked with dots on touch. This is PowerPoint for the Web and
+Microsoft's Fluent 2 elevation model: each surface carries a sharp **key**
+shadow that defines its edge plus a soft **ambient** shadow that implies
+distance, light from above, low-opacity because the deck is dark, over a
+backdrop of two accent light sources and a vignette. The backdrop is a deep
+near-black rather than the gallery's pure `#000`, so the deck sits *in* a
+space; the existing deterministic node-and-link field still floats over it and
+recedes with progress. Colour, radii (Fluent's 4/8/12), type and motion all
+still resolve to the site's own tokens and the One UI `D` scale — the deck
+invents no palette, no curve and no duration.
 
 Slides move the way PowerPoint's transition gallery does. Each step declares
 the transition that *arrives* at it (`transition` in `steps.js`), matched to
@@ -39,7 +53,12 @@ D-derived durations and the one easing; reduced motion drops all of it and the
 step is simply there. `walkthrough/walkthrough.test.mjs` drives the real
 runtime in a `node:vm` sandbox and asserts the arrival order, the
 sessionStorage hand-off, the backwards push and the CSS contract — the suite
-exists because the transitions first shipped with every arrival dead.
+exists because the transitions first shipped with every arrival dead. It also
+audits the deck itself: that the grid really resolves to rail | slide | panel,
+that the slide keeps its 16:9 and the landing cannot overflow, and that every
+local asset each static page references resolves to a real file — a wrong
+`../` silently 404'd `oneui.js` and `download-button.js`, so the per-step
+download control had never rendered at all.
 
 ## The guided tour
 

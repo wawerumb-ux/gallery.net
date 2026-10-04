@@ -21,7 +21,7 @@ import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { dirname, join } from 'node:path';
+import path, { dirname, join } from 'node:path';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const stepsSrc = fs.readFileSync(join(here, 'steps.js'), 'utf8');
@@ -57,6 +57,13 @@ function makeEl(tag) {
     getAttribute(k) { return k in el.attrs ? el.attrs[k] : null; },
     hasAttribute(k) { return k in el.attrs; },
     appendChild(c) { c.parentNode = el; el.children.push(c); return c; },
+    insertBefore(node, ref) {
+      node.parentNode = el;
+      const i = ref ? el.children.indexOf(ref) : -1;
+      if (i === -1) el.children.push(node); else el.children.splice(i, 0, node);
+      return node;
+    },
+    get firstChild() { return el.children[0] || null; },
     addEventListener() {},
   };
   Object.defineProperty(el, 'className', {
@@ -318,6 +325,109 @@ describe('W — departure', () => {
   });
 });
 
+describe('W — the deck layout', () => {
+  // The desktop deck is a grid of rail | slide | panel. These assert
+  // the grid actually resolves — a silent CSS mistake here would just
+  // look like a plainer page, never an error.
+  const desk = cssSrc.slice(cssSrc.indexOf('@media (pointer: fine) and (min-width: 1000px)'));
+
+  test('W22 — the desktop grid reserves a rail, a flexible slide and a bounded panel', () => {
+    assert.match(desk, /grid-template-columns:\s*92px/, 'a rail column is reserved');
+    assert.match(desk, /grid-template-columns:[^;]*minmax\(0, 1fr\)[^;]*minmax\(\d+px/,
+      'the slide flexes and the panel is bounded');
+    assert.match(desk, /\.wt-rail\s*\{[^}]*display:\s*flex/, 'the rail shows on a fine pointer');
+    assert.match(desk, /\.wt-dots\s*\{\s*display:\s*none/, 'the dots step aside where the rail shows');
+  });
+
+  test('W23 — the slide is a real canvas: radius, hairline, elevation', () => {
+    const media = /\.wt-media\s*\{([\s\S]*?)\n\}/.exec(desk);
+    assert.ok(media, 'the slide is styled in the desktop block');
+    assert.match(media[1], /border-radius/, 'the slide has a radius');
+    assert.match(media[1], /border:\s*1px solid var\(--wt-edge\)/, 'the slide has a hairline stroke');
+    assert.match(media[1], /box-shadow/, 'the slide carries elevation');
+  });
+
+  test('W24 — touch keeps the dots; the rail is a pointer-device affordance', () => {
+    // Slice only the mobile block itself, up to the next @media.
+    const start = cssSrc.indexOf('@media (max-width: 999px)');
+    const mob = cssSrc.slice(start, cssSrc.indexOf('@media', start + 10));
+    assert.match(mob, /\.wt-rail\s*\{\s*display:\s*none !important/);
+    assert.doesNotMatch(mob, /\.wt-dots\s*\{\s*display:\s*none/,
+      'the dots must remain the progress indicator on touch');
+  });
+
+  test('W25 — the backdrop is lit, not flat black', () => {
+    assert.match(cssSrc, /body\.wt::before[\s\S]*?radial-gradient/, 'a light source behind the deck');
+    assert.match(cssSrc, /body\.wt::after[\s\S]*?radial-gradient/, 'a vignette to seat the deck');
+    // The canvas itself is a deep near-black, not the gallery's #000.
+    const bg = /--wt-bg:\s*([^;]+);/.exec(cssSrc);
+    assert.ok(bg, 'the deck declares its own backdrop token');
+    assert.notEqual(bg[1].trim().toLowerCase(), '#000000',
+      'the backdrop is lifted off pure black so the deck sits in a space');
+  });
+
+  test('W26 — surfaces resolve from tokens, not ad-hoc literals', () => {
+    // Colours are declared once in :root and referenced everywhere else.
+    const root = cssSrc.slice(0, cssSrc.indexOf('}', cssSrc.indexOf(':root')));
+    const body = cssSrc.slice(cssSrc.indexOf('}', cssSrc.indexOf(':root')) + 1,
+                               cssSrc.indexOf('Slide transitions'));
+    const literal = [...body.matchAll(/#[0-9a-fA-F]{3,8}\b/g)]
+      .map(m => m[0].toLowerCase())
+      // white ink on the accent button, and the toast scrim, are exact
+      // by design; everything else must be a var().
+      .filter(v => v !== '#ffffff');
+    assert.deepEqual(literal, [],
+      'raw hex outside :root — use a token: ' + JSON.stringify(literal));
+    assert.ok(/--wt-r-/.test(root), 'radii are tokenised');
+    assert.match(body, /border-radius:\s*var\(--wt-r-/, 'corners reference the radius tokens');
+  });
+});
+
+describe('W — page assets', () => {
+  // Every walkthrough page is a static shell at its own depth, so each
+  // relative reference has to climb the right number of levels. When
+  // they didn't, oneui.js and download-button.js 404'd on every step
+  // page and the download button silently never rendered.
+  const pages = fs.readdirSync(here)
+    .filter(d => fs.existsSync(join(here, d, 'index.html')))
+    .map(d => ({ dir: d, file: join(here, d, 'index.html') }))
+    .concat([{ dir: '.', file: join(here, 'index.html') }]);
+
+  test('W27 — every local asset a page references resolves to a real file', () => {
+    const broken = [];
+    for (const { dir, file } of pages) {
+      const html = fs.readFileSync(file, 'utf8');
+      const refs = [...html.matchAll(/(?:src|href)="([^"]+)"/g)].map(m => m[1])
+        .filter(u => !/^(https?:)?\/\//.test(u) && !u.startsWith('data:') && !u.startsWith('#'));
+      for (const ref of refs) {
+        // Resolve the reference against the page's own directory, the
+        // way a browser would.
+        const target = path.resolve(path.dirname(file), ref);
+        if (!fs.existsSync(target)) broken.push(dir + ' → ' + ref);
+      }
+    }
+    assert.deepEqual(broken, [], 'unresolved local references:\n  ' + broken.join('\n  '));
+  });
+
+  test('W28 — every step page loads the motion tokens and the download button', () => {
+    for (const { dir } of pages) {
+      if (dir === '.') continue; // the landing has no photo, so no download
+      const html = fs.readFileSync(join(here, dir, 'index.html'), 'utf8');
+      assert.match(html, /src="\.\.\/\.\.\/oneui\.js"/, dir + ' must load oneui.js from the repo root');
+      assert.match(html, /src="\.\.\/\.\.\/download-button\.js"/, dir + ' must load the download button');
+    }
+  });
+
+  test('W29 — the deck is 16:9 and the landing fits its viewport', () => {
+    const deskBlock = cssSrc.slice(cssSrc.indexOf('@media (pointer: fine) and (min-width: 1000px)'));
+    assert.match(deskBlock, /aspect-ratio:\s*16\s*\/\s*9/, 'the slide keeps a slide ratio');
+    // The landing centres its content, so it can never overflow.
+    const land = /\.wt-page-landing \.wt-panel\s*\{([\s\S]*?)\n\}/.exec(cssSrc);
+    assert.ok(land && /justify-content:\s*center/.test(land[1]),
+      'the landing panel centres instead of bottom-anchoring its overflow');
+  });
+});
+
 describe('W — the CSS contract', () => {
   const block = cssSrc.slice(cssSrc.indexOf('Slide transitions'));
   // Comments are prose — they say "no blur, glow, gradient"; only the
@@ -406,15 +516,46 @@ describe('W — the CSS contract', () => {
     for (const v of ms) assert.ok(allowed.has(v), 'hardcoded duration ' + v + 'ms in the transition block');
   });
 
-  test('W19 — only transform, opacity and clip-path move', () => {
-    const body = rules.slice(0, rules.indexOf('Reduced motion'));
-    for (const forbidden of ['box-shadow:', 'linear-gradient', 'radial-gradient', 'backdrop-filter', 'filter:']) {
-      assert.ok(!body.includes(forbidden), forbidden + ' must not appear in the transition rules');
+  test('W19 — the slide transition moves only transform, opacity and clip-path', () => {
+    // The deck has deliberate elevation and a lit backdrop (that is the
+    // PowerPoint-inspired part); what must not happen is the SLIDE
+    // smearing its own shadow while it travels. So the audit is scoped
+    // to the carrier rules only, not the whole stylesheet.
+    const carriers = /\.wt-page\.wt-t-arrive,\s*[\s\S]*?\n\}/.exec(rules);
+    assert.ok(carriers, 'the shared carrier rule exists');
+    for (const prop of ['transform', 'clip-path', 'opacity']) {
+      assert.ok(carriers[0].includes(prop), 'the carrier applies ' + prop);
     }
     // Reduced motion's own `animation: none` for the ambient drift is
-    // below this slice; the slide itself must ride `transition`.
-    assert.ok(!/\banimation:(?! none)/.test(body),
+    // outside this rule; the slide itself must ride `transition`.
+    assert.ok(!/\banimation:(?! none)/.test(rules),
       'transitions ride the transition property, not keyframes');
+  });
+
+  test('W21 — elevation is layered and directional, never a heavy drop shadow', () => {
+    // Fluent's system: a sharp key shadow that defines the edge plus a
+    // soft ambient shadow that implies distance, light from above.
+    // The SLIDE must be layered (it is the deck's hero surface); the
+    // smaller controls take a single key shadow, which is correct.
+    const lifts = [...cssSrc.matchAll(/--wt-lift-([a-z]+):\s*([^;]+);/g)];
+    assert.ok(lifts.length >= 2, 'at least a slide and a control elevation');
+    const byName = Object.fromEntries(lifts.map(m => [m[1], m[2]]));
+    const slide = byName.slide;
+    assert.ok(slide, 'the slide has its own elevation token');
+    assert.equal((slide.match(/rgba\(/g) || []).length, 2,
+      'the slide layers a key and an ambient shadow: ' + slide);
+    for (const l of lifts.map(m => m[2])) {
+      // Each layer is "offsetX offsetY blur rgba(...)" — parse it as a
+      // function, not by splitting on commas (the offset contains one).
+      const layers = l.match(/[^,]+rgba\([^)]*\)/g) || [];
+      assert.ok(layers.length >= 1, 'a shadow token declares at least one layer: ' + l);
+      for (const layer of layers) {
+        const m = /^(\S+)\s+(\S+)\s+(?:(\S+)\s+)?rgba\(/.exec(layer.trim());
+        assert.ok(m, 'a shadow layer parses: ' + layer);
+        assert.equal(m[1], '0', 'the light source is directly above: ' + layer);
+        assert.ok(parseFloat(m[2]) >= 0, 'no upward offset: ' + layer);
+      }
+    }
   });
 
   test('W20 — one easing, and reduced motion switches the lot off', () => {
