@@ -39,19 +39,28 @@ completed tour never restarts on its own.
 
 The tour has two audiences. Everyone walks the shared path: the photo wall,
 the viewer's arrows, the Albums tab, an album, and the ⋮ menu — including
-where admins sign in. A user who is already signed in as admin when the tour
-starts walks the admin tool set instead (sign in *before* starting the tour
-to see it): add photos and the upload dialog, search (type, scope, clear),
-new album, select + move, album settings, classify, delete (the
-confirmation is canceled — the tour deletes nothing), and sign out. Admin
-steps are filtered out for visitors — the tour never renders a step the
-signed-out user cannot perform.
+where admins sign in (11 steps). A user who is already signed in as admin when
+the tour starts walks **every admin control** instead (54 steps): add photos
+from the menu and from the + button, the upload dialog, search (type, scope,
+clear), new album, select → mark → move → delete, album settings (rename,
+remove, undo, revert), the per-album ⋮ menu, the viewer's download, classify
+(save and cancel), viewer delete, and sign out. Sign in *before* starting the
+tour to see that walk. Admin steps are filtered out for visitors — the tour
+never renders a step the signed-out user cannot perform.
+
+Every button the tour clicks is either guarded by the app (it changes nothing:
+an empty-field toast, a `confirm()` the user cancels, or a real no-op) or is
+one of two buttons marked `commit: true` — **Upload** and **Undo last change**,
+which write to the repo with no guard and no confirmation. Those two are still
+shown, but their hint says what the click really does and the way past is the
+existing *Skip this step* escape. Nothing forces them.
 
 Run the tour's test suite with `node --test tour/` (Node 18+; same
 `node:test` + `vm`-sandbox harness as `tests/`). It covers gating, action
 detection (including synthetic-event rejection), the confirm/unlock
 hand-off, escapes, persistence, reduced-motion, a11y, the speed multiplier,
-the audience filter, and the full 36-step authored tour end to end.
+the audience filter, and the full 56-step authored tour end to end — plus a
+coverage audit that fails if any button in `index.html` loses its tour step.
 
 ## Testing it before you have a repo
 

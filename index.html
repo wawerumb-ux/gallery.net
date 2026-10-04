@@ -58,7 +58,7 @@
     </button>
     <span class="select-count" id="selectCount">0 selected</span>
     <div class="select-actions">
-      <button class="select-action" id="selectDelete" disabled>Delete</button>
+      <button class="select-action" id="selectDelete" disabled data-tour-target="select-delete">Delete</button>
       <button class="select-action select-action-primary" id="selectMove" disabled data-tour-target="select-move">Move</button>
     </div>
   </div>
@@ -83,7 +83,7 @@
     </div>
   </main>
 
-  <button class="fab" id="fabAdd" hidden aria-label="Add photos" title="Add photos">
+  <button class="fab" id="fabAdd" hidden aria-label="Add photos" title="Add photos" data-tour-target="fab-add">
     <svg viewBox="0 0 24 24" width="26" height="26" fill="currentColor" aria-hidden="true"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
   </button>
 
@@ -167,7 +167,7 @@
     <input type="file" id="newFolderFiles" multiple accept="image/*" hidden>
     <div class="modal-actions">
       <button class="btn btn-ghost" id="newAlbumCancel" data-tour-target="new-album-cancel">Cancel</button>
-      <button class="btn btn-primary" id="newFolderBtn">Choose photos</button>
+      <button class="btn btn-primary" id="newFolderBtn" data-tour-target="new-album-pick">Choose photos</button>
     </div>
   </div>
 </div>
@@ -180,7 +180,7 @@
     <div class="pick-list" id="uploadPickList"></div>
     <div class="modal-actions">
       <button class="btn btn-ghost" id="uploadCancel" data-tour-target="upload-cancel">Cancel</button>
-      <button class="btn btn-primary" id="uploadConfirm">Upload</button>
+      <button class="btn btn-primary" id="uploadConfirm" data-tour-target="upload-confirm">Upload</button>
     </div>
   </div>
 </div>
@@ -197,7 +197,7 @@
     <div class="pick-list sort-list" id="sortPickList"></div>
     <div class="modal-actions">
       <button class="btn btn-ghost" id="sortCancel" data-tour-target="move-cancel">Cancel</button>
-      <button class="btn btn-primary" id="sortConfirm">Move photos</button>
+      <button class="btn btn-primary" id="sortConfirm" data-tour-target="move-confirm">Move photos</button>
     </div>
   </div>
 </div>
@@ -212,15 +212,15 @@
     <label class="tag-field" for="settingsPhaseRename">Rename to</label>
     <input type="text" id="settingsPhaseRename" class="text-input" placeholder="new-album-name" autocomplete="off">
     <div class="modal-actions">
-      <button class="btn btn-ghost" id="settingsRenameBtn">Rename</button>
-      <button class="btn btn-danger" id="settingsRemoveBtn">Remove album</button>
+      <button class="btn btn-ghost" id="settingsRenameBtn" data-tour-target="settings-rename">Rename</button>
+      <button class="btn btn-danger" id="settingsRemoveBtn" data-tour-target="settings-remove">Remove album</button>
       <button class="btn btn-ghost" id="settingsCancel" data-tour-target="album-settings-cancel">Cancel</button>
     </div>
     <hr class="modal-divider">
     <p class="modal-note">Every admin action is recorded as a commit. Undo steps back the last one; Revert all returns every photo and album to how the gallery started.</p>
     <div class="modal-actions">
-      <button class="btn btn-ghost" id="settingsUndoBtn">Undo last change</button>
-      <button class="btn btn-ghost" id="settingsRevertBtn">Revert all</button>
+      <button class="btn btn-ghost" id="settingsUndoBtn" data-tour-target="settings-undo">Undo last change</button>
+      <button class="btn btn-ghost" id="settingsRevertBtn" data-tour-target="settings-revert">Revert all</button>
     </div>
     <p class="modal-note">Removing an album deletes it and all of its photos from the repo.</p>
   </div>
@@ -240,7 +240,7 @@
     <input type="text" id="tagRename" class="text-input" placeholder="new-photo-name.jpg" autocomplete="off">
     <div class="modal-actions">
       <button class="btn btn-ghost" id="tagCancel" data-tour-target="classify-cancel">Cancel</button>
-      <button class="btn btn-primary" id="tagSave">Save</button>
+      <button class="btn btn-primary" id="tagSave" data-tour-target="classify-save">Save</button>
     </div>
   </div>
 </div>

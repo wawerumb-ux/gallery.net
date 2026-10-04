@@ -19,21 +19,31 @@
      2. visitorOnly: where admins sign in — the sign-in box is a
         public surface (anyone may open it), so visitors see it and
         close it. The tour then completes.
-     3. adminOnly: the admin tool set. These steps exist in this
-        file but are filtered out for visitors — the tour never
-        renders a step the signed-out user cannot perform. An admin
-        who starts the tour signed in walks them all, each as the
-        real action: add photos, the upload dialog, search (type,
-        scope, clear), new album, select + move, album settings,
-        classify, delete (the confirmation is canceled — the tour
-        deletes nothing), and sign out.
+     3. adminOnly: every admin control, each as the real action —
+        add photos and the upload dialog, search (type, scope,
+        clear), new album, select + mark + move + delete, album
+        settings (rename, remove, undo, revert), the per-album ⋮
+        menu, the viewer's download, classify (save and cancel),
+        viewer delete, and sign out.
 
-   Steps that open a native dialog (the file picker behind Add
-   photos, the delete confirmation) advance on the click that opens
-   it; the dialog itself is the user's own business. Steps whose
-   target only exists conditionally (the upload dialog appears only
-   if a photo was picked) are skipped by the engine's missing-target
-   rule if it never appears — skipped, never trapped.
+   SAFETY — how each action is chosen:
+     • Most commit buttons are guarded by the app itself, and the
+       tour leans on that guard: Rename, Choose photos and Move
+       photos all short-circuit with a toast when their field is
+       empty; Remove album, the selection Delete and Revert all open
+       a confirm() the user cancels; classify's Save is a true
+       no-op (same-name rename guard + metadata hash guard). So the
+       tour can click every one of them and change nothing.
+     • Two buttons have NO guard and no confirm: Upload writes the
+       picked files to the repo, and Undo last change restores it.
+       They are still shown (a tour that hid them would not reveal
+       all functionality) but are marked commit: true — the hint
+       says what the click really does, and the intended way past is
+       the existing "Skip this step" escape. Nothing forces it.
+     • Steps whose target only exists conditionally (the upload
+       dialog appears only if a photo was picked) are skipped by
+       the engine's missing-target rule if it never appears —
+       skipped, never trapped.
    ──────────────────────────────────────────────────────────────────── */
 
 /**
@@ -48,6 +58,10 @@
  * @property {TourConfirm} confirm   what plays on success
  * @property {TourEscape} [escape]   optional fallback if stuck
  * @property {string}   [unlockMessage] short line shown after confirm
+ * @property {boolean}  [commit]     the target writes to the repo with
+ *                                   no guard and no confirm — the hint
+ *                                   warns, and "Skip this step" is the
+ *                                   intended way past
  * @property {boolean}  [adminOnly]  boot.js drops this step unless the
  *                                   tour starts with admin signed in
  * @property {boolean}  [visitorOnly] boot.js drops this step when the
@@ -83,7 +97,7 @@
 /* The authored tour. The `order` fields are the authored sequence;
    boot.js renumbers the audience-filtered list before the engine
    walks it, so the on-screen "N / total" is always right for both
-   audiences (11 steps for visitors, 34 for signed-in admins). */
+   audiences (11 steps for visitors, 54 for signed-in admins). */
 const TOUR_STEPS = [
   /* ── Segment 1: the shared path (every visitor) ─────────── */
 
@@ -213,8 +227,10 @@ const TOUR_STEPS = [
     confirm: { kind: 'toast', text: 'Tour complete — welcome to the archive.' },
   },
 
-  /* ── Segment 3: admin-only — the tool set (shown only when
-        the tour starts signed in; boot.js filters by adminMode) ─ */
+  /* ── Segment 3: admin-only — every admin control (shown only
+        when the tour starts signed in; boot.js filters by
+        adminMode). Each action is the real one; the app's own
+        guards keep every commit button a no-op (see the header). ─ */
 
   {
     id: 'menu-add-photos',
@@ -222,15 +238,28 @@ const TOUR_STEPS = [
     adminOnly: true,
     title: 'Add photos to the archive',
     prompt: 'Click Add photos.',
-    hint: 'The big + button does the same thing. Pick at least one photo so the upload dialog opens.',
+    hint: 'Pick at least one photo so the upload dialog opens.',
     target: { kind: 'selector', selector: '[data-tour-target="menu-add-photos"]', label: 'Add photos item' },
     action: { kind: 'click' },
     confirm: { kind: 'pulse' },
     unlockMessage: 'Picker open.',
   },
   {
-    id: 'upload-cancel',
+    id: 'upload-confirm',
     order: 13,
+    adminOnly: true,
+    commit: true,
+    title: 'Upload the picked photos',
+    prompt: 'Click Upload, or skip this step.',
+    hint: 'Upload writes to the repo for real — skip it to tour on safely.',
+    target: { kind: 'selector', selector: '[data-tour-target="upload-confirm"]', label: 'Upload button' },
+    action: { kind: 'click' },
+    confirm: { kind: 'pulse' },
+    unlockMessage: 'Upload button seen.',
+  },
+  {
+    id: 'upload-cancel',
+    order: 14,
     adminOnly: true,
     title: 'Cancel the upload dialog',
     prompt: 'Click Cancel in the upload dialog.',
@@ -241,8 +270,32 @@ const TOUR_STEPS = [
     unlockMessage: 'Upload dialog closed.',
   },
   {
+    id: 'fab-add',
+    order: 15,
+    adminOnly: true,
+    title: 'Add photos from the + button',
+    prompt: 'Click the + button.',
+    hint: 'The same picker the menu opens — cancel it to move on.',
+    target: { kind: 'selector', selector: '[data-tour-target="fab-add"]', label: 'Add photos + button' },
+    action: { kind: 'click' },
+    confirm: { kind: 'pulse' },
+    unlockMessage: 'Picker open.',
+  },
+  {
+    id: 'upload-cancel-2',
+    order: 16,
+    adminOnly: true,
+    title: 'Cancel this upload too',
+    prompt: 'Click Cancel in the upload dialog.',
+    hint: 'Same dialog, same guard — nothing uploads.',
+    target: { kind: 'selector', selector: '[data-tour-target="upload-cancel"]', label: 'Cancel button' },
+    action: { kind: 'click' },
+    confirm: { kind: 'pulse' },
+    unlockMessage: 'Upload dialog closed.',
+  },
+  {
     id: 'pictures-tab',
-    order: 14,
+    order: 17,
     adminOnly: true,
     title: 'Back to the Pictures wall',
     prompt: 'Click the Pictures tab.',
@@ -254,7 +307,7 @@ const TOUR_STEPS = [
   },
   {
     id: 'search-type',
-    order: 15,
+    order: 18,
     adminOnly: true,
     title: 'Search the archive',
     prompt: 'Type in the search box.',
@@ -266,7 +319,7 @@ const TOUR_STEPS = [
   },
   {
     id: 'search-scope',
-    order: 16,
+    order: 19,
     adminOnly: true,
     title: 'Choose what to search',
     prompt: 'Open the scope dropdown and pick one.',
@@ -278,7 +331,7 @@ const TOUR_STEPS = [
   },
   {
     id: 'search-clear',
-    order: 17,
+    order: 20,
     adminOnly: true,
     title: 'Clear the search',
     prompt: 'Delete the search text.',
@@ -292,7 +345,7 @@ const TOUR_STEPS = [
   },
   {
     id: 'menu-open-2',
-    order: 18,
+    order: 21,
     adminOnly: true,
     title: 'Open the options menu',
     prompt: 'Click the More options button.',
@@ -304,7 +357,7 @@ const TOUR_STEPS = [
   },
   {
     id: 'menu-new-album',
-    order: 19,
+    order: 22,
     adminOnly: true,
     title: 'Start a new album',
     prompt: 'Click New album…',
@@ -315,8 +368,20 @@ const TOUR_STEPS = [
     unlockMessage: 'New-album box open.',
   },
   {
+    id: 'new-album-pick',
+    order: 23,
+    adminOnly: true,
+    title: 'Choose photos for the album',
+    prompt: 'Click Choose photos.',
+    hint: 'With the name empty this shows the guard — no picker opens.',
+    target: { kind: 'selector', selector: '[data-tour-target="new-album-pick"]', label: 'Choose photos button' },
+    action: { kind: 'click' },
+    confirm: { kind: 'pulse' },
+    unlockMessage: 'Guard seen.',
+  },
+  {
     id: 'new-album-cancel',
-    order: 20,
+    order: 24,
     adminOnly: true,
     title: 'Close the new-album box',
     prompt: 'Click Cancel.',
@@ -328,7 +393,7 @@ const TOUR_STEPS = [
   },
   {
     id: 'menu-open-3',
-    order: 21,
+    order: 25,
     adminOnly: true,
     title: 'Open the options menu',
     prompt: 'Click the More options button.',
@@ -340,7 +405,7 @@ const TOUR_STEPS = [
   },
   {
     id: 'menu-select-photos',
-    order: 22,
+    order: 26,
     adminOnly: true,
     title: 'Select several photos',
     prompt: 'Click Select photos.',
@@ -352,7 +417,7 @@ const TOUR_STEPS = [
   },
   {
     id: 'pick-photo',
-    order: 23,
+    order: 27,
     adminOnly: true,
     title: 'Mark a photo',
     prompt: 'Click a photo to mark it.',
@@ -364,7 +429,7 @@ const TOUR_STEPS = [
   },
   {
     id: 'select-move',
-    order: 24,
+    order: 28,
     adminOnly: true,
     title: 'Move the marked photos',
     prompt: 'Click Move.',
@@ -375,8 +440,20 @@ const TOUR_STEPS = [
     unlockMessage: 'Move dialog open.',
   },
   {
+    id: 'move-confirm',
+    order: 29,
+    adminOnly: true,
+    title: 'See the Move photos button',
+    prompt: 'Click Move photos.',
+    hint: 'With no album chosen this shows the guard — nothing moves.',
+    target: { kind: 'selector', selector: '[data-tour-target="move-confirm"]', label: 'Move photos button' },
+    action: { kind: 'click' },
+    confirm: { kind: 'pulse' },
+    unlockMessage: 'Guard seen.',
+  },
+  {
     id: 'move-cancel',
-    order: 25,
+    order: 30,
     adminOnly: true,
     title: 'Cancel the move',
     prompt: 'Click Cancel in the move dialog.',
@@ -387,8 +464,20 @@ const TOUR_STEPS = [
     unlockMessage: 'Move canceled.',
   },
   {
+    id: 'select-delete',
+    order: 31,
+    adminOnly: true,
+    title: 'Delete the marked photos',
+    prompt: 'Click Delete in the selection bar.',
+    hint: 'Cancel the confirmation — this tour deletes nothing.',
+    target: { kind: 'selector', selector: '[data-tour-target="select-delete"]', label: 'Delete button' },
+    action: { kind: 'click' },
+    confirm: { kind: 'pulse' },
+    unlockMessage: 'Delete dialog seen.',
+  },
+  {
     id: 'select-close',
-    order: 26,
+    order: 32,
     adminOnly: true,
     title: 'Exit selection mode',
     prompt: 'Click the Close button in the bar.',
@@ -400,7 +489,7 @@ const TOUR_STEPS = [
   },
   {
     id: 'menu-open-4',
-    order: 27,
+    order: 33,
     adminOnly: true,
     title: 'Open the options menu',
     prompt: 'Click the More options button.',
@@ -412,19 +501,68 @@ const TOUR_STEPS = [
   },
   {
     id: 'menu-album-settings',
-    order: 28,
+    order: 34,
     adminOnly: true,
     title: 'Open album settings',
     prompt: 'Click Album settings.',
-    hint: 'Pick an album, rename it, or remove it — removal has undo.',
+    hint: 'Rename, remove, undo, or revert — everything here is a commit.',
     target: { kind: 'selector', selector: '[data-tour-target="menu-album-settings"]', label: 'Album settings item' },
     action: { kind: 'click' },
     confirm: { kind: 'pulse' },
     unlockMessage: 'Album settings open.',
   },
   {
+    id: 'settings-rename',
+    order: 35,
+    adminOnly: true,
+    title: 'Rename an album',
+    prompt: 'Click Rename.',
+    hint: 'With the name empty this shows the guard — nothing is renamed.',
+    target: { kind: 'selector', selector: '[data-tour-target="settings-rename"]', label: 'Rename button' },
+    action: { kind: 'click' },
+    confirm: { kind: 'pulse' },
+    unlockMessage: 'Guard seen.',
+  },
+  {
+    id: 'settings-remove',
+    order: 36,
+    adminOnly: true,
+    title: 'Remove an album',
+    prompt: 'Click Remove album.',
+    hint: 'Cancel the confirmation — no photo is deleted.',
+    target: { kind: 'selector', selector: '[data-tour-target="settings-remove"]', label: 'Remove album button' },
+    action: { kind: 'click' },
+    confirm: { kind: 'pulse' },
+    unlockMessage: 'Remove dialog seen.',
+  },
+  {
+    id: 'settings-undo',
+    order: 37,
+    adminOnly: true,
+    commit: true,
+    title: 'Step back the last change',
+    prompt: 'Click Undo last change, or skip this step.',
+    hint: 'This restores the real repo — skip it to tour on safely.',
+    target: { kind: 'selector', selector: '[data-tour-target="settings-undo"]', label: 'Undo last change button' },
+    action: { kind: 'click' },
+    confirm: { kind: 'pulse' },
+    unlockMessage: 'Undo button seen.',
+  },
+  {
+    id: 'settings-revert',
+    order: 38,
+    adminOnly: true,
+    title: 'Revert every change',
+    prompt: 'Click Revert all.',
+    hint: 'Cancel the confirmation — every photo and album stays.',
+    target: { kind: 'selector', selector: '[data-tour-target="settings-revert"]', label: 'Revert all button' },
+    action: { kind: 'click' },
+    confirm: { kind: 'pulse' },
+    unlockMessage: 'Revert dialog seen.',
+  },
+  {
     id: 'album-settings-cancel',
-    order: 29,
+    order: 39,
     adminOnly: true,
     title: 'Close album settings',
     prompt: 'Click Cancel.',
@@ -435,20 +573,118 @@ const TOUR_STEPS = [
     unlockMessage: 'Album settings closed.',
   },
   {
+    id: 'albums-tab-2',
+    order: 40,
+    adminOnly: true,
+    title: 'Back to the album covers',
+    prompt: 'Click the Albums tab.',
+    hint: 'Each cover carries its own ⋮ menu.',
+    target: { kind: 'selector', selector: '[data-tour-target="tab-albums"]', label: 'Albums tab' },
+    action: { kind: 'click' },
+    confirm: { kind: 'pulse' },
+    unlockMessage: 'Albums unlocked.',
+  },
+  {
+    id: 'album-menu-open',
+    order: 41,
+    adminOnly: true,
+    title: "Open an album's own menu",
+    prompt: 'Click the ⋮ on an album cover.',
+    hint: 'It holds Add photos and Album settings for that one album.',
+    target: { kind: 'selector', selector: '[data-tour-target="album-menu"]', label: 'album ⋮ button' },
+    action: { kind: 'click' },
+    confirm: { kind: 'pulse' },
+    unlockMessage: 'Album menu open.',
+  },
+  {
+    id: 'album-menu-add-photos',
+    order: 42,
+    adminOnly: true,
+    title: 'Add photos to this album',
+    prompt: 'Click Add photos.',
+    hint: 'The same picker, scoped to this album — cancel it to move on.',
+    target: { kind: 'selector', selector: '[data-tour-target="album-menu-add-photos"]', label: 'Add photos item' },
+    action: { kind: 'click' },
+    confirm: { kind: 'pulse' },
+    unlockMessage: 'Picker open.',
+  },
+  {
+    id: 'album-menu-open-2',
+    order: 43,
+    adminOnly: true,
+    title: "Open that album's menu again",
+    prompt: 'Click the ⋮ on an album cover.',
+    hint: 'The sheet closes on every tap, so it opens fresh.',
+    target: { kind: 'selector', selector: '[data-tour-target="album-menu"]', label: 'album ⋮ button' },
+    action: { kind: 'click' },
+    confirm: { kind: 'pulse' },
+    unlockMessage: 'Album menu open.',
+  },
+  {
+    id: 'menu-album-settings-2',
+    order: 44,
+    adminOnly: true,
+    title: "Open this album's settings",
+    prompt: 'Click Album settings.',
+    hint: 'This one is preselected to the album you tapped.',
+    target: { kind: 'selector', selector: '[data-tour-target="album-menu-album-settings"]', label: 'Album settings item' },
+    action: { kind: 'click' },
+    confirm: { kind: 'pulse' },
+    unlockMessage: 'Album settings open.',
+  },
+  {
+    id: 'album-settings-cancel-2',
+    order: 45,
+    adminOnly: true,
+    title: 'Close album settings',
+    prompt: 'Click Cancel.',
+    hint: 'Nothing changes.',
+    target: { kind: 'selector', selector: '[data-tour-target="album-settings-cancel"]', label: 'Cancel button' },
+    action: { kind: 'click' },
+    confirm: { kind: 'pulse' },
+    unlockMessage: 'Album settings closed.',
+  },
+  {
+    id: 'pictures-tab-2',
+    order: 46,
+    adminOnly: true,
+    title: 'Back to the Pictures wall',
+    prompt: 'Click the Pictures tab.',
+    hint: 'One more photo — the viewer still has tools.',
+    target: { kind: 'selector', selector: '[data-tour-target="tab-pictures"]', label: 'Pictures tab' },
+    action: { kind: 'click' },
+    confirm: { kind: 'pulse' },
+    unlockMessage: 'Wall restored.',
+  },
+  {
     id: 'wall-photo-2',
-    order: 30,
+    order: 47,
     adminOnly: true,
     title: 'Open a photo again',
     prompt: 'Click any photo on the wall.',
-    hint: 'The viewer has two more admin tools.',
+    hint: 'The viewer has the last three tools.',
     target: { kind: 'selector', selector: '[data-tour-target="photo-card"]', label: 'photo' },
     action: { kind: 'click' },
     confirm: { kind: 'pulse' },
     unlockMessage: 'Viewer open.',
   },
   {
+    id: 'viewer-download',
+    order: 48,
+    adminOnly: true,
+    title: 'Download the photo',
+    prompt: 'Click the download button.',
+    hint: 'It fetches the full-resolution file for the photo on screen.',
+    // The DownloadButton component is not modified; its <a> is
+    // targeted by its real container selector instead.
+    target: { kind: 'selector', selector: '#lightboxDownloadSlot a', label: 'download button' },
+    action: { kind: 'click' },
+    confirm: { kind: 'pulse' },
+    unlockMessage: 'Download works.',
+  },
+  {
     id: 'viewer-classify',
-    order: 31,
+    order: 49,
     adminOnly: true,
     title: 'Classify the photo',
     prompt: 'Click Classify.',
@@ -459,8 +695,32 @@ const TOUR_STEPS = [
     unlockMessage: 'Classify box open.',
   },
   {
+    id: 'classify-save',
+    order: 50,
+    adminOnly: true,
+    title: 'Save the classification',
+    prompt: 'Click Save.',
+    hint: 'Nothing changed in the fields, so this saves without renaming.',
+    target: { kind: 'selector', selector: '[data-tour-target="classify-save"]', label: 'Save button' },
+    action: { kind: 'click' },
+    confirm: { kind: 'pulse' },
+    unlockMessage: 'Saved classification.',
+  },
+  {
+    id: 'viewer-classify-2',
+    order: 51,
+    adminOnly: true,
+    title: 'Open classify again',
+    prompt: 'Click Classify.',
+    hint: 'The same box — this time just close it.',
+    target: { kind: 'selector', selector: '[data-tour-target="viewer-classify"]', label: 'Classify button' },
+    action: { kind: 'click' },
+    confirm: { kind: 'pulse' },
+    unlockMessage: 'Classify box open.',
+  },
+  {
     id: 'classify-cancel',
-    order: 32,
+    order: 52,
     adminOnly: true,
     title: 'Close the classify box',
     prompt: 'Click Cancel.',
@@ -472,7 +732,7 @@ const TOUR_STEPS = [
   },
   {
     id: 'viewer-delete',
-    order: 33,
+    order: 53,
     adminOnly: true,
     title: 'Delete a photo',
     prompt: 'Click Delete.',
@@ -484,7 +744,7 @@ const TOUR_STEPS = [
   },
   {
     id: 'viewer-close-2',
-    order: 34,
+    order: 54,
     adminOnly: true,
     title: 'Close the viewer',
     prompt: 'Click the Back arrow.',
@@ -496,7 +756,7 @@ const TOUR_STEPS = [
   },
   {
     id: 'menu-open-5',
-    order: 35,
+    order: 55,
     adminOnly: true,
     title: 'Open the options menu',
     prompt: 'Click the More options button.',
@@ -508,7 +768,7 @@ const TOUR_STEPS = [
   },
   {
     id: 'menu-sign-out',
-    order: 36,
+    order: 56,
     adminOnly: true,
     title: 'Sign out of admin mode',
     prompt: 'Click Sign out.',

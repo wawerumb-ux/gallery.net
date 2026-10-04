@@ -911,7 +911,7 @@ function albumCardMarkup(folder) {
     <div class="album-cover">
       <img src="${thumbSrc(cover)}" data-full="${cardSrc(cover)}" alt="${escapeAttr(stageName)}" loading="lazy" decoding="async">
       ${needsReview ? `<span class="album-badge" title="Some photos here have no journey stage assigned">Needs review</span>` : ''}
-      ${state.adminMode ? `<button class="album-more" data-folder="${escapeAttr(folder)}" aria-label="Options for ${escapeAttr(stageName)}">${ICONS.ellipsis}</button>` : ''}
+      ${state.adminMode ? `<button class="album-more" data-folder="${escapeAttr(folder)}" aria-label="Options for ${escapeAttr(stageName)}" data-tour-target="album-menu">${ICONS.ellipsis}</button>` : ''}
     </div>
     <figcaption class="album-meta">
       <span class="album-name">${escapeHtml(stageName)}</span>
@@ -1500,8 +1500,8 @@ function albumMenu(folder) {
   openSheet({
     title: j ? j.stage : folder,
     items: [
-      { icon: ICONS.photoAdd, label: 'Add photos', onTap: () => pickFiles(folder) },
-      { icon: ICONS.gear, label: 'Album settings', onTap: () => openSettingsModal(folder) },
+      { icon: ICONS.photoAdd, label: 'Add photos', tourTarget: 'album-menu-add-photos', onTap: () => pickFiles(folder) },
+      { icon: ICONS.gear, label: 'Album settings', tourTarget: 'album-menu-album-settings', onTap: () => openSettingsModal(folder) },
     ],
   });
 }

@@ -305,6 +305,64 @@ function setup({ reducedMotion = false, multiplierPatch = null, seedState = null
   const sortCancel = modalCancel('sortCancel', 'move-cancel');
   const settingsCancel = modalCancel('settingsCancel', 'album-settings-cancel');
   const tagCancel = modalCancel('tagCancel', 'classify-cancel');
+  // The commit buttons the tour clicks but that change nothing:
+  // each is guarded by the app (empty-field toast, confirm() the
+  // user cancels, or the same-name/metadata-hash no-op) — except
+  // the two marked commit:true in steps.js.
+  const uploadConfirm = reg(makeEl('button', { rect: { top: 500, left: 664, right: 784, bottom: 540, width: 120, height: 40 } }));
+  uploadConfirm.id = 'uploadConfirm';
+  uploadConfirm.setAttribute('data-tour-target', 'upload-confirm');
+  const newFolderBtn = reg(makeEl('button', { rect: { top: 500, left: 664, right: 784, bottom: 540, width: 120, height: 40 } }));
+  newFolderBtn.id = 'newFolderBtn';
+  newFolderBtn.setAttribute('data-tour-target', 'new-album-pick');
+  const sortConfirm = reg(makeEl('button', { rect: { top: 500, left: 664, right: 784, bottom: 540, width: 120, height: 40 } }));
+  sortConfirm.id = 'sortConfirm';
+  sortConfirm.setAttribute('data-tour-target', 'move-confirm');
+  const settingsRenameBtn = reg(makeEl('button', { rect: { top: 500, left: 544, right: 624, bottom: 540, width: 80, height: 40 } }));
+  settingsRenameBtn.id = 'settingsRenameBtn';
+  settingsRenameBtn.setAttribute('data-tour-target', 'settings-rename');
+  const settingsRemoveBtn = reg(makeEl('button', { rect: { top: 500, left: 634, right: 744, bottom: 540, width: 110, height: 40 } }));
+  settingsRemoveBtn.id = 'settingsRemoveBtn';
+  settingsRemoveBtn.setAttribute('data-tour-target', 'settings-remove');
+  const settingsUndoBtn = reg(makeEl('button', { rect: { top: 560, left: 544, right: 664, bottom: 600, width: 120, height: 40 } }));
+  settingsUndoBtn.id = 'settingsUndoBtn';
+  settingsUndoBtn.setAttribute('data-tour-target', 'settings-undo');
+  const settingsRevertBtn = reg(makeEl('button', { rect: { top: 560, left: 674, right: 784, bottom: 600, width: 110, height: 40 } }));
+  settingsRevertBtn.id = 'settingsRevertBtn';
+  settingsRevertBtn.setAttribute('data-tour-target', 'settings-revert');
+  const tagSave = reg(makeEl('button', { rect: { top: 500, left: 664, right: 784, bottom: 540, width: 120, height: 40 } }));
+  tagSave.id = 'tagSave';
+  tagSave.setAttribute('data-tour-target', 'classify-save');
+  const fabAdd = reg(makeEl('button', { rect: { top: 600, left: 1180, right: 1256, bottom: 656, width: 56, height: 56 } }));
+  fabAdd.id = 'fabAdd';
+  fabAdd.setAttribute('data-tour-target', 'fab-add');
+  const selectDelete = reg(makeEl('button', { rect: { top: 20, left: 900, right: 990, bottom: 64, width: 90, height: 44 } }));
+  selectDelete.id = 'selectDelete';
+  selectDelete.setAttribute('data-tour-target', 'select-delete');
+  selectBar.appendChild(selectDelete);
+  // The per-album ⋮ chip (rendered by albumCardMarkup) and the
+  // sheet items openSheet builds from albumMenu().
+  const albumMore = reg(makeEl('button', { rect: { top: 210, left: 360, right: 396, bottom: 246, width: 36, height: 36 } }));
+  albumMore.setAttribute('data-tour-target', 'album-menu');
+  albumsView.appendChild(albumMore);
+  const albumMenuAddPhotos = sheetItem('album-menu-add-photos');
+  const albumMenuAlbumSettings = sheetItem('album-menu-album-settings');
+  // The viewer's DownloadButton: an <a> inside its slot, targeted
+  // by container selector so the component is never modified.
+  const dlbSlot = reg(makeEl('span', { rect: { top: 740, left: 200, right: 360, bottom: 784, width: 160, height: 44 } }));
+  dlbSlot.id = 'lightboxDownloadSlot';
+  const dlb = reg(makeEl('a', { rect: { top: 740, left: 200, right: 360, bottom: 784, width: 160, height: 44 } }));
+  dlbSlot.appendChild(dlb);
+  lightbox.appendChild(dlbSlot);
+  body.appendChild(fabAdd);
+  body.appendChild(uploadConfirm);
+  body.appendChild(newFolderBtn);
+  body.appendChild(sortConfirm);
+  body.appendChild(settingsRenameBtn);
+  body.appendChild(settingsRemoveBtn);
+  body.appendChild(settingsUndoBtn);
+  body.appendChild(settingsRevertBtn);
+  body.appendChild(tagSave);
 
   class FakeDate {
     static now() { return fakeNow; }
@@ -421,6 +479,20 @@ function setup({ reducedMotion = false, multiplierPatch = null, seedState = null
     adminSearchFilter,
     selectClose,
     selectMove,
+    selectDelete,
+    fabAdd,
+    albumMore,
+    albumMenuAddPhotos,
+    albumMenuAlbumSettings,
+    dlb,
+    uploadConfirm,
+    newFolderBtn,
+    sortConfirm,
+    settingsRenameBtn,
+    settingsRemoveBtn,
+    settingsUndoBtn,
+    settingsRevertBtn,
+    tagSave,
     tokenCancel,
     newAlbumCancel,
     uploadCancel,
@@ -1072,9 +1144,9 @@ describe('S — the speed multiplier is the single timing source', () => {
 /* ── Integration: the real authored tour ──────────────────── */
 
 describe('T — the real TOUR_STEPS integration', () => {
-  test('T1 — the authored 36-step tour runs end to end on the real targets', () => {
+  test('T1 — the authored 56-step tour runs end to end on the real targets', () => {
     const h = setup();
-    assert.equal(h.X.TOUR_STEPS.length, 36);
+    assert.equal(h.X.TOUR_STEPS.length, 56);
     const tour = h.X.createGuidedTour({ steps: h.X.TOUR_STEPS });
     tour.start();
     // A step's action listener is bound when it reaches
@@ -1112,12 +1184,15 @@ describe('T — the real TOUR_STEPS integration', () => {
     // Segment 2 — the visitor-only sign-in reveal.
     step('menu-admin-signin', h.menuAdminSignin);
     step('admin-modal-cancel', h.tokenCancel, toastArmNext);
-    // Segment 3 — the admin tool set. The raw authored
+    // Segment 3 — every admin control. The raw authored
     // array walks it end to end here; boot.js hands these
     // steps to the engine only when the tour starts signed
     // in as admin (see T3).
     step('menu-add-photos', h.menuAddPhotos);
+    step('upload-confirm', h.uploadConfirm);
     step('upload-cancel', h.uploadCancel);
+    step('fab-add', h.fabAdd);
+    step('upload-cancel-2', h.uploadCancel);
     step('pictures-tab', h.tabPictures);
     type('search-type', 'sunset');
     // The scope step is an input action on a <select>.
@@ -1136,18 +1211,35 @@ describe('T — the real TOUR_STEPS integration', () => {
     h.advance(arm);
     step('menu-open-2', h.menuBtn);
     step('menu-new-album', h.menuNewAlbum);
+    step('new-album-pick', h.newFolderBtn);
     step('new-album-cancel', h.newAlbumCancel);
     step('menu-open-3', h.menuBtn);
     step('menu-select-photos', h.menuSelectPhotos);
     step('pick-photo', h.photoCard);
     step('select-move', h.selectMove);
+    step('move-confirm', h.sortConfirm);
     step('move-cancel', h.sortCancel);
+    step('select-delete', h.selectDelete);
     step('select-close', h.selectClose);
     step('menu-open-4', h.menuBtn);
     step('menu-album-settings', h.menuAlbumSettings);
+    step('settings-rename', h.settingsRenameBtn);
+    step('settings-remove', h.settingsRemoveBtn);
+    step('settings-undo', h.settingsUndoBtn);
+    step('settings-revert', h.settingsRevertBtn);
     step('album-settings-cancel', h.settingsCancel);
+    step('albums-tab-2', h.tabAlbums);
+    step('album-menu-open', h.albumMore);
+    step('album-menu-add-photos', h.albumMenuAddPhotos);
+    step('album-menu-open-2', h.albumMore);
+    step('menu-album-settings-2', h.albumMenuAlbumSettings);
+    step('album-settings-cancel-2', h.settingsCancel);
+    step('pictures-tab-2', h.tabPictures);
     step('wall-photo-2', h.photoCard);
+    step('viewer-download', h.dlb);
     step('viewer-classify', h.lightboxTag);
+    step('classify-save', h.tagSave);
+    step('viewer-classify-2', h.lightboxTag);
     step('classify-cancel', h.tagCancel);
     step('viewer-delete', h.lightboxDelete);
     step('viewer-close-2', h.viewerClose);
@@ -1159,13 +1251,19 @@ describe('T — the real TOUR_STEPS integration', () => {
       'wall-photo', 'viewer-next', 'viewer-prev', 'viewer-close',
       'albums-tab', 'album-open', 'album-photo', 'album-viewer-close',
       'menu-open', 'menu-admin-signin', 'admin-modal-cancel',
-      'menu-add-photos', 'upload-cancel', 'pictures-tab',
+      'menu-add-photos', 'upload-confirm', 'upload-cancel',
+      'fab-add', 'upload-cancel-2', 'pictures-tab',
       'search-type', 'search-scope', 'search-clear',
-      'menu-open-2', 'menu-new-album', 'new-album-cancel',
+      'menu-open-2', 'menu-new-album', 'new-album-pick', 'new-album-cancel',
       'menu-open-3', 'menu-select-photos', 'pick-photo',
-      'select-move', 'move-cancel', 'select-close',
-      'menu-open-4', 'menu-album-settings', 'album-settings-cancel',
-      'wall-photo-2', 'viewer-classify', 'classify-cancel',
+      'select-move', 'move-confirm', 'move-cancel', 'select-delete',
+      'select-close', 'menu-open-4', 'menu-album-settings',
+      'settings-rename', 'settings-remove', 'settings-undo',
+      'settings-revert', 'album-settings-cancel', 'albums-tab-2',
+      'album-menu-open', 'album-menu-add-photos', 'album-menu-open-2',
+      'menu-album-settings-2', 'album-settings-cancel-2', 'pictures-tab-2',
+      'wall-photo-2', 'viewer-download', 'viewer-classify',
+      'classify-save', 'viewer-classify-2', 'classify-cancel',
       'viewer-delete', 'viewer-close-2', 'menu-open-5', 'menu-sign-out',
     ]);
     assert.equal(saved.finished, true);
@@ -1189,7 +1287,7 @@ describe('T — the real TOUR_STEPS integration', () => {
     assert.ok(visitor.every(s => !s.adminOnly));
     assert.ok(admin.every(s => !s.visitorOnly));
     assert.equal(visitor.length, 11);
-    assert.equal(admin.length, 34);
+    assert.equal(admin.length, 54);
     // Orders renumber 1..N for the audience's own walk.
     assert.deepEqual(visitor.map(s => s.order), visitor.map((_, i) => i + 1));
     assert.deepEqual(admin.map(s => s.order), admin.map((_, i) => i + 1));
@@ -1199,9 +1297,9 @@ describe('T — the real TOUR_STEPS integration', () => {
     assert.equal(visitor[visitor.length - 1].id, 'admin-modal-cancel');
     assert.equal(admin[admin.length - 1].id, 'menu-sign-out');
     // The authored array itself is never mutated.
-    assert.equal(h.X.TOUR_STEPS.length, 36);
+    assert.equal(h.X.TOUR_STEPS.length, 56);
     assert.equal(h.X.TOUR_STEPS[0].order, 1);
-    assert.equal(h.X.TOUR_STEPS[35].order, 36);
+    assert.equal(h.X.TOUR_STEPS[55].order, 56);
   });
 
   test('T4 — an input step with valueMatches "" counts only an empty box', () => {
@@ -1260,9 +1358,61 @@ describe('T — the real TOUR_STEPS integration', () => {
     assert.deepEqual(
       h.X.TOUR_STEPS.filter(s => s.confirm.kind === 'toast').map(s => s.id),
       ['admin-modal-cancel', 'menu-sign-out']);
-    // The segments: 9 shared, 2 visitor-only, 25 admin-only.
+    // The segments: 9 shared, 2 visitor-only, 45 admin-only.
     assert.equal(h.X.TOUR_STEPS.filter(s => s.visitorOnly).length, 2);
-    assert.equal(h.X.TOUR_STEPS.filter(s => s.adminOnly).length, 25);
+    assert.equal(h.X.TOUR_STEPS.filter(s => s.adminOnly).length, 45);
     assert.equal(h.X.TOUR_STEPS.filter(s => !s.adminOnly && !s.visitorOnly).length, 9);
+  });
+});
+
+/* ── Coverage: the tour promises to reveal every button ────── */
+
+describe('U — every button is toured', () => {
+  // The two buttons no step targets, each with the reason it
+  // cannot be one. Anything else un-targeted fails the audit.
+  const EXCLUDED = {
+    tokenSubmit: 'signing in needs a real repo token — a visitor cannot perform it',
+    toastClose: 'transient toast chrome, not functionality',
+  };
+
+  test('U1 — every static button is a tour step or an explicit exclusion', () => {
+    const h = setup();
+    const html = fs.readFileSync(join(here, '..', 'index.html'), 'utf8');
+    const selectors = h.X.TOUR_STEPS.map(s => s.target.selector);
+    const gaps = [];
+    for (const m of html.matchAll(/<button[^>]*\bid="([^"]+)"([^>]*)>/g)) {
+      const id = m[1];
+      if (EXCLUDED[id]) continue;
+      const t = /data-tour-target="([^"]+)"/.exec(m[2]);
+      if (!t) { gaps.push(id + ' (no data-tour-target)'); continue; }
+      const hit = selectors.some(sel => sel.includes('"' + t[1] + '"') || sel.includes('#' + id));
+      if (!hit) gaps.push(id + ' (' + t[1] + ' targeted by no step)');
+    }
+    assert.deepEqual(gaps, []);
+  });
+
+  test('U2 — the runtime-built controls are toured too', () => {
+    // Built by app.js at runtime (albumCardMarkup / albumMenu),
+    // so the static audit above cannot see them.
+    const h = setup();
+    const app = fs.readFileSync(join(here, '..', 'app.js'), 'utf8');
+    for (const t of ['album-menu', 'album-menu-add-photos', 'album-menu-album-settings',
+                     'menu-add-photos', 'menu-new-album', 'menu-select-photos',
+                     'menu-album-settings', 'menu-sign-out', 'menu-admin-signin']) {
+      assert.ok(app.includes('"' + t + '"'), t + ' is not hooked in app.js');
+      assert.ok(h.X.TOUR_STEPS.some(s => s.target.selector.includes('"' + t + '"')),
+        t + ' is targeted by no step');
+    }
+  });
+
+  test('U3 — the unguarded commit buttons are flagged and say how to pass them', () => {
+    const h = setup();
+    const marked = h.X.TOUR_STEPS.filter(s => s.commit).map(s => s.id);
+    assert.deepEqual(marked, ['upload-confirm', 'settings-undo']);
+    for (const id of marked) {
+      const s = h.X.TOUR_STEPS.find(x => x.id === id);
+      assert.ok(/skip/i.test(s.prompt), id + ' prompt must offer the way past');
+      assert.ok(/real/i.test(s.hint), id + ' hint must say the click is real');
+    }
   });
 });
