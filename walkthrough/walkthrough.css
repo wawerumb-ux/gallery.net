@@ -257,8 +257,11 @@ body.wt {
    The settled state is the default, so a direct visit, a reload or an
    unknown kind still shows the step plainly. */
 
-/* The two carriers: the arrival is handed to --wt-long, the departure
-   to --wt-base, and both read the same four values. */
+/* The three carriers. wt-t-arrive paints the kind's start state with no
+   transition on it; wt-t-go is handed the long duration to travel home
+   over; wt-t-leave takes the short one to depart. All three read the
+   same four values. */
+.wt-page.wt-t-arrive,
 .wt-page.wt-t-go,
 .wt-page.wt-t-leave {
   transform: translate(var(--wt-t-x), var(--wt-t-y)) scale(var(--wt-t-s));

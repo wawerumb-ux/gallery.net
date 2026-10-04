@@ -233,6 +233,9 @@
   var TRANSITIONS = ['fade', 'morph', 'wipe-up', 'wipe-down',
                      'push-left', 'push-right', 'push-up',
                      'zoom-in', 'zoom-out'];
+  /* Mirrors --wt-long in walkthrough.css: how long a slide takes to
+     arrive, so the runtime can release the carrier classes after it. */
+  var ARRIVE_MS = 500;
 
   function stepForHref(href) {
     for (var i = 0; i < N; i++) {
@@ -250,13 +253,25 @@
     return kind;
   }
 
-  /* Arrival: the kind's start state lands with no transition, then one
-     class adds the single transition that carries the slide home. Two
-     frames, so the start state is always painted first — no flash. */
+  /* Arrival: the kind's start state lands with no transition on it, so
+     it is always painted before anything moves. Then the start class
+     comes OFF — the four variables fall back to the settled slide — and
+     -go adds the single transition that carries it home. Both halves
+     matter: without the start state the arrival is a cut, and without
+     removing it the target is the start state and nothing moves. */
   function playArrive(kind) {
-    page.classList.add('wt-t-arrive', 'wt-t-' + kind + '-in');
+    var start = 'wt-t-' + kind + '-in';
+    page.classList.add('wt-t-arrive', start);
     requestAnimationFrame(function () {
-      requestAnimationFrame(function () { page.classList.add('wt-t-go'); });
+      requestAnimationFrame(function () {
+        page.classList.remove(start);
+        page.classList.add('wt-t-go');
+        setTimeout(function () {
+          // Landed: drop the carriers, so the page is a plain box again
+          // rather than one that keeps a transform and will-change on.
+          page.classList.remove('wt-t-arrive', 'wt-t-go');
+        }, ARRIVE_MS);
+      });
     });
   }
 
