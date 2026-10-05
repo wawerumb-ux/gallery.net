@@ -24,6 +24,23 @@
   var PROGRESS_KEY = 'wt-progress';
   var TRANS_KEY = 'wt-transition';
 
+  /* ── First-visit record ────────────────────────────────────────
+     The walkthrough is the site's front door: the gallery sends
+     first-time visitors here and only stops once one of these
+     values exists (app.js, shouldRequireWalkthrough). Two values,
+     because they answer different questions — 'completed' is the
+     whole seven steps walked, 'skipped' is the visitor taking the
+     quiet exit link, which is offered on every page precisely so
+     the gate can never trap anyone. Storage that throws (private
+     mode, blocked cookies) fails open: the gallery sends you back
+     here once, which is a smaller cost than locking the archive. */
+  var SEEN_KEY = 'walkthrough.seen';
+  function markSeen(value) {
+    try {
+      if (!localStorage.getItem(SEEN_KEY)) localStorage.setItem(SEEN_KEY, value);
+    } catch (e) {}
+  }
+
   /* Progress model: landing 0.0 (ambient sharp); step 1 → 0.5;
      final step → 1.0 (ambient receded). The ramp maps the step's
      0-based position onto [0.5, 1] — with STEPS.length-1 gaps. */
@@ -101,6 +118,11 @@
   /* ── Content ──────────────────────────────────────────────────── */
   function stepUrl(step) { return prefix + 'walkthrough/' + step.slug + '/'; }
   function galleryUrl() { return prefix + 'index.html'; }
+  /* The handoff. ?tour=1 is what /tour's own Start button uses to
+     arm the engine on the gallery page (tour/boot.js), so the final
+     step chains straight into the guided tour rather than parking the
+     visitor on the archive with a second thing to find. */
+  function tourUrl() { return prefix + 'tour/?tour=1'; }
 
   var page = document.querySelector('.wt-page');
   var elCounter = document.getElementById('wtCounter');
@@ -231,7 +253,14 @@
       addAction('Next: ' + STEPS[index].title, stepUrl(STEPS[index]), true);
       addAction('Exit the walkthrough', galleryUrl(), false);
     } else {
-      addAction('Browse the full gallery', galleryUrl(), true);
+      // The handoff. The walkthrough's job was the story of the build;
+      // the tour's job is the archive you can now use, and it is only
+      // worth offering once the story has been told. The gallery stays
+      // reachable as the quiet alternative — the gate records completion
+      // either way, so nothing here is a one-way door.
+      markSeen('completed');
+      addAction('Start the guided tour', tourUrl(), true);
+      addAction('Browse the full gallery', galleryUrl(), false);
     }
     var dlBtn = null;
     var media = initMedia(step, function onPhotoAdvance(i) {
@@ -382,6 +411,11 @@
   function exitTo(href) {
     if (navigating) return;
     navigating = true;
+    // Leaving for the archive by any of the quiet links is a skip, not
+    // a finish: mark it here so the gallery's gate lets the visitor back
+    // in. Stepping to another step must NOT record anything, or bouncing
+    // backwards through the deck would count as having been through it.
+    if (href.indexOf('index.html') !== -1) markSeen('skipped');
     var kind = transitionFor(stepForHref(href));
     try { sessionStorage.setItem(TRANS_KEY, kind); } catch (e) {}
     sessionStorage.setItem(NAV_KEY, '1');

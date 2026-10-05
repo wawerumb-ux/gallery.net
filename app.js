@@ -398,9 +398,46 @@ async function githubFetch(url, options = {}) {
   }
 }
 
+/* ── The walkthrough gate ──────────────────────────────────────
+   First visit goes to /walkthrough/, which is the site's front
+   door; every later visit goes straight to the archive. The record
+   is written by the walkthrough runtime (walkthrough.seen), which
+   distinguishes 'completed' from 'skipped' — both open the gate,
+   because the gate's only job is "has this visitor been offered the
+   walkthrough", not "did they finish it".
+
+   Two deliberate escapes. `?tour=1` is not optional: tour/boot.js
+   already uses it to arm the engine, and a deep link there must not
+   be swallowed by a redirect that only exists to be undone a second
+   later. And storage that throws means we cannot know, so we assume
+   the visitor has been here before and let them through — a gate
+   that locks the archive shut when the browser refuses to remember
+   anything is a worse bug than a gate that opens once too often. */
+const WALKTHROUGH_SEEN_KEY = 'walkthrough.seen';
+
+function shouldRequireWalkthrough(search) {
+  const query = search !== undefined ? search
+    : (typeof location !== 'undefined' ? location.search : '');
+  if (/[?&]tour=1(&|$)/.test(query)) return false;
+  try {
+    return !localStorage.getItem(WALKTHROUGH_SEEN_KEY);
+  } catch (_) {
+    return false; // cannot know — fail open
+  }
+}
+
 document.addEventListener('DOMContentLoaded', init);
 
 async function init() {
+  // The walkthrough gate runs before anything else paints: a first-time
+  // visitor should land on the build's story, not on the archive with a
+  // tour banner they have to notice. Hand off and stop — the walkthrough
+  // writes the record, and the next load walks straight in.
+  if (shouldRequireWalkthrough()) {
+    location.replace('walkthrough/');
+    return;
+  }
+
   el('demoBadge').hidden = !DEMO_MODE;
   LOADING_MARKUP = el('loadingState').innerHTML;
   state.token = sessionStorage.getItem(TOKEN_KEY);

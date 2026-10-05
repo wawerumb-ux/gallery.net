@@ -84,8 +84,9 @@ function makeEl(tag) {
 
 /* ── Sandbox ──────────────────────────────────────────────────── */
 
-function setup({ depth = 2, step = 3, reduce = false, recorded = null } = {}) {
+function setup({ depth = 2, step = 3, reduce = false, recorded = null, seen = null, storageThrows = false } = {}) {
   const store = new Map();
+  if (seen) store.set('walkthrough.seen', seen);
   const rafs = [];
   const timers = [];
   const navigations = [];
@@ -149,6 +150,17 @@ function setup({ depth = 2, step = 3, reduce = false, recorded = null } = {}) {
       setItem: (k, v) => { store.set(k, String(v)); },
       removeItem: (k) => { store.delete(k); },
     },
+    // localStorage is a separate, durable store — the first-visit record
+    // must survive the page loads the deck is made of, which is the whole
+    // reason it is not sessionStorage.
+    localStorage: storageThrows ? {
+      getItem() { throw new Error('blocked'); },
+      setItem() { throw new Error('blocked'); },
+    } : {
+      getItem: (k) => (store.has(k) ? store.get(k) : null),
+      setItem: (k, v) => { store.set(k, String(v)); },
+      removeItem: (k) => { store.delete(k); },
+    },
     requestAnimationFrame: window.requestAnimationFrame,
     setTimeout: (fn, ms) => { const t = { fn, ms: ms || 0, at: fakeNow + (ms || 0), cancelled: false }; timers.push(t); return t; },
     clearTimeout: (t) => { if (t) t.cancelled = true; },
@@ -159,7 +171,7 @@ function setup({ depth = 2, step = 3, reduce = false, recorded = null } = {}) {
   vm.runInContext(stepsSrc + '\n' + runtimeSrc, vm.createContext(sandbox), { filename: 'walkthrough.js' });
 
   return {
-    page, store, navigations,
+    page, store, navigations, byId,
     // Tour classes only: the page keeps its structural 'wt-page' class
     // for the whole test, so comparing it in every assertion is noise.
     classes: () => page.classes().filter(c => c !== 'wt-page'),
@@ -322,6 +334,75 @@ describe('W — departure', () => {
     h.clickLink('https://example.test/index.html');
     assert.deepEqual(h.navigations, ['https://example.test/index.html']);
     assert.deepEqual(h.classes(), []);
+  });
+});
+
+describe('W — the front-door gate', () => {
+  const N = authored.length;
+
+  test('W14 — arriving at the final step records the walkthrough as completed', () => {
+    // On arrival, not on the CTA click: a visitor who closes the tab on
+    // the last slide has still been through all seven.
+    const h = setup({ step: N });
+    assert.equal(h.store.get('walkthrough.seen'), 'completed');
+  });
+
+  test('W15 — an earlier step records nothing at all', () => {
+    const h = setup({ step: 2 });
+    assert.equal(h.store.get('walkthrough.seen'), undefined,
+      'being mid-walkthrough is not having seen it');
+  });
+
+  test('W16 — the final step hands off to the guided tour', () => {
+    const h = setup({ step: N });
+    const cta = h.byId.wtActions.children
+      .find(a => a.classes().includes('wt-cta'));
+    assert.match(cta.textContent, /guided tour/i,
+      'the primary action is the tour, got: ' + cta.textContent);
+    assert.match(cta.href, /tour\/\?tour=1$/,
+      'the tour is armed on arrival, got: ' + cta.href);
+  });
+
+  test('W17 — the gallery stays reachable from the final step', () => {
+    // The handoff must not become a one-way door.
+    const h = setup({ step: N });
+    const alt = h.byId.wtActions.children
+      .find(a => a.classes().includes('wt-alt'));
+    assert.match(alt.href, /index\.html$/, 'the quiet action is still the archive');
+  });
+
+  test('W18 — leaving for the gallery records a skip, and the gate opens on it', () => {
+    // 'skipped' is a distinct value precisely so this is not a lie about
+    // having finished — but the gate treats both the same, because its
+    // question is "have they been offered this", not "did they finish".
+    const h = setup({ step: 3 });
+    h.clickLink('https://example.test/index.html');
+    assert.equal(h.store.get('walkthrough.seen'), 'skipped');
+  });
+
+  test('W19 — completion is not downgraded to a skip by leaving afterwards', () => {
+    const h = setup({ step: N });
+    h.clickLink('https://example.test/index.html');
+    assert.equal(h.store.get('walkthrough.seen'), 'completed',
+      'markSeen is first-write-wins; walking all seven is not un-done');
+  });
+
+  test('W20 — stepping to another step never records a skip', () => {
+    // Stepping backwards through the deck links to another step page, not
+    // the gallery. If that recorded, bouncing around would count as done.
+    const h = setup({ step: 3 });
+    h.clickLink('https://example.test/walkthrough/infrastructure/');
+    assert.equal(h.store.get('walkthrough.seen'), undefined);
+  });
+
+  test('W21 — a browser that refuses storage still renders every page', () => {
+    // The record is best-effort by design. If it could throw, a private
+    // window would lose the walkthrough entirely.
+    const h = setup({ step: N, storageThrows: true });
+    h.advance(1000);
+    assert.ok(h.byId.wtTitle, 'the final step still built itself');
+    assert.match(h.byId.wtTitle.textContent, /\S/, 'and still has its title');
+    assert.deepEqual(h.navigations, []);
   });
 });
 
