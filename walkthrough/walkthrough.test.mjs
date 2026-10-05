@@ -541,14 +541,17 @@ describe('W — page assets', () => {
       'the primary action keeps the site accent, not the step hue');
   });
 
-  test('W31 — the landing leads with the photography, and it links', () => {
-    assert.match(runtimeSrc, /function buildMontage/, 'the montage is built');
-    assert.match(runtimeSrc, /a\.href\s*=\s*stepUrl\(step\)/,
-      'each tile is a link into its own step');
-    assert.match(runtimeSrc, /wrap\.className\s*=\s*'wt-montage'/);
-    assert.match(runtimeSrc, /buildMontage\(\);\s*\n?\s*addAction\('Begin the walkthrough'/,
-      'the collage is built before the call to action');
-    // One tile per step, and every cover resolves to a real file.
+  test('W31 — the landing leads with the tree, then a start button', () => {
+    // The tree is a React island mounted on the landing's own HTML, not
+    // something the runtime builds, so what this can check is that the
+    // runtime no longer builds a collage and does put the start button
+    // on the page.
+    assert.doesNotMatch(runtimeSrc, /buildMontage|wt-montage|wt-tile/,
+      'the collage is gone from the runtime');
+    assert.match(runtimeSrc, /addAction\('Start the walkthrough', stepUrl\(STEPS\[0\]\), true\)/,
+      'the landing opens on one action, and it starts the walk');
+    // Every cover still resolves to a real file: the step rail renders
+    // them, so a bad path would break the walk rather than the landing.
     assert.equal(authored.length, 7);
     const repo = join(here, '..');
     for (const s of authored) {
@@ -556,19 +559,50 @@ describe('W — page assets', () => {
     }
   });
 
-  test('W29c — the collage leaves the copy cell empty', () => {
-    // The poster is 4×3. The hero takes a 2×2 block and tiles 6 and 7
-    // are pinned to the right of the last row, so the two lower-left
-    // cells stay empty for the title. Without the pinning, auto-placement
-    // fills those cells and the copy ends up on top of two photographs.
-    assert.match(cssSrc, /\.wt-tile:nth-child\(6\)\s*\{\s*grid-column:\s*3;\s*grid-row:\s*3;/,
-      'tile 6 is pinned right of the last row');
-    assert.match(cssSrc, /\.wt-tile:nth-child\(7\)\s*\{\s*grid-column:\s*4;\s*grid-row:\s*3;/,
-      'tile 7 is pinned right of the last row');
-    // And the phone resets the pinning, since it has no copy cell.
-    const phone = cssSrc.slice(cssSrc.indexOf('@media (max-width: 999px)'));
-    assert.match(phone, /\.wt-tile:nth-child\(6\),\s*\.wt-tile:nth-child\(7\)\s*\{\s*grid-column:\s*auto/,
-      'the phone unpins tiles 6 and 7');
+  test('W29c — no collage rules survive in the stylesheet', () => {
+    // Dead CSS is not free: .wt-tile was the target of the nth-child
+    // pinning that kept the copy off two photographs, and leaving the
+    // rules behind would make the next reader believe the grid is live.
+    assert.doesNotMatch(cssSrc, /\.wt-montage|\.wt-tile/,
+      'the collage has no styles left');
+  });
+
+  test('W32 — every step offers a way back', () => {
+    // Step 1 goes back to the landing rather than nowhere: the deck is
+    // re-enterable, and the landing is the only place the exit to the
+    // archive is offered.
+    for (const idx of [2, 5]) {
+      const h = setup({ step: idx });
+      const prev = h.byId.wtActions.children.find(a => a.classes().includes('wt-prev'));
+      assert.ok(prev, 'step ' + idx + ' has a back control');
+      assert.equal(prev.getAttribute('rel'), 'prev');
+      assert.match(prev.href, new RegExp('/' + authored[idx - 2].slug + '/$'),
+        'step ' + idx + ' points at step ' + (idx - 1));
+    }
+    const first = setup({ step: 1 });
+    const back = first.byId.wtActions.children.find(a => a.classes().includes('wt-prev'));
+    assert.ok(back, 'step 1 has a back control');
+    assert.match(back.href, /\/walkthrough\/$/,
+      'step 1 goes back to the landing, not nowhere');
+    assert.ok(!/walkthrough\/[a-z-]+\/$/.test(back.href), 'and not to a step');
+  });
+
+  test('W33 — back sits above the primary action, and labels itself', () => {
+    const h = setup({ step: 3 });
+    const kids = h.byId.wtActions.children;
+    const prevIdx = kids.findIndex(a => a.classes().includes('wt-prev'));
+    const ctaIdx = kids.findIndex(a => a.classes().includes('wt-cta'));
+    assert.ok(prevIdx !== -1 && ctaIdx !== -1);
+    assert.ok(prevIdx < ctaIdx, 'back is reachable before the way forward');
+    // The label is the destination's own title, so the control says where
+    // it goes — the dots and the rail do not have to be decoded first.
+    const label = kids[prevIdx].children.find(c => c.classes().includes('wt-prev-label'));
+    assert.ok(label, 'the back control has a label span');
+    assert.equal(label.textContent, authored[1].title,
+      'it names the step it goes back to');
+    assert.equal(kids[prevIdx].children.find(c => c.classes().includes('wt-prev-mark'))
+      .getAttribute('aria-hidden'), 'true',
+      'the arrow is decorative, so the label is what a screen reader reads');
   });
 });
 

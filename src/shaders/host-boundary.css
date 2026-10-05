@@ -1,6 +1,6 @@
 /* ── Host boundary for the ThreeUI GenerativeTree ──────────────────
    NOT authored source. The three files under src/shaders are byte-identical
-   to SHA-256 7a6871fe99fa and are never edited; this only gives the tree a
+   to SHA-256 7a6871fe19fa and are never edited; this only gives the tree a
    box to live in on this page.
 
    Why this file exists: TARGET CONFIGURATION wraps the component in
@@ -11,9 +11,9 @@
    1440x0: the iframe loaded its full 21KB patched source and drew into a
    zero-height box, so nothing appeared. Sizing the frame is the host's job.
 
-   Placement: behind the poster collage, not replacing it. The collage is the
-   hook and stays fully readable; the tree is atmosphere in the margins and
-   through the two grid cells the poster leaves for the title. */
+   Placement: the landing IS the tree. It fills the frame behind the
+   <main>, and the copy is anchored into the lower left of it, so the trunk
+   has the rest of the page to grow into. */
 /* The mount is a sibling of <main class="wt-page wt-page-landing">, not a
    child of it — walkthrough.js puts the landing class on the <main>. So the
    frame keys off the mount's own id, which only the landing page has. */
@@ -30,58 +30,30 @@
   height: 100%;
   /* The component sets pointer-events:auto on its own root (it is authored
      to be interactive), so the frame opts back out — a decorative
-     background must never swallow clicks meant for the collage tiles. */
+     background must never swallow clicks meant for the call to action. */
   pointer-events: none;
+  /* No hard edge where the canvas ends against the lit backdrop — fade
+     the extremities out instead. This is what stopped the earlier
+     full-bleed attempt from putting a visible black bar across the page. */
+  -webkit-mask-image: radial-gradient(130% 118% at 50% 58%, #000 60%, transparent 96%);
+  mask-image: radial-gradient(130% 118% at 50% 58%, #000 60%, transparent 96%);
 }
 .shader-frame .threeui-background {
   pointer-events: none;
 }
 
-/* The poster and its copy sit above the tree. <main> is positioned, so its
-   children stack over the mount without needing to lift the main itself. */
+/* The copy sits above the tree. <main> is positioned, so its children stack
+   over the mount without needing to lift the main itself. */
 .wt-page-landing {
   z-index: 1;
 }
 
-/* Where the tree would otherwise fight the collage for attention, ease it
-   back: the collage stays the subject, the tree is the room it hangs in. */
-.wt-page-landing .wt-montage {
-  opacity: 0.94;
-}
-
-/* The copy cell is the one place the tree should actually be seen, and the
-   one place a branch can reach the words. A soft local scrim keeps the
-   title legible without hiding the tree behind a hard card edge. */
-.wt-page-landing .wt-panel {
-  background: radial-gradient(
-    120% 100% at 22% 78%,
-    rgba(6, 7, 10, 0.94) 0%,
-    rgba(6, 7, 10, 0.86) 42%,
-    rgba(6, 7, 10, 0.5) 72%,
-    transparent 100%
-  );
-}
-
-/* The trunk grows UP THE MIDDLE of its own frame, so a full-bleed canvas
-   behind a collage leaves the tree visible only in 26px of gutter while its
-   trunk still crosses the call to action — verified in the browser: a branch
-   cut through "Begin the walkthrough", and a tile picked up a hard black bar
-   where the canvas ended. Confine the tree to the copy cell instead, which
-   is the grid region the poster deliberately leaves empty and the one place
-   a growing tree is welcome. It then reads as the tree the build was
-   pulling toward, instead of a stray graphic over the photography. */
-#wt-shader-root {
-  inset: var(--wt-frame);
-  right: auto;
-  bottom: var(--wt-frame);
-  width: calc((100% - 2 * var(--wt-frame) - 3 * var(--wt-gutter)) / 2 + var(--wt-gutter));
-  height: calc((100% - 2 * var(--wt-frame) - 2 * var(--wt-gutter)) / 3 + var(--wt-gutter));
-}
-/* The scrim is concentrated behind the WORDS and thins toward the top of
-   the cell, where the tree's canopy is. Measured: at 0.9 flat the tree was
-   invisible — a full-strength panel background erases the thing it exists to
-   show. The gradient keeps contrast under the title without covering the
-   growth above it. */
+/* The scrim is concentrated behind the WORDS and thins upward, where the
+   tree's canopy is. Measured earlier: at 0.9 flat the tree was invisible —
+   a full-strength panel background erases the thing it exists to show. The
+   gradient keeps contrast under the title without covering the growth
+   above it. The negative margin lets the gradient bleed past the words so
+   its soft edge is not clipped to the text column. */
 .wt-page-landing .wt-panel {
   background: linear-gradient(
     0deg,
@@ -91,17 +63,17 @@
     rgba(6, 7, 10, 0.12) 100%
   );
   border-radius: var(--wt-r-lg);
-}
-/* No hard edge where the canvas stops — fade the frame out instead. */
-.shader-frame {
-  -webkit-mask-image: radial-gradient(120% 120% at 50% 100%, #000 52%, transparent 92%);
-  mask-image: radial-gradient(120% 120% at 50% 100%, #000 52%, transparent 92%);
+  padding: 18px 20px 14px;
+  margin: -8px -12px -6px;
 }
 
-/* Touch and small screens already carry a dense flow collage plus the copy
-   below; a full-bleed animated canvas behind that is pure cost. */
+/* Touch, small screens and reduced motion get no canvas at all: there the
+   copy is the entire landing, so a scrim behind it would darken the page
+   for nothing. This must stay the LAST rule in the file — the cascade is
+   what turns the tree off, and shader-integrity.test.mjs checks it. */
 @media (max-width: 999px), (prefers-reduced-motion: reduce) {
   #wt-shader-root {
     display: none;
   }
+  .wt-page-landing .wt-panel { background: none; margin: 0; padding: 0; }
 }

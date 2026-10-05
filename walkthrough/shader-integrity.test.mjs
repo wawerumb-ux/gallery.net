@@ -110,26 +110,45 @@ describe('S — the host boundary gives the tree a real box', () => {
       'a decorative background must not swallow clicks meant for the collage');
   });
 
-  test('S — the tree is confined to the poster copy cell, not full-bleed', () => {
-    // A full-bleed canvas left the tree visible only in 26px of gutter while
-    // its trunk still crossed the call to action and put a hard black bar on a
-    // collage tile. The host pins it to the grid's empty cell instead.
-    //
-    // There are several #wt-shader-root blocks (the base position, the cell
-    // override, and the phone media query), so this checks the CASCADE: the
-    // last unconditional block must be the one that constrains it.
+  test('S — the tree fills the frame, because the landing IS the tree', () => {
+    // Regression history, and it is the reason to check: a full-bleed
+    // canvas was once rejected because behind the poster collage the tree
+    // showed only in the gutter while its trunk still crossed the call to
+    // action, and put a hard black bar where the canvas ended. The collage
+    // is gone now and the copy sits lower-left, so full-bleed is correct —
+    // but the seam has to stay masked and the copy has to keep its scrim,
+    // because those were what actually fixed it the first time.
     const host = read('host-boundary.css');
-    const blocks = [...host.matchAll(/#wt-shader-root\s*\{([^}]*)\}/g)]
+    const base = /#wt-shader-root\s*\{([^}]*)\}/.exec(host);
+    assert.ok(base, 'the mount is positioned');
+    assert.match(base[1], /inset:\s*0/, 'the tree fills the frame behind <main>');
+    // No later unconditional override re-confining it to a cell.
+    const others = [...host.matchAll(/#wt-shader-root\s*\{([^}]*)\}/g)]
       .map((m) => m[1])
       .filter((body) => !/display:\s*none/.test(body));
-    assert.ok(blocks.length >= 2, 'expected a base rule and a constraining override');
-    const last = blocks[blocks.length - 1];
-    assert.match(last, /right:\s*auto/,
-      'the tree must not span the full viewport width');
-    assert.match(last, /width:\s*calc\(/,
-      'the tree is sized to the copy cell, not the page');
-    assert.match(last, /height:\s*calc\(/,
-      'the tree is sized to one grid row, not the page');
+    assert.equal(others.length, 1,
+      'the tree must not be re-confined to a cell by a second rule');
+    // The two things that made full-bleed survivable.
+    assert.match(host, /\.shader-frame[^}]*mask-image:/s,
+      'the canvas edges are masked so there is no hard seam');
+    assert.match(host, /\.wt-page-landing \.wt-panel\s*\{[^}]*linear-gradient/s,
+      'the copy keeps a scrim, or branches cross the title');
+  });
+
+  test('S — the copy is anchored clear of the trunk', () => {
+    // GenerativeTree grows up the middle of its own frame, so the centre
+    // of the landing belongs to the trunk. The copy is anchored left and
+    // down; if it ever recentres, a branch lands on the title.
+    const css = fs.readFileSync(join(repo, 'walkthrough', 'walkthrough.css'), 'utf8');
+    const desk = css.slice(css.indexOf('@media (pointer: fine) and (min-width: 1000px)'));
+    const panel = /\.wt-page-landing \.wt-panel\s*\{([\s\S]*?)\n {2}\}/.exec(desk);
+    assert.ok(panel, 'the desktop landing positions its own panel');
+    assert.match(panel[1], /left:\s*var\(--wt-frame\)/);
+    assert.match(panel[1], /bottom:\s*var\(--wt-frame\)/);
+    // Bounded, so a wide screen does not stretch the words across the
+    // trunk the scrim was protecting them from.
+    assert.match(panel[1], /width:\s*min\(/,
+      'the copy column is bounded, not full width');
   });
 
   test('S — the landing links the build, and no step page does', () => {

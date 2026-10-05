@@ -39,7 +39,7 @@ const STEPS = [
     title: 'Before we began',
     copy: 'Every drop, pathway and rack position was walked, measured and photographed first',
     transition: 'wipe-up',
-    hero: 'images/site-survey/20260619_130900-800.webp',
+    hero: 'images/trunking-installation/20260619_130900-800.webp',
     gallery: [
       'images/site-survey/20260619_142909-800.webp',
       'images/site-survey/20260621_122646-800.webp',
@@ -54,7 +54,7 @@ const STEPS = [
     title: 'Pathways and containment',
     copy: 'Routes for every bundle were fixed on the plan before a cable was pulled',
     transition: 'push-left',
-    hero: 'images/site-survey-map/20260619_130848-800.webp',
+    hero: 'images/trunking-installation/20260619_130848-800.webp',
     gallery: [
       'images/site-survey-map/20260619_130849-800.webp',
       'images/site-survey-map/20260619_130850-800.webp',
@@ -68,7 +68,7 @@ const STEPS = [
     title: 'Pulling and dressing',
     copy: 'Bundles came down in sequence and were dressed into the tray',
     transition: 'wipe-down',
-    hero: 'images/cable-pull/20260621_122750-800.webp',
+    hero: 'images/trunking-installation/20260621_122750-800.webp',
     gallery: [
       'images/cable-pull/20260621_122823-800.webp',
       'images/cable-pull/20260621_122911-800.webp',
@@ -83,7 +83,7 @@ const STEPS = [
     title: 'Termination at the panel',
     copy: 'Each pair landed on the panel and dressed to the back bar',
     transition: 'zoom-in',
-    hero: 'images/termination-testing/20260621_123503-800.webp',
+    hero: 'images/trunking-installation/20260621_123503-800.webp',
     gallery: [
       'images/termination-testing/20260621_123517-800.webp',
       'images/termination-testing/20260621_123529-800.webp',
@@ -98,7 +98,7 @@ const STEPS = [
     title: 'Testing and certification',
     copy: 'Every link passed certification before the rack went live',
     transition: 'fade',
-    hero: 'images/termination-testing/20260621_172314-800.webp',
+    hero: 'images/trunking-installation/20260621_172314-800.webp',
     gallery: [
       'images/termination-testing/20260621_172336-800.webp',
       'images/termination-testing/20260621_172403-800.webp',

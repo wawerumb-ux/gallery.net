@@ -320,6 +320,38 @@ body.wt::after {
 }
 .wt-alt:hover { color: var(--wt-text); }
 
+/* Back. Sits above the primary action and below it in weight — it is
+   the way back, not the way forward, so it never borrows the CTA's
+   fill. The label is the previous step's own title, which makes the
+   control self-describing: you can see where it goes before you
+   press it. Paired with Next, so stepping back is available without
+   reaching for a dot or a swipe. */
+.wt-prev {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  align-self: flex-start;
+  max-width: 100%;
+  margin-bottom: 2px;
+  padding: 7px 12px 7px 10px;
+  border-radius: var(--wt-r-md);
+  color: var(--wt-muted);
+  font-size: 13px;
+  text-decoration: none;
+  transition: color var(--wt-short) var(--wt-ease),
+              background-color var(--wt-short) var(--wt-ease);
+}
+.wt-prev-mark { color: var(--wt-faint); transition: transform var(--wt-short) var(--wt-ease); }
+.wt-prev-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wt-prev:hover { color: var(--wt-text); background: rgba(255, 255, 255, 0.04); }
+.wt-prev:hover .wt-prev-mark { transform: translateX(-2px); }
+.wt-prev:focus-visible { outline: 2px solid var(--wt-accent); outline-offset: 2px; }
+
 /* ── The slide rail ────────────────────────────────────────────────
    PowerPoint's signature: numbered thumbnails down the left, the
    active one ringed in the accent. It is the progress indicator, so
@@ -377,112 +409,21 @@ body.wt::after {
 }
 
 /* Landing: no slide, so no rail and no media — the lit backdrop, the
-   sharp ambient and the collage carry the whole frame. */
+   sharp ambient and the tree carry the whole frame. */
 .wt-page-landing .wt-media,
 .wt-page-landing .wt-rail { display: none; }
 
-/* ── The montage — the hook ───────────────────────────────────────
-   The landing leads with the photography: every step's cover as a
-   tile, each one a link into that phase. The invitation and the table
-   of contents are the same object. Tiles lift on hover and carry their
-   own phase hue on the border. */
+/* ── The landing — the tree, then the invitation ────────────────────
+   The tree comes first: it fills the frame and the copy sits over it,
+   bottom-left, where a growing trunk has room to rise out of the dark.
+   The call to action is the largest thing on the page, because the
+   only job this page has is to start the walk.
 
-/* The desktop poster. 4 columns × 3 rows = 12 cells, filled like this:
-
-     ┌───────────┬─────┬─────┐
-     │           │ 02  │ 03  │
-     │    01     ├─────┼─────┤
-     │  (hero)   │ 04  │ 05  │
-     ├───────────┼─────┼─────┤
-     │   copy    │ 06  │ 07  │
-     └───────────┴─────┴─────┘
-
-   The copy block occupies the two lower-left cells and the collage
-   leaves them empty on purpose — the title has a home in the grid
-   instead of lying on top of two photographs. */
-
-/* Default: a plain flow grid. The desktop poster below takes it out of
-   flow and pins it to the frame; a phone keeps this. */
-.wt-montage {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: var(--wt-gutter);
-}
-.wt-tile {
-  position: relative;
-  display: block;
-  min-width: 0;
-  min-height: 0;
-  border-radius: var(--wt-r-lg);
-  overflow: hidden;
-  background: var(--wt-slide);
-  border: 1px solid var(--wt-edge);
-  box-shadow: var(--wt-lift-rail);
-  text-decoration: none;
-  transition: transform var(--wt-base) var(--wt-ease),
-              box-shadow var(--wt-base) var(--wt-ease),
-              border-color var(--wt-base) var(--wt-ease);
-}
-/* The first tile leads: a 2×2 block, so the collage has a subject
-   rather than reading as a strip of thumbnails. */
-.wt-tile:first-child {
-  grid-column: 1 / 3;
-  grid-row: 1 / 3;
-}
-/* Tiles 6 and 7 are pinned to the right of the last row. Without this
-   they auto-flow into the lower-left cells, which are the copy block's
-   — the collage would sit underneath the title. */
-.wt-tile:nth-child(6) { grid-column: 3; grid-row: 3; }
-.wt-tile:nth-child(7) { grid-column: 4; grid-row: 3; }
-.wt-tile img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-  transition: transform var(--wt-long) var(--wt-ease);
-}
-.wt-tile-cap {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  padding: 20px 12px 9px;
-  font-family: var(--wt-mono);
-  font-size: 10px;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  color: var(--wt-text);
-  /* A scrim, so the caption stays legible on any photograph */
-  background: linear-gradient(to top, rgba(6, 7, 10, 0.82), transparent);
-  opacity: 0;
-  transform: translateY(4px);
-  transition: opacity var(--wt-base) var(--wt-ease),
-              transform var(--wt-base) var(--wt-ease);
-}
-.wt-tile:hover,
-.wt-tile:focus-visible {
-  transform: translateY(-3px);
-  /* The tile takes its own phase's hue on focus or hover, which is the
-     same colour the step page will wash the backdrop with. */
-  border-color: hsl(var(--wt-tile-h) 90% 68% / 0.55);
-  box-shadow: var(--wt-lift-lift);
-}
-.wt-tile:hover img { transform: scale(1.04); }
-.wt-tile:hover .wt-tile-cap,
-.wt-tile:focus-visible .wt-tile-cap { opacity: 1; transform: none; }
-/* Keyboard focus needs to read as focus, not as a hover tint — a
-   visible ring, since the border change alone is easy to lose. */
-.wt-tile:focus-visible {
-  outline: 2px solid hsl(var(--wt-tile-h) 90% 74%);
-  outline-offset: 2px;
-}
-
-/* The landing's copy block. Both layouts size it themselves — the
-   desktop poster places it on the collage's empty cells, the phone
-   stacks it under a two-up collage — so the defaults here are only
-   what they share. Deliberately no min-height: stretching the panel
-   to the viewport is what made the poster's absolutely-placed copy
-   anchor above the top of the frame. */
+   The copy is anchored to the lower-left on purpose rather than
+   centred. GenerativeTree grows up the middle of its own frame, so the
+   centre of this page belongs to the trunk; left-aligning the words
+   keeps them off it and reads like a title card rather than a
+   splash screen. */
 .wt-page-landing .wt-panel {
   display: flex;
   flex-direction: column;
@@ -580,39 +521,18 @@ body.wt::after {
 @media (max-width: 999px) {
   .wt-rail { display: none !important; }
 
-  /* Phone: a plain two-up collage in normal flow above the copy.
-     Everything the desktop poster sets — absolute inset, the explicit
-     4×3 placements, the panel's overlay geometry — is reset here,
-     because a phone has no room for a poster and the collage must not
-     be taken out of the document flow. */
+  /* Phone: the copy fills the frame, bottom-anchored like the desktop
+     but in normal flow. The tree is hidden here (host-boundary.css),
+     so there is no collage above to make room for — the words become
+     the whole landing rather than a caption on a picture. */
   .wt-page-landing {
     display: flex;
     flex-direction: column;
-    justify-content: flex-start;
-    padding: 14px 14px calc(20px + env(safe-area-inset-bottom, 0px));
-    gap: 16px;
+    justify-content: flex-end;
+    padding: 18px 16px calc(20px + env(safe-area-inset-bottom, 0px));
+    gap: 12px;
     min-height: 0;
   }
-  .wt-montage {
-    position: static;
-    inset: auto;
-    width: 100%;
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    grid-template-rows: none;
-    gap: 8px;
-  }
-  .wt-tile { transform: none; aspect-ratio: 4 / 3; }
-  .wt-tile:first-child {
-    grid-column: 1 / -1;
-    grid-row: auto;
-    aspect-ratio: 16 / 9;
-  }
-  /* No copy cell to keep clear on a phone — the copy is below. */
-  .wt-tile:nth-child(6),
-  .wt-tile:nth-child(7) { grid-column: auto; grid-row: auto; }
-  /* Captions are always legible on a phone, where there is no hover. */
-  .wt-tile-cap { opacity: 1; transform: none; padding: 16px 10px 7px; font-size: 9.5px; }
   .wt-page-landing .wt-panel {
     position: static;
     width: auto;
@@ -623,6 +543,7 @@ body.wt::after {
     gap: 12px;
   }
   .wt-page-landing .wt-title { font-size: 30px; }
+  .wt-page-landing .wt-copy { max-width: none; }
 }
 
 /* ── Layout: desktop — the presentation editor ────────────────────
@@ -642,31 +563,23 @@ body.wt::after {
     min-height: 0;
     max-width: var(--wt-col);
   }
-  /* The landing is a poster, not a deck: the collage is pinned to the
-     whole frame and the title and actions sit in the two grid cells it
-     deliberately leaves empty in its lower-left. */
+  /* The landing is a title card, not a deck: the tree fills the frame
+     (the mount behind <main>) and the copy is anchored into the lower
+     left of it, in the corner the trunk does not grow through. Bounded
+     to a readable measure rather than the old poster's two grid cells —
+     without the collage there is no grid to sit in. */
   .wt-page-landing {
     display: flex;
     position: relative;
     padding: 0;
     gap: 0;
   }
-  .wt-page-landing .wt-montage {
-    position: absolute;
-    inset: var(--wt-frame);
-    grid-template-columns: repeat(4, 1fr);
-    grid-template-rows: repeat(3, 1fr);
-    width: auto;
-  }
-  .wt-page-landing .wt-tile { aspect-ratio: auto; }
-  .wt-page-landing .wt-tile:first-child { aspect-ratio: auto; }
   .wt-page-landing .wt-panel {
     position: absolute;
     z-index: 2;
     left: var(--wt-frame);
     bottom: var(--wt-frame);
-    /* Two columns plus the gutter between them. */
-    width: calc((100% - 2 * var(--wt-frame) - 3 * var(--wt-gutter)) / 2 + var(--wt-gutter));
+    width: min(560px, 46vw);
     justify-content: flex-end;
     padding: 0;
     gap: 12px;

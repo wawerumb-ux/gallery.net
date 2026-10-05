@@ -118,6 +118,7 @@
   /* ── Content ──────────────────────────────────────────────────── */
   function stepUrl(step) { return prefix + 'walkthrough/' + step.slug + '/'; }
   function galleryUrl() { return prefix + 'index.html'; }
+  function landingUrl() { return prefix + 'walkthrough/'; }
   /* The handoff. ?tour=1 is what /tour's own Start button uses to
      arm the engine on the gallery page (tour/boot.js), so the final
      step chains straight into the guided tour rather than parking the
@@ -181,6 +182,31 @@
     a.href = href;
     a.textContent = label;
     elActions.appendChild(a);
+    return a;
+  }
+
+  /* Back. Paired with Next, so stepping back is a control rather than
+     a gesture — the deck already mirrors a push for a backwards move
+     (transitionFor), so a back link plays the same motion as the dot
+     it duplicates. Not an <a> with a back arrow: the label is the
+     previous step's own title, so it says where it goes. */
+  function addPrev(step) {
+    var a = document.createElement('a');
+    a.className = 'wt-prev';
+    a.href = stepUrl(step);
+    a.setAttribute('rel', 'prev');
+    a.innerHTML = '';
+    var mark = document.createElement('span');
+    mark.className = 'wt-prev-mark';
+    mark.setAttribute('aria-hidden', 'true');
+    mark.textContent = '←';
+    var label = document.createElement('span');
+    label.className = 'wt-prev-label';
+    label.textContent = step.title;
+    a.appendChild(mark);
+    a.appendChild(label);
+    elActions.appendChild(a);
+    return a;
   }
 
   function initLanding() {
@@ -189,45 +215,27 @@
     elTitle.textContent = 'The build, end to end';
     elCopy.textContent = 'A photographic record of a structured cabling project, from first survey to certified handover';
     elDots.hidden = true;
-    buildMontage();
-    addAction('Begin the walkthrough', stepUrl(STEPS[0]), true);
+    addAction('Start the walkthrough', stepUrl(STEPS[0]), true);
     addAction('Browse the gallery', galleryUrl(), false);
   }
 
-  /* The hook: the landing leads with the photography, not with a
-     title in the dark. Every tile is a real step's cover and links
-     straight to it, so the montage is both the invitation and the
-     table of contents — a visitor can jump to the phase that
-     interests them instead of pressing Next seven times. */
-  function buildMontage() {
-    var wrap = document.createElement('div');
-    wrap.className = 'wt-montage';
-    wrap.setAttribute('aria-label', 'Jump to a phase');
-    for (var i = 0; i < N; i++) {
-      var step = STEPS[i];
-      var a = document.createElement('a');
-      a.className = 'wt-tile';
-      a.href = stepUrl(step);
-      a.setAttribute('aria-label', 'Step ' + step.index + ': ' + step.title);
-      // A slow per-tile wash so the collage breathes without animating
-      // anything that would fight the deck's own motion rules.
-      a.style.setProperty('--wt-tile-h', String(step.accent != null ? step.accent : 212));
-      a.style.setProperty('--wt-tile-i', String(i));
-      var img = document.createElement('img');
-      img.src = prefix + step.hero;
-      img.alt = '';
-      img.loading = i < 4 ? 'eager' : 'lazy';
-      img.decoding = 'async';
-      var cap = document.createElement('span');
-      cap.className = 'wt-tile-cap';
-      cap.textContent = (step.index < 10 ? '0' + step.index : step.index) + '  ' + (step.label || '');
-      a.appendChild(img);
-      a.appendChild(cap);
-      wrap.appendChild(a);
-    }
-    page.insertBefore(wrap, page.firstChild);
-    return wrap;
-  }
+  /* The tree comes first. The landing is now the cover of a growing
+     generative tree with the call to action over it, so the walk
+     literally starts where the tree does.
+
+     What replaced the collage of seven covers is not a loss of
+     navigability: every step page already carries a rail of numbered
+     step covers, which is the same index in a better place — present
+     for the whole walk rather than only before it. The landing keeps
+     one thing the rail does not: the exit to the archive, which is
+     still offered because the gate that sends visitors here has to be
+     escapable.
+
+     The tree is decorative and lives behind everything (see
+     src/shaders/host-boundary.css, which gives it a box and opts it out
+     of hit-testing), so nothing is built for it here. Deliberate: there
+     is no markup on this page to go stale if the tree is ever turned
+     off on phones or under reduced motion. */
 
   function initStep(index) {
     var step = STEPS[index - 1];
@@ -249,6 +257,27 @@
     if (step.accent != null) page.style.setProperty('--wt-h', String(step.accent));
     for (var i = 0; i < N; i++) addDot(STEPS[i], STEPS[i].index === index);
     buildRail(index);
+    // Back goes above Next, and on step 1 it points at the landing
+    // rather than at nothing — the deck is a loop the visitor can
+    // re-enter, not a corridor with a dead end at the front.
+    if (index > 1) addPrev(STEPS[index - 2]);
+    else {
+      var back = document.createElement('a');
+      back.className = 'wt-prev';
+      back.href = landingUrl();
+      back.setAttribute('rel', 'prev');
+      back.innerHTML = '';
+      var bmark = document.createElement('span');
+      bmark.className = 'wt-prev-mark';
+      bmark.setAttribute('aria-hidden', 'true');
+      bmark.textContent = '←';
+      var blabel = document.createElement('span');
+      blabel.className = 'wt-prev-label';
+      blabel.textContent = 'The build, end to end';
+      back.appendChild(bmark);
+      back.appendChild(blabel);
+      elActions.insertBefore(back, elActions.firstChild);
+    }
     if (index < N) {
       addAction('Next: ' + STEPS[index].title, stepUrl(STEPS[index]), true);
       addAction('Exit the walkthrough', galleryUrl(), false);
@@ -275,8 +304,12 @@
         variant: 'ghost',
         className: 'dlb-walkthrough',
       });
-      // Under the primary CTA, above the quiet exit link.
-      elActions.insertBefore(dlBtn.el, elActions.children[1] || null);
+      // Under the primary CTA, above the quiet exit link. Positional,
+      // because the back link added a row above the CTA: the CTA's own
+      // index is found rather than assumed, or the download button
+      // lands above Next.
+      var cta = elActions.querySelector ? elActions.querySelector('.wt-cta') : null;
+      elActions.insertBefore(dlBtn.el, cta ? cta.nextSibling : elActions.children[1] || null);
     }
   }
 
