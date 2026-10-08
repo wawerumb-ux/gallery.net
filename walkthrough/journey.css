@@ -58,8 +58,15 @@ body.jr {
   font-family: var(--jr-font);
   font-size: 15px;
   line-height: 1.55;
+  /* Clipped, because the wheel scrubs the footage instead of scrolling
+     the page. Without this the page would scroll behind the journey on
+     any viewport taller than the frame. */
   overflow: hidden;
+  overscroll-behavior: none;
   -webkit-font-smoothing: antialiased;
+  /* The journey owns the wheel, so the browser's own zoom-on-wheel and
+     scroll-chaining are both suppressed here rather than in JS. */
+  touch-action: none;
 }
 
 /* ── Depth planes ─────────────────────────────────────────────────

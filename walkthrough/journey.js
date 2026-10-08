@@ -66,6 +66,14 @@
   }
   if (video.readyState >= 2) playVideo();
   else video.addEventListener('loadeddata', playVideo);
+  // A scrub before the metadata is in is a seek the browser cannot honour
+  // yet, so it is deferred rather than dropped: the visitor's first
+  // notch should land, not vanish.
+  if (video.readyState < 1) {
+    video.addEventListener('loadedmetadata', function () {
+      if (pendingSeek != null) { var t = pendingSeek; pendingSeek = null; scrubTo(t); }
+    });
+  }
 
   /* ── Cards ──────────────────────────────────────────────────────
      Built from STAGES rather than authored into the page, so a stage is
@@ -168,6 +176,15 @@
     return line;
   }
 
+  // The connectors are the path taken, so they can be hidden again without
+// being re-measured — the geometry has not changed, only whether it has
+// been walked.
+  function resetLines() {
+    for (var i = 0; i < lines.length; i++) {
+      if (lines[i]) lines[i].classList.remove('is-on', 'is-drawn');
+    }
+  }
+
   function buildConnectors() {
     // A rebuild is a re-measure, not a reset: which connectors the
     // visitor has already walked is state, so it survives a resize.
@@ -235,7 +252,8 @@
     }
   }
 
-  function swap(prev, next, incoming) {
+  function swap(prev, next, incoming, opts) {
+    var draw = !(opts && opts.draw === false);
     var outgoing = prev === next ? null : cards[prev];
     clearExcept(outgoing);
     // Held at full, with no transition on it: the outgoing card's start
@@ -261,7 +279,10 @@
     setTimeout(function () {
       if (outgoing) { outgoing.classList.remove('is-held'); outgoing.classList.add('is-out'); }
       incoming.classList.add('is-on');
-      playDraw(lines[prev] || lines[Math.max(0, prev - 1)]);
+      // Only a walk draws a connector. A card changing because the
+      // footage free-ran past it does not, so an unwalked journey never
+      // scribbles a line across the video.
+      if (draw) playDraw(lines[prev] || lines[Math.max(0, prev - 1)]);
       setTimeout(function () {
         if (outgoing) outgoing.classList.remove('is-on', 'is-out');
         busy = false;
@@ -269,25 +290,159 @@
     }, HOLD_MS);
   }
 
-  function goTo(next) {
+  /* ── The card follows the footage ───────────────────────────────
+     One rule, three inputs. `at` on a stage is where in the video it
+     lives, and the stage that is lit is decided by the video's own
+     currentTime — so the wheel, a click and the arrow keys all arrive at
+     the same place by seeking, and the card can never disagree with the
+     frame behind it. Before this the video free-ran on its own clock and
+     the card drifted off it, which was the one thing I could not justify
+     about measuring the anchors in the first place. */
+  function stepTo(next, opts) {
     var prev = state;
+    if (next === prev) return;
+    busy = true;
     state = next;
-    swap(prev, next, cards[next]);
+    swap(prev, next, cards[next], opts);
+    // The outgoing card's cleanup timer inside swap() releases busy.
   }
 
   function step(delta) {
     if (busy) return;
     var next = state + delta;
     if (next < 0 || next > N - 1) return;
-    busy = true;
-    goTo(next);
+    // The stage and the footage move together, so the card can never
+    // disagree with the frame behind it — including on the first click,
+    // when the video is still at t=0 and stage 2 lives at 1.4s. A click
+    // takes control first: otherwise the video's own clock would fight
+    // the seek and the card would be overwritten a frame later.
+    takeControl();
+    scrubTo(STAGES[next].at, true);
   }
 
   function reset() {
-    if (busy) return;
-    busy = true;
-    goTo(0);
-    setTimeout(function () { busy = false; }, reduce ? 0 : HOLD_MS + IN_MS);
+    // Takes control too: without it the footage would keep its own clock
+    // and carry the card straight back out of the first stage.
+    takeControl();
+    scrubTo(0, true);
+    // The lines are the path taken, so a replay takes them off: a second
+    // lap that starts with all six already drawn is not a walk.
+    resetLines();
+    if (state === 0) return;
+    // The wheel interrupts a transition freely; a reset does not have to
+    // wait for one, and a "Replay from the start" that took 400ms to read
+    // a click would feel broken.
+    busy = false;
+    stepTo(0);
+  }
+
+  /* ── The wheel drives the footage ────────────────────────────────
+     Scrolling scrubs the video, and the stage follows wherever it lands.
+     That makes `at` live for the first time: until now the timestamps in
+     STAGES were recorded and unread, because clicks could not address a
+     moment in a looping video. A wheel can.
+
+     Two decisions worth stating. The video stops looping once it is
+     scrubbed — a loop that fought the wheel made the direction of travel
+     unreadable — and it resumes if the visitor reloads, not on its own.
+     And the wheel is coarse on purpose: one notch is ~120ms of footage,
+     so a trackpad flick crosses a stage rather than skipping it, which
+     would drop cards on the floor mid-transition. */
+  var SCRUB_S_PER_NOTCH = 0.12;
+  var scrubbing = false;
+  var scrubRaf = 0;
+  // A seek asked for before the duration is known, replayed once it is.
+  var pendingSeek = null;
+  // The previous timeupdate, to spot a loop wrapping backwards.
+  var lastSeen = 0;
+
+  // Where a given moment belongs. The stages are not evenly spaced (the
+  // brief's equal division lands four of the seven between cuts), so this
+  // is a lookup against the real `at` values, not a division.
+  function stageAtTime(t) {
+    var found = 0;
+    for (var i = 0; i < N; i++) {
+      if (STAGES[i].at <= t + 0.001) found = i;
+    }
+    return found;
+  }
+
+  function takeControl() {
+    if (scrubbing) return;
+    scrubbing = true;
+    // Held, not paused-and-left: the wheel is the transport now, and a
+    // video that kept playing under the scrub would desync from the card
+    // the moment it looped.
+    video.pause();
+    video.loop = false;
+    // The footage is no longer driving the card; the wheel is.
+    video.removeEventListener('timeupdate', followFootage);
+  }
+
+  /* While the footage free-runs, the card follows it. This is the drift
+     the measured anchors were for: the video used to loop on its own
+     clock with card 1 lit regardless of what was actually on screen, so
+     six seconds in the CLIENT card was sitting over the rack. Once the
+     wheel takes over the listener comes off and the visitor decides. */
+  function followFootage() {
+    if (scrubbing) return;
+    var t = video.currentTime;
+    // A loop wrapped backwards. The connectors are the path taken, so on
+    // a second lap they would be stale — six lines drawn to a card that
+    // has not been walked yet. They clear, and the walk starts over.
+    if (t < lastSeen - 0.5) resetLines();
+    lastSeen = t;
+    var want = stageAtTime(t);
+    // No connector is drawn here. The lines are the path the visitor
+    // walked, and nobody walked this: the footage is playing on its own,
+    // so a card changing under them draws nothing. Only an input — a
+    // click, a key, the wheel — draws a line.
+    if (want !== state) { busy = false; stepTo(want, { draw: false }); }
+  }
+
+  function scrubTo(t, fromWheel) {
+    var d = video.duration;
+    // Unknown duration means the metadata has not landed; the seek is
+    // held rather than applied to t=0, which would look like the wheel
+    // did nothing.
+    if (typeof d !== 'number' || !isFinite(d) || d <= 0) { pendingSeek = t; return; }
+    var next = Math.max(0, Math.min(d - 0.02, t));
+    video.currentTime = next;
+    // A stage boundary is where the visitor is going, not where they
+    // have arrived: a card should not swap while the footage is still
+    // 300ms short of it.
+    var want = stageAtTime(next);
+    if (want !== state) {
+      // The wheel interrupts a running transition freely. A click does
+      // not (step() checks busy), because two overlapping crossfades are
+      // what the lockout exists to prevent.
+      busy = false;
+      // A wheel scrub draws: the visitor is walking the journey. The
+      // card lands under their hand, so the connector belongs.
+      stepTo(want, { draw: fromWheel });
+    }
+  }
+
+  function onWheel(e) {
+    // deltaMode 1 is lines, 2 is pages; both are normalised to something
+    // like pixels so a notched wheel and a trackpad agree on the scale.
+    var unit = e.deltaMode === 1 ? 16 : (e.deltaMode === 2 ? window.innerHeight : 1);
+    var dy = e.deltaY * unit;
+    // A horizontal flick is a gesture for something else on this page.
+    if (Math.abs(dy) < 1) return;
+    e.preventDefault();
+    takeControl();
+    scrubTo(video.currentTime + (dy > 0 ? 1 : -1) * SCRUB_S_PER_NOTCH, true);
+    // Coalesced: a trackpad fires many events per frame, and seeking the
+    // video on each one is what makes a scrub stutter.
+    if (scrubRaf) return;
+    scrubRaf = requestAnimationFrame(function () { scrubRaf = 0; });
+  }
+
+  if (window.addEventListener) {
+    // Not passive: preventDefault is the whole point — without it the
+    // page scrolls behind the journey on a device that has room to.
+    window.addEventListener('wheel', onWheel, { passive: false });
   }
 
   /* ── Pointer parallax ───────────────────────────────────────────
@@ -323,10 +478,11 @@
   }
 
   /* ── Input ──────────────────────────────────────────────────────
-     A click anywhere advances, the context menu rewinds, and the arrow
-     keys walk both ways so the sequence is reachable without a pointer.
-     The control stops the advance, or the reset button would advance as
-     well as reset. */
+     Four ways in, all landing on the same rule (the card follows the
+     footage): the wheel scrubs it either way, a click advances, the
+     context menu rewinds, and the arrow keys walk both directions so the
+     sequence is reachable without a pointer. The control stops the
+     advance, or the reset button would advance as well as reset. */
   document.addEventListener('click', function (e) {
     var t = e.target;
     // Not on the controls, and not on a link: walkthrough.js puts the
@@ -363,8 +519,13 @@
      before anything is measured, so the first frame is a card rather
      than an empty stage. */
   buildCards();
-  cards[0].classList.add('is-on');
   buildConnectors();
+  // Lit from the footage rather than assumed: the video may already be
+  // past t=0 by the time this runs (it starts on autoplay), and card 1 is
+  // only correct if the footage is actually at the start.
+  state = stageAtTime(video.currentTime || 0);
+  cards[state].classList.add('is-on');
+  video.addEventListener('timeupdate', followFootage);
 
   // Cached coordinates, so this is the only thing that invalidates them.
   var resizeTimer = 0;

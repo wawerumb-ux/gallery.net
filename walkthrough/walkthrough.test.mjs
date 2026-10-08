@@ -731,7 +731,9 @@ describe('W — the landing is the request journey', () => {
     // visible at load scribbles over the footage before the walk begins.
     assert.match(journeyCss, /\.jr-lines \.jr-line\s*\{\s*opacity:\s*0/,
       'connectors are built hidden');
-    assert.match(journeySrc, /cards\[0\]\.classList\.add\('is-on'\)/,
+    // The lit card is whichever stage the footage is at, which is card 1
+    // only if the video is still at t=0 (see J16).
+    assert.match(journeySrc, /cards\[state\]\.classList\.add\('is-on'\)/,
       'and exactly one card is lit on load');
   });
 
@@ -812,6 +814,65 @@ describe('W — the landing is the request journey', () => {
     // The video is the content, not an effect: it keeps playing.
     const guard = /if \(!reduce\) \{([\s\S]*?)\n  \}/.exec(journeySrc)[1];
     assert.match(guard, /addEventListener\('mousemove'/, 'no listener is even attached under reduce');
+  });
+
+  test('J15 — the wheel scrubs the footage, and the card follows it', () => {
+    // The rule the landing is built on now: `at` is where a stage lives in
+    // the video, and the lit stage is decided by video.currentTime. Before
+    // this the footage free-ran on its own clock with card 1 lit whatever
+    // was on screen, which is what made the measured anchors pointless.
+    assert.match(journeySrc, /addEventListener\('wheel', onWheel, \{ passive: false \}\)/,
+      'the wheel is captured and NOT passive — without preventDefault the page scrolls behind it');
+    assert.match(journeySrc, /function stageAtTime\(t\)/,
+      'a moment in the video maps to a stage');
+    assert.match(journeySrc, /function scrubTo\(t, fromWheel\)/,
+      'scrubbing takes the video to a moment');
+    // Paused and un-looped the moment the wheel is touched, or the loop
+    // fights the scrub and the direction of travel is unreadable.
+    assert.match(journeySrc, /function takeControl\(\)[\s\S]*?video\.pause\(\);[\s\S]*?video\.loop = false;/,
+      'the wheel takes the transport: paused, and no longer looping');
+    assert.match(journeySrc, /video\.removeEventListener\('timeupdate', followFootage\)/,
+      'and the footage stops driving the card');
+    // deltaMode: 1 is lines, 2 is pages. Unnormalised, a notched wheel and
+    // a trackpad scrub by wildly different amounts.
+    assert.match(journeySrc, /e\.deltaMode === 1 \? 16 : \(e\.deltaMode === 2 \? window\.innerHeight : 1\)/,
+      'deltaMode is normalised so both input kinds agree on scale');
+    // Every stage boundary is honoured, and both directions work.
+    assert.match(journeySrc, /dy > 0 \? 1 : -1/, 'the wheel scrubs forward and in reverse');
+    // A seek asked for before the metadata lands is held, not dropped —
+    // applying it to t=0 would make the visitor's first notch vanish.
+    assert.match(journeySrc, /pendingSeek = t; return;/,
+      'a seek before the duration is known is deferred, not lost');
+    assert.match(journeySrc, /addEventListener\('loadedmetadata'/, 'and replayed once it is known');
+  });
+
+  test('J16 — the opening state is read from the footage, not assumed', () => {
+    // The video starts on autoplay, so by the time the runtime runs it may
+    // already be past t=0. Lighting card 1 regardless put the CLIENT card
+    // over the rack.
+    assert.match(journeySrc, /state = stageAtTime\(video\.currentTime \|\| 0\);/,
+      'the initial stage is derived from currentTime');
+    assert.match(journeySrc, /cards\[state\]\.classList\.add\('is-on'\)/,
+      'and the lit card is that one, not card 1');
+    assert.match(journeySrc, /video\.addEventListener\('timeupdate', followFootage\);/,
+      'and the card keeps following while the footage free-runs');
+    // A second lap must not start with six stale connectors drawn.
+    assert.match(journeySrc, /if \(t < lastSeen - 0\.5\) resetLines\(\);/,
+      'a loop wrapping backwards clears the path taken');
+    assert.match(journeySrc, /function resetLines\(\)/, 'and resetLines exists');
+    // Only a walk draws a connector: a card changing because the video
+    // played past it is not something the visitor did.
+    assert.match(journeySrc, /function followFootage\(\)[\s\S]*?stepTo\(want, \{ draw: false \}\)/,
+      'free-running playback draws no line');
+    assert.match(journeySrc, /if \(draw\) playDraw\(/,
+      'only an input draws one');
+  });
+
+  test('J17 — the page itself cannot scroll under the journey', () => {
+    // The wheel is the transport now, so the document has nowhere to go.
+    assert.match(journeyCss, /body\.jr\s*\{[^}]*overflow:\s*hidden/, 'the page does not scroll');
+    assert.match(journeyCss, /overscroll-behavior:\s*none/,
+      'and no scroll chaining out of it');
   });
 
   test('J13 — the journey is reachable by keyboard, and reset does not advance', () => {
