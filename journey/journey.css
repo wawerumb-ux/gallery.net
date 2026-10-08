@@ -1,0 +1,287 @@
+/* ────────────────────────────────────────────────────────────────────
+   journey/journey.css — the request journey over the walkthrough video.
+
+   Same discipline as tour/tour.css: every colour is a token declared
+   once in :root, one easing, and no literal hex outside that block. The
+   cards ride a video rather than a lit backdrop, so legibility is bought
+   with a scrim over the footage plus a glass surface on each card —
+   the video's own exposure changes every half second and a card cannot
+   rely on what is behind it.
+   ──────────────────────────────────────────────────────────────────── */
+
+:root {
+  --jr-bg: #000000;
+
+  /* Surfaces on footage. The scrim is what guarantees the text survives
+     the rack shots, which are near-black, and the office shots, which
+     are near-white. */
+  --jr-scrim: linear-gradient(180deg, rgba(8, 9, 12, 0.34) 0%, rgba(8, 9, 12, 0.12) 38%, rgba(8, 9, 12, 0.52) 100%);
+  --jr-glass: rgba(255, 255, 255, 0.06);
+  --jr-edge: rgba(255, 255, 255, 0.14);
+  --jr-edge-strong: rgba(255, 255, 255, 0.24);
+  --jr-text: #f4f7fa;
+  --jr-muted: rgba(244, 247, 250, 0.65);
+  --jr-faint: rgba(244, 247, 250, 0.34);
+
+  /* The video's own light is cyan, so the accent is the video's colour
+     rather than a second one competing with it. */
+  --jr-accent: #22d3ee;
+  --jr-accent-ink: #06333c;
+
+  --jr-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 18px 44px rgba(0, 0, 0, 0.44);
+
+  --jr-radius: 16px;
+  --jr-card-w: 320px;
+  --jr-inset: 28px;
+
+  --jr-font: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+  --jr-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* The brief's curve for the line draw and the card swap: a fast
+     start and a long settle, the same shape One UI uses, so the cards
+     and the deck they sit inside move alike. */
+  --jr-ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --jr-ease-ui: cubic-bezier(0.22, 0.25, 0.00, 1.00);
+
+  --jr-out: 180ms;   /* the outgoing card */
+  --jr-in: 220ms;    /* the incoming card, once it has begun */
+  --jr-hold: 200ms;  /* how long the outgoing card is held at full */
+  --jr-draw: 600ms;  /* the connector drawing itself in */
+}
+
+* { box-sizing: border-box; }
+
+body.jr {
+  margin: 0;
+  background: var(--jr-bg);
+  color: var(--jr-text);
+  font-family: var(--jr-font);
+  font-size: 15px;
+  line-height: 1.55;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Depth planes ─────────────────────────────────────────────────
+   Three fixed layers, back to front: the video (least responsive to
+   the pointer), the hand-drawn lines, the cards. Each is promoted so
+   the parallax is a compositor translate and never a layout, and only
+   the video carries will-change — the cards and the lines are on top
+   of it and repaint with it anyway. */
+.jr-video,
+.jr-lines,
+.jr-cards {
+  position: fixed;
+  inset: 0;
+}
+.jr-video { z-index: 0; will-change: transform; }
+.jr-cards { z-index: 2; pointer-events: none; }
+/* The line layer is an <svg>, which is a replaced element with a 300x150
+   intrinsic size — inset: 0 alone leaves it that size, and every stroke
+   drawn past the corner is clipped away. It is sized explicitly and
+   allowed to overflow, because a connector running from a card in the
+   far bottom-right to one in the far top-left leaves the box entirely. */
+.jr-lines {
+  z-index: 1;
+  pointer-events: none;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+/* The video covers the viewport and is scaled past its edges so the
+   parallax never exposes a border. */
+.jr-video-el {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  pointer-events: none;
+}
+/* 10–20% black over the footage, heavier at the bottom: the cards sit
+   along the lower edge, which is where the rack shots go darkest
+   anyway, and a linear ramp keeps the office shots' faces readable. */
+.jr-scrim {
+  position: absolute;
+  inset: 0;
+  background: var(--jr-scrim);
+  pointer-events: none;
+}
+
+/* ── Cards ──────────────────────────────────────────────────────────
+   Absolute, one visible at a time. The stage number is the mono
+   eyebrow the deck uses elsewhere, so this page reads as the same
+   product rather than a different one. */
+.jr-card {
+  position: absolute;
+  /* The anchor comes from the runtime as a custom property, so the
+     breakpoint below can re-place every card without an inline style
+     outranking it. Defaults are stage 1's anchor. */
+  left: var(--jr-x, 50%);
+  top: var(--jr-y, 67%);
+  width: min(var(--jr-card-w), calc(100vw - var(--jr-inset) * 2));
+  padding: 20px 24px;
+  border-radius: var(--jr-radius);
+  border: 1px solid var(--jr-edge);
+  background: var(--jr-glass);
+  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
+  box-shadow: var(--jr-shadow);
+  color: var(--jr-text);
+  pointer-events: none;
+  opacity: 0;
+  /* No transition until the runtime hands one card the carrier class:
+     the start state has to be painted before anything moves. */
+  will-change: transform, opacity;
+}
+.jr-card.is-on,
+.jr-card.is-out {
+  transition: opacity var(--jr-in) var(--jr-ease);
+}
+/* The active card's accent, as a bar rather than a border change: a
+   border would shift every line of text by 3px the moment the card
+   lit up, which is a jump in the middle of the swap. */
+.jr-card::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 14px;
+  bottom: 14px;
+  width: 3px;
+  border-radius: 0 2px 2px 0;
+  background: var(--jr-accent);
+  opacity: 0;
+  transition: opacity var(--jr-in) var(--jr-ease);
+}
+.jr-card.is-on::before { opacity: 1; }
+/* The accent is a left border on the wide cards and a top border on
+   the narrow ones, which is the same rule the deck uses for its CTA. */
+.jr-card.is-on { opacity: 1; }
+.jr-card.is-out { opacity: 0; transition-duration: var(--jr-out); }
+/* 200ms after the swap begins the incoming card has started to fade
+   in, and only then does the outgoing one begin to leave — that overlap
+   is what removes the blank frame between states. */
+.jr-card.is-held { opacity: 1; }
+
+.jr-card-num {
+  display: block;
+  font-family: var(--jr-mono);
+  font-size: 10.5px;
+  font-weight: 500;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--jr-accent);
+}
+.jr-card-title {
+  margin: 6px 0 8px;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+.jr-card-copy {
+  margin: 0;
+  font-size: 14px;
+  color: var(--jr-muted);
+}
+
+/* ── Controls ─────────────────────────────────────────────────────── */
+.jr-controls {
+  position: fixed;
+  z-index: 3;
+  right: var(--jr-inset);
+  bottom: calc(var(--jr-inset) + env(safe-area-inset-bottom, 0px));
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.jr-reset {
+  appearance: none;
+  border: 1px solid var(--jr-edge-strong);
+  border-radius: 999px;
+  background: rgba(8, 9, 12, 0.62);
+  color: var(--jr-text);
+  font-family: inherit;
+  font-size: 13px;
+  padding: 8px 14px;
+  cursor: pointer;
+  transition: filter 100ms var(--jr-ease-ui), border-color 100ms var(--jr-ease-ui);
+}
+.jr-reset:hover { filter: brightness(1.15); border-color: var(--jr-accent); }
+.jr-reset:focus-visible { outline: 2px solid var(--jr-accent); outline-offset: 2px; }
+/* The live region for the stage name: announced, but never the thing
+   the eye lands on, so it is the same element the card is. */
+.jr-status {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ── The drawn lines ───────────────────────────────────────────────
+   A connector is invisible until the journey walks it, so the opening
+   state is the video alone — one card, nothing scribbled over it. The
+   draw-in is a dash offset on every path inside the group, so the whole
+   sketch writes on together. */
+.jr-lines path { fill: none; }
+.jr-lines .jr-line { opacity: 0; }
+.jr-lines .jr-line.is-on { opacity: 1; }
+.jr-lines .jr-arrow { opacity: 0; transition: opacity 200ms var(--jr-ease); }
+.jr-lines .is-drawn .jr-arrow { opacity: 1; }
+
+/* ── Reduced motion: the stages still change, nothing moves ────────
+   The cards switch instantly and no line animates, but the video keeps
+   playing — it is the content, not an effect. */
+@media (prefers-reduced-motion: reduce) {
+  .jr-card,
+  .jr-card.is-on,
+  .jr-card.is-out {
+    transition: none !important;
+  }
+  .jr-lines .jr-arrow { transition: none !important; }
+  .jr-video { transform: none !important; will-change: auto; }
+}
+
+/* ── Phones ─────────────────────────────────────────────────────────
+   Seven absolute cards cannot share a phone screen, so below the
+   deck's own 999px breakpoint the cards leave the frame and stack in
+   normal flow over a scrim, which is what the walkthrough landing
+   does at the same width. */
+@media (max-width: 999px) {
+  .jr-cards {
+    display: block;
+    pointer-events: none;
+  }
+  /* Seven absolute cards cannot share a phone screen, so below the
+     deck's own 999px breakpoint they all sit in the same bottom band and
+     only the lit one is opaque — the anchors still drive the connectors,
+     but there are no connectors here to drive. */
+  .jr-card {
+    left: 16px;
+    right: 16px;
+    top: auto;
+    bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+    width: auto;
+    padding: 16px 18px;
+  }
+  /* Full width on a phone, so the accent moves to the top edge — the
+     same rule the deck uses for its own narrow surfaces. */
+  .jr-card::before {
+    left: 14px;
+    right: 14px;
+    top: 0;
+    bottom: auto;
+    width: auto;
+    height: 3px;
+    border-radius: 0 0 2px 2px;
+  }
+  .jr-card-title { font-size: 19px; }
+  .jr-card-copy { font-size: 13.5px; }
+  .jr-lines { display: none; }
+}
