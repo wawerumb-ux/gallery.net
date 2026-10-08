@@ -525,21 +525,16 @@
       case 'fading': {
         fadeTimer++;
         treeAlpha = Math.max(0, 1 - fadeTimer / FADE_DURATION);
-        drawScene(time);
         if (fadeTimer >= FADE_DURATION) {
-          treeState = 'waiting';
-          waitTimer = 0;
-        }
-        break;
-      }
-      case 'waiting': {
-        ctx.clearRect(0, 0, W, H);
-        ctx.fillStyle = '#0a0a0a';
-        ctx.fillRect(0, 0, W, H);
-        waitTimer++;
-        if (waitTimer >= WAIT_DURATION) {
+          // Hand off in the same frame: the next tree is built before the
+          // canvas is drawn, so the fade never rests on an alpha-0 frame and
+          // the WAIT_DURATION beat between cycles is gone.
           createTree();
+          updateBranches(time);
+          drawScene(time);
+          break;
         }
+        drawScene(time);
         break;
       }
     }
