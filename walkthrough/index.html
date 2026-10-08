@@ -9,34 +9,67 @@
 <link rel="icon" type="image/png" href="../logo/favi.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="./walkthrough.css">
-<!-- The ThreeUI GenerativeTree: the landing's backdrop, and the first
-     thing you see. One React island, built from the authored source in
-     ../src (see ../src/Scene.tsx and vite.config.js). The walkthrough's own
-     runtime below is still a classic script and is untouched. -->
-<link rel="stylesheet" href="./shader-build/assets/shader.css">
-<link rel="modulepreload" href="./shader-build/assets/shader.js">
+<link rel="stylesheet" href="./journey.css">
 </head>
-<body class="wt" data-depth="1">
+<!-- The landing IS the walkthrough now: the request journey, played over
+     the footage, with seven cards naming each stop. The generative tree
+     that used to stand here is gone, along with the React island and the
+     Vite build that fed it — nothing on this page is a module any more.
+     The deck itself is unchanged: the seven step pages below are still
+     the photographic arc, reached from the control bar. -->
+<body class="wt" data-depth="1" data-journey>
 <div class="wt-ambient" id="wtAmbient" aria-hidden="true"></div>
-<!-- The tree is the landing's backdrop and it is decorative, so it is hidden
-     from assistive tech; the landing's own copy carries the meaning. On
-     phones and under reduced motion it is not rendered at all — see
-     ../src/shaders/host-boundary.css. -->
-<div id="wt-shader-root" aria-hidden="true"></div>
-<main class="wt-page">
-  <div class="wt-media" id="wtMedia"></div>
+<!-- Depth plane 1 of 3 — the least responsive to the pointer. The scrim
+     above the footage is what keeps a card legible over the near-white
+     office shots as well as the near-black rack ones. -->
+<div class="jr-video" id="jrVideo" aria-hidden="true">
+  <!-- autoplay only takes with muted + playsinline, which is why both are
+       in the markup rather than set from script. -->
+  <video class="jr-video-el" id="jrVideoEl"
+         src="../video/Web_request_travels_through_netw…_20261008015354.mp4"
+         autoplay muted loop playsinline preload="metadata"></video>
+  <div class="jr-scrim"></div>
+</div>
+<!-- Depth plane 3 of 3 — the most responsive. Rough.js appends into this
+     element, one group per connector. -->
+<svg class="jr-lines" id="jrLines" aria-hidden="true" focusable="false"></svg>
+<!-- Depth plane 2 of 3. Seven cards, one lit; journey.js builds them
+     from stages.js so a stage is one object, not a page of markup. -->
+<!-- The bottom group. Desktop dissolves it (display: contents) and each
+     child takes its own corner; a phone keeps it as one fixed column, so
+     the card, the two ways on and replay stack in flow and cannot
+     overlap — the card's height varies with each stage's note, so any
+     fixed offsets between them would be wrong for some stage. -->
+<div class="jr-bottom">
+  <div class="jr-cards" id="jrCards"></div>
+  <div class="jr-landing-stack" id="jrStack">
+    <div class="wt-landing-bar-slot" id="jrBarSlot"></div>
+    <div class="jr-controls">
+      <button class="jr-reset" id="jrReset" type="button">Replay from the start</button>
+    </div>
+  </div>
+</div>
+<main class="wt-page wt-page-landing">
   <section class="wt-panel">
-    <span class="wt-counter" id="wtCounter"></span>
-    <h1 class="wt-title" id="wtTitle"></h1>
-    <p class="wt-copy" id="wtCopy"></p>
-    <nav class="wt-dots" id="wtDots" aria-label="Walkthrough progress"></nav>
+    <!-- The journey cards carry the copy, so the title block is retired
+         rather than duplicated. The panel survives as the control bar:
+         the gate sends first-time visitors here, so the landing must
+         still offer the way into the deck AND the quiet exit to the
+         archive, or it becomes a trap (see walkthrough.js markSeen). -->
+    <span class="wt-counter" id="wtCounter" hidden></span>
+    <h1 class="wt-title" id="wtTitle" hidden></h1>
+    <p class="wt-copy" id="wtCopy" hidden></p>
+    <nav class="wt-dots" id="wtDots" aria-label="Walkthrough progress" hidden></nav>
     <div class="wt-actions" id="wtActions"></div>
   </section>
 </main>
+
 <script src="./steps.js"></script>
+<script src="./rough.js"></script>
 <script src="./walkthrough.js"></script>
-<script type="module" src="./shader-build/assets/shader.js"></script>
+<script src="./stages.js"></script>
+<script src="./journey.js"></script>
 </body>
 </html>

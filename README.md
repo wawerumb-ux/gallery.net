@@ -23,16 +23,27 @@ label, title, one-sentence copy, hero + gallery photos pointing at the existing
 page from that array, so adding a step means adding one object plus one static
 folder — the progress ramp, the rail and navigation recompute themselves.
 
-**The landing is a poster, not a cover page.** It leads with the photography
-rather than a title floating in the dark: all seven step covers tiled as a
-collage, and *every tile is a link into its own phase* — the invitation and the
-table of contents are the same object, so a visitor can jump straight to the
-phase that interests them instead of pressing Next six times. The collage is a
-4×3 grid whose two lower-left cells are left deliberately empty for the title
-block, rather than floating the copy on top of two photographs. Tiles lift on
-hover and take their own phase's hue; captions reveal on hover and are always
-visible where there is no hover. On touch it becomes a two-up flow collage with
-the copy underneath, because a poster needs width the phone does not have.
+**The landing is the request journey.** It plays `video/` full-bleed behind
+seven cards, one per stage of a web request's trip — CLIENT → CAT6A → PATCH
+PANEL → SWITCH → CEILING TRAY → DATA CENTER → CONNECTED — each with a plain
+note for someone who has never thought about a network. A click advances;
+ArrowLeft/ArrowRight walk it both ways; right-click rewinds. Hand-drawn
+connectors are drawn between each pair with Rough.js (`walkthrough/rough.js`,
+vendored), and the pointer moves three planes at three depths — the footage
+least, the lines most.
+
+The stages live in `walkthrough/stages.js`, and each one's card position is
+*measured*: its frame was sampled into a 4×3 grid and scored `lum + 2 × cyan`,
+so a card sits in the darkest cell holding least of the footage's own cyan
+light. `cell` records which, so the choice is auditable rather than eyeballed.
+The journey runtime (`walkthrough/journey.js`) is a sibling of `walkthrough.js`
+rather than part of it: the deck's transitions and the journey's cards are
+different concerns, and this way a step page loads one runtime and not the
+other.
+
+Earlier landings led with a generative tree — a vendored ThreeUI canvas, the
+project's one React island, and the only build step the site ever had. Both it
+and the build are gone; nothing on the site is a module any more.
 
 **The deck.** It is built to read like a presentation: a 16:9 slide floating
 on a lit backdrop, a numbered thumbnail rail doubling as the progress
@@ -234,8 +245,7 @@ click "Sign out" when you're done to clear it early.
 - This scales comfortably to a few hundred photos. If you eventually want
   faster loads for very large batches, the next step up would be generating
   thumbnails at upload time — not included here to keep this simple.
-- No frameworks, no build step — just the three files. Fork away.
-- Tests: `node --test` runs all three suites (gallery logic, guided tour,
-  walkthrough transitions) — 94 tests. Pass a glob or path to run one:
-  `node --test "tour/*.test.mjs"`. Note that `node --test <dir>` fails on
-  Node 22+ ("Cannot find module"); use plain `node --test`.
+- No frameworks, no build step, no dependencies — static files. Fork away.
+- Tests: `node --test` runs all four suites (gallery logic, guided tour,
+  walkthrough deck, and the landing journey). Pass a glob or path to run one:
+  `node --test "tour/*.test.mjs"`. `npm test` runs all of them.

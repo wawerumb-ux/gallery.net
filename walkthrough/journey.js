@@ -1,9 +1,13 @@
 /* ────────────────────────────────────────────────────────────────────
-   journey/journey.js — the request journey runtime (vanilla).
+   walkthrough/journey.js — the landing runtime: the request journey.
 
    Four things, in this order: the video layer, seven cards built from
-   STEPS, a Rough.js connector between each pair, and a seven-state
+   STAGES, a Rough.js connector between each pair, and a seven-state
    machine a click walks forward through.
+
+   It runs on the landing only, and it is a sibling of walkthrough.js
+   rather than part of it: that runtime still owns every step page, the
+   first-visit gate and the link handling, all of which the landing keeps.
 
    The video is the content, so it is the one thing here that is never
    conditional. The state machine owns which card is lit; the
@@ -35,7 +39,7 @@
   var ARROW_MS = 200;
 
   var ACCENT = '#22d3ee';
-  var N = STEPS.length;
+  var N = STAGES.length;
 
   var videoHost = document.getElementById('jrVideo');
   var linesHost = document.getElementById('jrLines');
@@ -64,13 +68,13 @@
   else video.addEventListener('loadeddata', playVideo);
 
   /* ── Cards ──────────────────────────────────────────────────────
-     Built from STEPS rather than authored into the page, so a stage is
+     Built from STAGES rather than authored into the page, so a stage is
      one object and the markup cannot drift from it. Each card is its
      own live region: the stage is announced when it becomes active,
      with its note, rather than the page announcing a bare number. */
   function buildCards() {
     for (var i = 0; i < N; i++) {
-      var step = STEPS[i];
+      var step = STAGES[i];
       var card = document.createElement('article');
       card.className = 'jr-card';
       // Written as custom properties rather than left/top so the
@@ -324,7 +328,11 @@
      The control stops the advance, or the reset button would advance as
      well as reset. */
   document.addEventListener('click', function (e) {
-    if (e.target && e.target.closest && e.target.closest('.jr-controls')) return;
+    var t = e.target;
+    // Not on the controls, and not on a link: walkthrough.js puts the
+    // two ways on — into the deck and the quiet exit — in the panel, and
+    // a click that means "leave" must not also mean "next stage".
+    if (t && t.closest && (t.closest('.jr-controls') || t.closest('a'))) return;
     step(1);
   });
   document.addEventListener('contextmenu', function (e) {
@@ -344,6 +352,10 @@
       reset();
     });
   }
+  // The deck's own link handling has to see this page's links, and it
+  // listens on document too. Both handlers are registered by separate
+  // scripts on one document, so neither can stop the other from
+  // registering — the guard above is what keeps them from overlapping.
 
   /* ── Go ────────────────────────────────────────────────────────
      Cards first, then the connectors, because the connectors are

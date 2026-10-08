@@ -209,8 +209,23 @@
     return a;
   }
 
+  /* The landing is the request journey now (see index.html and
+     journey.js): the footage plays full-bleed and seven cards name each
+     stop, so there is no title card to write and nothing to set the
+     title block from. What the landing still owes the visitor is the two
+     ways on — into the deck, and the quiet exit to the archive — because
+     the gate sends first-time visitors here and cannot be allowed to
+     trap anyone (see markSeen). Those are the panel's only contents now,
+     and they sit in the corner out of the footage's way. */
   function initLanding() {
     page.classList.add('wt-page-landing');
+    // hasAttribute, not dataset.journey: the attribute is written without
+    // a value, so dataset.journey is "" — and "" is falsy, which would
+    // quietly send the journey landing down the title-card path.
+    if (body.hasAttribute('data-journey')) {
+      initJourneyLanding();
+      return;
+    }
     elCounter.hidden = true;
     elTitle.textContent = 'The build, end to end';
     elCopy.textContent = 'A photographic record of a structured cabling project, from first survey to certified handover';
@@ -219,23 +234,43 @@
     addAction('Browse the gallery', galleryUrl(), false);
   }
 
-  /* The tree comes first. The landing is now the cover of a growing
-     generative tree with the call to action over it, so the walk
-     literally starts where the tree does.
+  function initJourneyLanding() {
+    // The slot is in the landing's own markup, inside the control stack —
+    // desktop puts the stack's rows in opposite corners, a phone lays them
+    // out in flow above the card, and neither needs the offsets guessed.
+    var slot = document.getElementById('jrBarSlot');
+    var bar = document.createElement('div');
+    bar.className = 'wt-landing-bar';
+    addAction('Start the walkthrough', stepUrl(STEPS[0]), true);
+    addAction('Browse the gallery', galleryUrl(), false);
+    // The actions host moves rather than being copied: the anchors
+    // addAction built already carry this runtime's click handling (see
+    // the document listener below), so a second copy would play the
+    // departure twice and record the same skip twice.
+    bar.appendChild(elActions);
+    (slot || page).appendChild(bar);
+  }
 
-     What replaced the collage of seven covers is not a loss of
-     navigability: every step page already carries a rail of numbered
-     step covers, which is the same index in a better place — present
-     for the whole walk rather than only before it. The landing keeps
-     one thing the rail does not: the exit to the archive, which is
-     still offered because the gate that sends visitors here has to be
-     escapable.
+  /* The request journey comes first. The landing plays the footage
+     full-bleed with seven cards naming each stop, so the walk opens on
+     the thing the whole project is about rather than on a title card.
 
-     The tree is decorative and lives behind everything (see
-     src/shaders/host-boundary.css, which gives it a box and opts it out
-     of hit-testing), so nothing is built for it here. Deliberate: there
-     is no markup on this page to go stale if the tree is ever turned
-     off on phones or under reduced motion. */
+     What came before this — a collage of seven covers, then a growing
+     generative tree — was not a loss of navigability either way: every
+     step page carries a rail of numbered step covers, which is the same
+     index in a better place, present for the whole walk rather than
+     only before it. The landing keeps the one thing the rail does not
+     have: the exit to the archive, still offered because the gate that
+     sends visitors here has to be escapable.
+
+     The journey is a sibling script (journey.js) rather than part of
+     this file, because this one also drives all seven step pages and
+     the first-visit gate; the landing's cards, connectors and parallax
+     are a different concern from the deck's transitions, and keeping
+     them apart is what lets a step page load one runtime and not the
+     other. Nothing is built for the journey here — journey.js owns it
+     end to end, from STAGES, so there is no markup on the landing that
+     can go stale if it is ever turned off. */
 
   function initStep(index) {
     var step = STEPS[index - 1];
@@ -318,8 +353,24 @@
   function fullRes(src) { return src.replace(/-800\.webp$/, '.jpg'); }
   function fileName(src) { return fullRes(src).split('/').pop(); }
 
-  /* Photography: hero plus the step's gallery, advanced by tap with
-     the overlapping crossfade (outgoing 300ms, incoming 500ms). */
+  /* Photography: hero plus the step's gallery, advanced by tap.
+
+     Everything here exists to make the tap feel instant, and the
+     important part is not the animation — it is that the next
+     photograph is ALREADY THERE. A step carries at most four 800px
+     WebP files, so all of them are fetched and decoded on load:
+
+     - loading="lazy" was the real bug. Photos 2-4 were only requested
+       when they scrolled into view, so a tap fired a network fetch and
+       then began fading an image the browser had not decoded yet. The
+       fade ran, the frame was blank, and the photograph appeared late —
+       which reads as "slow" no matter how short the transition is.
+     - decode() is awaited explicitly rather than left to
+       decoding="async", which only hints. Resolving it means the
+       compositor holds the bitmap, so the tap only has to change
+       opacity.
+     Four small images on a dedicated page is a fair trade for a tap that
+     does not stutter. */
   function initMedia(step, onAdvance) {
     var photos = [step.hero].concat(step.gallery);
     var layers = photos.map(function (src, i) {
@@ -327,8 +378,17 @@
       img.src = prefix + src;
       img.alt = step.title + ' — photo ' + (i + 1) + ' of ' + photos.length;
       img.decoding = 'async';
-      if (i > 0) img.loading = 'lazy';
+      // Never lazy: see the note above. The hero is the page's LCP
+      // element, the rest are tapped for within a second or two.
+      img.loading = 'eager';
+      // The hero is what the slide shows first — it should not queue
+      // behind the decode of the photos after it.
+      if (i === 0) img.fetchPriority = 'high';
       elMedia.appendChild(img);
+      // Decode off the critical path. A rejected decode (a 404, or a
+      // browser without the API) must not surface: the image still
+      // paints, just without the guarantee.
+      if (typeof img.decode === 'function') img.decode().catch(function () {});
       return img;
     });
     var hint = document.createElement('span');
@@ -336,12 +396,18 @@
     hint.textContent = '1 / ' + photos.length;
     elMedia.appendChild(hint);
 
-    var cur = 0, busy = false;
+    /* Mirrors --wt-snap in walkthrough.css. A test asserts the two agree:
+     a lockout longer than the crossfade swallows taps, which is the
+     opposite of instant, and a shorter one lets two crossfades overlap
+     and leave a frame at half opacity. */
+  var SNAP_MS = 160;
+
+  var cur = 0, busy = false;
     function show(next) {
       if (busy || next === cur) return;
       var out = layers[cur], inn = layers[next];
-      inn.classList.add('is-on');            // incoming: 500ms
-      out.classList.add('wt-img-out');       // outgoing: 300ms, overlap
+      inn.classList.add('is-on');            // incoming: --wt-snap
+      out.classList.add('wt-img-out');       // outgoing: --wt-snap-out
       hint.textContent = (next + 1) + ' / ' + layers.length;
       if (onAdvance) onAdvance(next);
       busy = true;
@@ -349,13 +415,15 @@
         out.classList.remove('is-on', 'wt-img-out');
         cur = next;
         busy = false;
-      }, reduce ? 0 : 500);
+      }, reduce ? 0 : SNAP_MS);
     }
     elMedia.addEventListener('click', function () {
       show((cur + 1) % layers.length);
     });
 
-    // First paint: incoming fade (500ms) once the shell has laid out.
+    // First paint: the hero arrives with no transition on it (see
+    // .wt-page.wt-t-arrive .wt-media img:first-child), so two frames is
+    // only there to let the shell lay out first.
     requestAnimationFrame(function () {
       requestAnimationFrame(function () { layers[0].classList.add('is-on'); });
     });

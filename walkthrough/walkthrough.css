@@ -40,6 +40,17 @@
   --wt-base: 300ms;
   --wt-long: 500ms;
 
+  /* Photo advance — a snap, not a dissolve. Tapping a slide should feel
+     like the next photograph was already there, because by then it is:
+     every photo in a step is fetched and decoded on load (walkthrough.js),
+     so the only thing left to animate is opacity. 160ms is under the
+     threshold where a crossfade reads as a transition at all, and the
+     outgoing layer clears sooner so the two never both sit at half
+     opacity for long. The deck's own page transitions keep --wt-long:
+     those cross a document load and are meant to be felt. */
+  --wt-snap: 160ms;
+  --wt-snap-out: 110ms;
+
   /* Fluent 2 radius tokens: 4 medium, 8 large, 12 x-large */
   --wt-r-sm: 4px;
   --wt-r-md: 8px;
@@ -193,14 +204,16 @@ body.wt::after {
   height: 100%;
   object-fit: cover;
   opacity: 0;
-  /* IMAGES: overlapping crossfade — incoming rides the long duration */
-  transition: opacity var(--wt-long) var(--wt-ease);
+  /* IMAGES: overlapping crossfade — but a snap, because the bitmap is
+     already decoded when you tap (see walkthrough.js). Only opacity
+     animates, so this is compositor work and cannot jank. */
+  transition: opacity var(--wt-snap) var(--wt-ease);
 }
 .wt-media img.is-on { opacity: 1; }
-/* Outgoing runs shorter; the two layers briefly overlap (no glare) */
+/* Outgoing runs shorter still; the two layers barely overlap (no glare) */
 .wt-media img.wt-img-out {
   opacity: 0;
-  transition-duration: var(--wt-base);
+  transition-duration: var(--wt-snap-out);
 }
 /* A Fluent badge: hairline stroke over a scrim, never a solid chip */
 .wt-media-hint {
@@ -408,30 +421,33 @@ body.wt::after {
   box-shadow: var(--wt-lift-lift);
 }
 
-/* Landing: no slide, so no rail and no media — the lit backdrop, the
-   sharp ambient and the tree carry the whole frame. */
+/* Landing: no slide, so no rail and no media — the request journey and
+   its footage carry the whole frame (see journey.css). */
 .wt-page-landing .wt-media,
 .wt-page-landing .wt-rail { display: none; }
+/* The panel's contents are retired on the journey landing: the cards
+   carry the copy and the actions moved into .wt-landing-bar. The panel
+   itself stays as the <main> that the slide-transition classes ride on,
+   so an arrival or a departure still has something to carry. */
+.wt-page-landing .wt-panel { display: contents; }
 
-/* ── The landing — the tree, then the invitation ────────────────────
-   The tree comes first: it fills the frame and the copy sits over it,
-   bottom-left, where a growing trunk has room to rise out of the dark.
-   The call to action is the largest thing on the page, because the
-   only job this page has is to start the walk.
+/* ── The landing — the journey, then the invitation ─────────────────
+   The footage comes first: it fills the frame and the journey's cards
+   sit over it (journey.css). This file only styles the two ways on,
+   which live bottom-left — the corner the footage's subject sits out of
+   in four of its five shots.
 
-   The copy is anchored to the lower-left on purpose rather than
-   centred. GenerativeTree grows up the middle of its own frame, so the
-   centre of this page belongs to the trunk; left-aligning the words
-   keeps them off it and reads like a title card rather than a
-   splash screen. */
-.wt-page-landing .wt-panel {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-.wt-page-landing .wt-title { font-size: 40px; letter-spacing: -0.03em; }
-.wt-page-landing .wt-copy { max-width: 42ch; }
-.wt-page-landing .wt-actions { margin-top: 6px; }
+   The call to action is the largest thing on the control bar, because
+   the only job this page has is to start the walk.
+
+   Everything here is scoped to a page WITHOUT data-journey: on the
+   journey landing the title block is hidden in the markup, so sizing it
+   would be styling something that is not on the page. The rules are
+   kept for the deck's own landing fallback rather than deleted, since
+   the transition classes still ride on this <main>. */
+.wt-page:not([data-journey]) .wt-title { font-size: 40px; letter-spacing: -0.03em; }
+.wt-page:not([data-journey]) .wt-copy { max-width: 42ch; }
+.wt-page:not([data-journey]) .wt-actions { margin-top: 6px; }
 
 /* ── Slide transitions ─────────────────────────────────────────────
    Every step is its own static page, so a transition is split either
@@ -522,28 +538,19 @@ body.wt::after {
   .wt-rail { display: none !important; }
 
   /* Phone: the copy fills the frame, bottom-anchored like the desktop
-     but in normal flow. The tree is hidden here (host-boundary.css),
-     so there is no collage above to make room for — the words become
-     the whole landing rather than a caption on a picture. */
+     but in normal flow. The journey's own card takes the bottom band on
+     a phone (journey.css), so all the landing needs here is to keep its
+     <main> out of the way. */
   .wt-page-landing {
     display: flex;
     flex-direction: column;
     justify-content: flex-end;
-    padding: 18px 16px calc(20px + env(safe-area-inset-bottom, 0px));
-    gap: 12px;
-    min-height: 0;
-  }
-  .wt-page-landing .wt-panel {
-    position: static;
-    width: auto;
-    min-height: 0;
-    margin: 0;
     padding: 0;
-    justify-content: flex-start;
-    gap: 12px;
+    gap: 0;
+    min-height: 0;
   }
-  .wt-page-landing .wt-title { font-size: 30px; }
-  .wt-page-landing .wt-copy { max-width: none; }
+  .wt-page:not([data-journey]) .wt-title { font-size: 30px; }
+  .wt-page:not([data-journey]) .wt-copy { max-width: none; }
 }
 
 /* ── Layout: desktop — the presentation editor ────────────────────
@@ -563,29 +570,20 @@ body.wt::after {
     min-height: 0;
     max-width: var(--wt-col);
   }
-  /* The landing is a title card, not a deck: the tree fills the frame
-     (the mount behind <main>) and the copy is anchored into the lower
-     left of it, in the corner the trunk does not grow through. Bounded
-     to a readable measure rather than the old poster's two grid cells —
-     without the collage there is no grid to sit in. */
+  /* The landing is not a deck: the footage fills the frame and the
+     journey's cards sit over it, so <main> carries no columns at all —
+     only the arrival/departure classes, which need a box to ride on.
+     Without the tree there is no trunk to grow clear of, so nothing is
+     anchored into a corner here any more. */
   .wt-page-landing {
-    display: flex;
+    display: block;
     position: relative;
     padding: 0;
     gap: 0;
+    max-width: none;
   }
-  .wt-page-landing .wt-panel {
-    position: absolute;
-    z-index: 2;
-    left: var(--wt-frame);
-    bottom: var(--wt-frame);
-    width: min(560px, 46vw);
-    justify-content: flex-end;
-    padding: 0;
-    gap: 12px;
-  }
-  .wt-page-landing .wt-title { font-size: clamp(28px, 3.2vw, 42px); }
-  .wt-page-landing .wt-copy { max-width: 42ch; }
+  .wt-page:not([data-journey]) .wt-title { font-size: clamp(28px, 3.2vw, 42px); }
+  .wt-page:not([data-journey]) .wt-copy { max-width: 42ch; }
 
   /* The rail occupies column one; the slide and panel fill the rest. */
   .wt-rail {

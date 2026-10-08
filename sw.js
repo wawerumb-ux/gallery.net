@@ -37,7 +37,7 @@ self.addEventListener("fetch", (event) => {
   if (req.headers.has("Authorization")) return;   // admin writes stay untouched
   const url = new URL(req.url);
   if (!allowlist(url)) return;                     // never touch API/metadata
-  if (!IMG_RE.test(url.pathname)) return;          // never cache gallery.json/tree
+  if (!IMG_RE.test(url.pathname)) return;          // never cache gallery.json
 
   event.respondWith(
     caches.open(IMG_CACHE).then((cache) =>

@@ -38,10 +38,15 @@ function makeEl(tag) {
     children: [],
     parentNode: null,
     attrs: {},
+    listeners: {},
     dataset: {},
     _textContent: '',
     hidden: false,
-    src: '', alt: '', decoding: '', loading: '',
+    src: '', alt: '', decoding: '', loading: '', fetchPriority: '',
+    /* decode() is the guarantee that a tapped photo is already a bitmap.
+     * The stub records the call so the tests can prove it is made. */
+    decodeCalls: 0,
+    decode() { this.decodeCalls++; return Promise.resolve(); },
     style: {
       props: {},
       setProperty(k, v) { this.props[k] = v; },
@@ -64,7 +69,14 @@ function makeEl(tag) {
       return node;
     },
     get firstChild() { return el.children[0] || null; },
-    addEventListener() {},
+    addEventListener(type, fn) { (el.listeners[type] = el.listeners[type] || []).push(fn); },
+    /* Drive a handler the way a real event would, so a test can exercise
+     * behaviour that only exists on an event (the photo advance). */
+    fire(type, event = {}) {
+      const e = { target: { closest: () => null }, preventDefault() {}, ...event };
+      for (const fn of el.listeners[type] || []) fn(e);
+      return e;
+    },
   };
   Object.defineProperty(el, 'className', {
     get: () => [...classes].join(' '),
@@ -504,20 +516,21 @@ describe('W — page assets', () => {
     assert.match(deskBlock, /aspect-ratio:\s*16\s*\/\s*9/, 'the slide keeps a slide ratio');
   });
 
-  test('W29b — the landing copy is a grid cell, not a full-height overlay', () => {
-    // Regression: the landing panel used to carry min-height:100dvh from
-    // the shared rule. As the poster's absolutely-positioned copy block
-    // that anchored it ABOVE the top of the frame — a 900px-tall slab
-    // sitting on -34, covering the hero photo.
-    const base = /\.wt-page-landing \.wt-panel\s*\{([\s\S]*?)\n\}/.exec(cssSrc);
+  test('W29b — the landing <main> carries the transition, not a copy block', () => {
+    // The landing used to absolutely position a copy panel over the
+    // collage, and before that it anchored above the top of the frame.
+    // There is no copy panel on the landing now: the journey's cards
+    // carry the copy, and the panel is display:contents so the <main> is
+    // only the box the arrival/departure classes ride on.
+    const base = /\.wt-page-landing \.wt-panel\s*\{([^}]*)\}/.exec(cssSrc);
     assert.ok(base, 'the shared landing panel rule exists');
-    assert.ok(!/min-height/.test(base[1]),
-      'the shared panel rule sets no min-height — the poster sizes it by content');
-    const deskPanel = /\.wt-page-landing \.wt-panel\s*\{([\s\S]*?)\n  \}/.exec(
+    assert.match(base[1], /display:\s*contents/,
+      'the retired panel must not hold a box of its own');
+    const desk = /\.wt-page-landing\s*\{([^}]*)\}/.exec(
       cssSrc.slice(cssSrc.indexOf('@media (pointer: fine) and (min-width: 1000px)'))
     );
-    assert.ok(deskPanel && /position:\s*absolute/.test(deskPanel[1]),
-      'on desktop the copy block is placed on the collage');
+    assert.ok(desk && !/position:\s*absolute/.test(desk[1]),
+      'nothing is anchored into a corner of the landing any more');
   });
 
   test('W30 — every step carries an accent hue, and the deck applies it', () => {
@@ -541,15 +554,17 @@ describe('W — page assets', () => {
       'the primary action keeps the site accent, not the step hue');
   });
 
-  test('W31 — the landing leads with the tree, then a start button', () => {
-    // The tree is a React island mounted on the landing's own HTML, not
-    // something the runtime builds, so what this can check is that the
-    // runtime no longer builds a collage and does put the start button
-    // on the page.
+  test('W31 — the landing leads with the video, then a start button', () => {
+    // The tree and its React island are gone; the landing is the request
+    // journey over the footage. What the runtime still owes is both ways
+    // on — into the deck and the quiet exit — because the gate sends
+    // first-time visitors here and must never be able to trap them.
     assert.doesNotMatch(runtimeSrc, /buildMontage|wt-montage|wt-tile/,
       'the collage is gone from the runtime');
     assert.match(runtimeSrc, /addAction\('Start the walkthrough', stepUrl\(STEPS\[0\]\), true\)/,
       'the landing opens on one action, and it starts the walk');
+    assert.match(runtimeSrc, /addAction\('Browse the gallery', galleryUrl\(\), false\)/,
+      'and the quiet exit to the archive is still offered');
     // Every cover still resolves to a real file: the step rail renders
     // them, so a bad path would break the walk rather than the landing.
     assert.equal(authored.length, 7);
@@ -603,6 +618,317 @@ describe('W — page assets', () => {
     assert.equal(kids[prevIdx].children.find(c => c.classes().includes('wt-prev-mark'))
       .getAttribute('aria-hidden'), 'true',
       'the arrow is decorative, so the label is what a screen reader reads');
+  });
+});
+
+describe('W — the landing is the request journey', () => {
+  // The tree and its React island are gone. What replaced them is
+  // journey.js driving stages.js over the footage, and these pin the
+  // three ways that could silently regress: the video not resolving, the
+  // cards not being built from the data, and the connectors drawing
+  // nothing while reporting no error at all.
+  const landing = fs.readFileSync(join(here, 'index.html'), 'utf8');
+  const journeySrc = fs.readFileSync(join(here, 'journey.js'), 'utf8');
+  const stagesSrc = fs.readFileSync(join(here, 'stages.js'), 'utf8');
+  const journeyCss = fs.readFileSync(join(here, 'journey.css'), 'utf8');
+
+  const stages = (() => {
+    const sandbox = {};
+    vm.runInNewContext(stagesSrc + '\n;globalThis.__T = STAGES;', sandbox);
+    return JSON.parse(JSON.stringify(sandbox.__T));
+  })();
+
+  test('J1 — the landing plays the video full-bleed, and nothing else does', () => {
+    assert.doesNotMatch(landing, /wt-shader-root|shader-build|shader\.js|type="module"/,
+      'the tree, its mount and its build output are gone from the landing');
+    for (const attr of ['autoplay', 'muted', 'loop', 'playsinline']) {
+      assert.match(landing, new RegExp('\\s' + attr + '(\\s|>)'),
+        'the video carries ' + attr + ' — without muted and playsinline autoplay never starts');
+    }
+    assert.match(landing, /preload="metadata"/, 'the video preloads metadata, not the whole file');
+    assert.match(landing, /class="jr-video" id="jrVideo" aria-hidden="true"/,
+      'the video is decorative and hidden from assistive tech');
+    assert.match(journeyCss, /\.jr-video-el\s*\{[^}]*object-fit:\s*cover/,
+      'the video covers the viewport');
+    assert.match(journeyCss, /\.jr-video\s*\{[^}]*will-change:\s*transform/,
+      'the video plane is promoted, so parallax is a compositor translate');
+  });
+
+  test('J2 — the video sits behind everything and takes no clicks', () => {
+    const order = ['jrVideo', 'jrLines', 'jrCards'].map(id => {
+      const m = new RegExp('id="' + id + '"').exec(landing);
+      assert.ok(m, id + ' is in the landing markup');
+      return m.index;
+    });
+    assert.ok(order[0] < order[1] && order[1] < order[2],
+      'video, then lines, then cards — the depth order is the document order');
+    for (const sel of ['.jr-video', '.jr-lines', '.jr-cards']) {
+      assert.match(journeyCss, new RegExp(sel.replace('.', '\\.') + '\\s*\\{[^}]*z-index:\\s*(\\d)'),
+        sel + ' declares its own z-index');
+    }
+    assert.match(journeyCss, /\.jr-video-el\s*\{[^}]*pointer-events:\s*none/,
+      'the video never swallows a click meant for a card');
+  });
+
+  test('J3 — seven stages, one per storyboard moment', () => {
+    assert.equal(stages.length, 7, 'the journey is seven stages');
+    assert.deepEqual(stages.map(s => s.index), [1, 2, 3, 4, 5, 6, 7]);
+    assert.deepEqual(stages.map(s => s.title),
+      ['CLIENT', 'CAT6A', 'PATCH PANEL', 'SWITCH', 'CEILING TRAY', 'DATA CENTER', 'CONNECTED']);
+    for (const s of stages) {
+      assert.ok(s.copy && s.copy.length > 60,
+        s.title + ' has a beginner note, not a label');
+      assert.ok(Number.isFinite(s.at) && s.at >= 0 && s.at <= 10.03,
+        s.title + ' has a timestamp inside the video');
+      assert.ok(s.cell && /^c[0-3]r[0-2]$/.test(s.cell),
+        s.title + ' records the measured cell it was placed from: ' + s.cell);
+      assert.ok(Number.isFinite(s.anchor.left) && Number.isFinite(s.anchor.top),
+        s.title + ' has an anchor');
+    }
+  });
+
+  test('J4 — no two stages share an anchor cell', () => {
+    // Two cards on one cell make the connector between them double back
+    // on itself, which reads as a bug rather than a flourish.
+    const cells = stages.map(s => s.cell);
+    assert.equal(new Set(cells).size, cells.length,
+      'two stages share a cell: ' + JSON.stringify(cells));
+  });
+
+  test('J5 — the cards are built from the data, and are live regions', () => {
+    assert.match(journeySrc, /var N = STAGES\.length/,
+      'the runtime sizes itself from the data');
+    assert.match(journeySrc, /for \(var i = 0; i < N; i\+\+\) \{\s*var step = STAGES\[i\]/,
+      'each card is built from a stage, so markup cannot drift from the data');
+    assert.match(journeySrc, /setAttribute\('role', 'status'\)/,
+      'each card is a live region');
+    assert.match(journeySrc, /setAttribute\('aria-live', 'polite'\)/,
+      'announced politely on activation');
+  });
+
+  test('J6 — the connectors are drawn, and Rough returns its node', () => {
+    // rough.svg(el).line() RETURNS the <g> it built; it does not append
+    // it. Ignoring the return value leaves six empty groups, no lines on
+    // the page, and nothing in the console — which is exactly what
+    // happened the first time.
+    assert.match(journeySrc, /line\.appendChild\(rc\.line\(/,
+      'the node Rough returns is adopted into the connector group');
+    assert.match(journeyCss, /\.jr-lines\s*\{[^}]*overflow:\s*visible/,
+      'the line layer may overflow — an <svg> is a replaced element and clips at its box');
+    assert.match(journeyCss, /\.jr-lines\s*\{[^}]*width:\s*100%[^}]*height:\s*100%/s,
+      'and is sized explicitly, because inset:0 alone leaves an <svg> at 300x150');
+    // One connector per pair, from card N's bottom-right to N+1's top-left.
+    assert.match(journeySrc, /for \(var i = 0; i < N - 1; i\+\+\)/,
+      'six connectors for seven cards');
+    assert.match(journeySrc, /roughness:\s*1\.5/, 'and at the specified roughness');
+    assert.match(journeySrc, /bowing:\s*1\.2/, 'and bowing');
+    assert.match(journeySrc, /seed:\s*42 \+ i/,
+      'seeded per connector, so the sketch is identical on every load');
+  });
+
+  test('J7 — the opening state has no lines and one card', () => {
+    // "Initial state: card 1 visible, no lines drawn." A connector built
+    // visible at load scribbles over the footage before the walk begins.
+    assert.match(journeyCss, /\.jr-lines \.jr-line\s*\{\s*opacity:\s*0/,
+      'connectors are built hidden');
+    assert.match(journeySrc, /cards\[0\]\.classList\.add\('is-on'\)/,
+      'and exactly one card is lit on load');
+  });
+
+  test('J8 — the swap overlaps, so no frame is blank', () => {
+    // The outgoing card is held at full opacity while the incoming one
+    // sits in the DOM at zero; both only move once that is painted. If
+    // the outgoing fade starts at t=0 and runs 180ms while the incoming
+    // starts at t=200ms, there is a 20ms hole in the stage.
+    assert.match(journeySrc, /outgoing\.classList\.add\('is-held'\)/,
+      'the outgoing card is held at full opacity');
+    assert.equal(/var HOLD_MS = (\d+);/.exec(journeySrc)[1],
+      /--jr-hold:\s*(\d+)ms/.exec(journeyCss)[1],
+      'HOLD_MS mirrors --jr-hold — drift is invisible until one is tuned');
+    assert.equal(/var IN_MS = (\d+);/.exec(journeySrc)[1],
+      /--jr-in:\s*(\d+)ms/.exec(journeyCss)[1],
+      'IN_MS mirrors --jr-in');
+    assert.equal(/var OUT_MS = (\d+);/.exec(journeySrc)[1],
+      /--jr-out:\s*(\d+)ms/.exec(journeyCss)[1],
+      'OUT_MS mirrors --jr-out');
+    assert.equal(/var DRAW_MS = (\d+);/.exec(journeySrc)[1],
+      /--jr-draw:\s*(\d+)ms/.exec(journeyCss)[1],
+      'DRAW_MS mirrors --jr-draw');
+    // Both transitions are handed over in the same task, which is what
+    // makes them start on the same frame. Matched as the ordered
+    // sequence of three statements rather than one literal line, so
+    // reformatting the block cannot silently stop this guarding.
+    const handoff = journeySrc.indexOf('setTimeout(function () {',
+      journeySrc.indexOf('function swap'));
+    assert.ok(handoff !== -1, 'the swap hands over on a timer');
+    const window = journeySrc.slice(handoff, handoff + 400);
+    const order = ['remove(\'is-held\')', 'add(\'is-out\')', 'add(\'is-on\')']
+      .map(s => window.indexOf(s));
+    assert.ok(order.every(i => i !== -1), 'all three handover calls are present: ' + window.trim());
+    assert.deepEqual(order.slice().sort((a, b) => a - b), order,
+      'the outgoing card is released and the incoming one raised in one task — ' +
+      'if the incoming came first the two would still overlap, but the ' +
+      'frame where the outgoing one loses is-held is the one that matters');
+  });
+
+  test('J9 — cards stack with z-index, never by re-appending', () => {
+    // Re-appending the incoming node puts the stages out of document
+    // order for anyone stepping through with a screen reader.
+    assert.doesNotMatch(journeySrc, /cardsHost\.appendChild\(incoming\)/,
+      'the incoming card is not moved in the document');
+    assert.match(journeySrc, /incoming\.style\.zIndex = '2'/,
+      'it is stacked with z-index instead');
+  });
+
+  test('J10 — coordinates are cached and recomputed only on resize', () => {
+    // Recomputing per step index is what made the lines re-settle behind
+    // the visitor on every transition.
+    assert.match(journeySrc, /addEventListener\('resize'/,
+      'resize is the only thing that invalidates the measurements');
+    assert.match(journeySrc, /drawConnector/,
+      'and the connectors are drawn by one named function');
+    const inSwap = /function swap\([\s\S]*?\n  \}/.exec(journeySrc)[0];
+    assert.doesNotMatch(inSwap, /drawConnector|buildConnectors/,
+      'a card swap never re-measures the lines');
+  });
+
+  test('J11 — three parallax planes at three depths', () => {
+    const depths = /var DEPTH = \{([^}]*)\}/.exec(journeySrc)[1];
+    assert.match(depths, /video:\s*8/, 'the video moves least');
+    assert.match(depths, /cards:\s*16/, 'the cards are moderate');
+    assert.match(depths, /lines:\s*24/, 'the lines move most');
+    assert.match(journeySrc, /var SMOOTH = 0\.08/, 'and the motion eases toward the cursor');
+    assert.match(journeySrc, /requestAnimationFrame\(tick\)/, 'on one frame loop');
+  });
+
+  test('J12 — reduced motion switches off parallax and the draw', () => {
+    assert.match(journeyCss, /@media \(prefers-reduced-motion: reduce\)/,
+      'reduced motion is honoured');
+    const reduce = /@media \(prefers-reduced-motion: reduce\) \{([\s\S]*?)\n\}/.exec(journeyCss)[1];
+    assert.match(reduce, /\.jr-card[\s\S]*transition:\s*none !important/,
+      'cards switch instantly');
+    assert.match(reduce, /\.jr-video[\s\S]*transform:\s*none !important/,
+      'and the parallax is off');
+    // The video is the content, not an effect: it keeps playing.
+    const guard = /if \(!reduce\) \{([\s\S]*?)\n  \}/.exec(journeySrc)[1];
+    assert.match(guard, /addEventListener\('mousemove'/, 'no listener is even attached under reduce');
+  });
+
+  test('J13 — the journey is reachable by keyboard, and reset does not advance', () => {
+    assert.match(journeySrc, /e\.key === 'ArrowRight'/, 'forward');
+    assert.match(journeySrc, /e\.key === 'ArrowLeft'/, 'back');
+    assert.match(journeySrc, /e\.key === 'Home'/, 'and a way to the first stage');
+    assert.match(journeySrc, /t\.closest\('a'\)/,
+      'a click on a link means leave, not next stage');
+    assert.match(journeySrc, /t\.closest\('\.jr-controls'\)/,
+      'and neither does one on the controls');
+  });
+
+  test('J14 — the landing still offers both ways on', () => {
+    // The gate sends first-time visitors here, so a landing with no way
+    // into the deck and no exit is a trap.
+    assert.match(landing, /id="wtActions"/,
+      'the landing keeps the actions host');
+    assert.match(landing, /data-journey/,
+      'and declares that it is the journey landing');
+    assert.match(runtimeSrc, /initJourneyLanding/,
+      'the runtime has a landing path for it');
+  });
+});
+
+describe('W — the snap: tapping a photo is instant', () => {
+  // The shipped bug, and the reason this suite exists: photos 2-4 were
+  // loading="lazy", so a tap fired a network fetch and then faded in an
+  // image the browser had not decoded. The fade ran on a blank frame and
+  // the photograph arrived late — which reads as sluggish however short
+  // the transition is. Shortening the CSS alone would not have fixed it.
+  const mediaLayers = (h) => h.byId.wtMedia.children.filter(el => el.tagName === 'IMG');
+
+  test('W34 — no photo in a step is lazily loaded', () => {
+    const step = authored.find(s => (s.gallery || []).length > 0);
+    assert.ok(step, 'a step with a gallery exists to test');
+    const h = setup({ step: step.index });
+    const layers = mediaLayers(h);
+    assert.equal(layers.length, 1 + step.gallery.length, 'every photo is in the DOM');
+    for (const img of layers) {
+      assert.equal(img.loading, 'eager',
+        'lazy loading means a blank frame on tap: ' + img.src);
+    }
+  });
+
+  test('W35 — every photo is decoded up front, not hinted', () => {
+    // decoding="async" is only a hint; the explicit decode() is what
+    // actually resolves, and the tap depends on it having resolved.
+    const step = authored.find(s => (s.gallery || []).length > 0);
+    const h = setup({ step: step.index });
+    for (const img of mediaLayers(h)) {
+      assert.equal(img.decodeCalls, 1, 'decode() is called on ' + img.src);
+      assert.equal(img.decoding, 'async', 'the hint is still set alongside it');
+    }
+  });
+
+  test('W36 — the hero is the priority image', () => {
+    const h = setup({ step: 2 });
+    const [hero, ...rest] = mediaLayers(h);
+    assert.equal(hero.fetchPriority, 'high', 'the first photo is the LCP element');
+    for (const img of rest) {
+      assert.notEqual(img.fetchPriority, 'high',
+        'and the photos after it do not compete with it');
+    }
+  });
+
+  test('W37 — the crossfade is a snap, not a dissolve', () => {
+    // 160ms is under where a crossfade reads as a transition at all.
+    const block = /\.wt-media img\s*\{([\s\S]*?)\n\}/.exec(cssSrc);
+    assert.ok(block, 'the slide images declare a transition');
+    assert.match(block[1], /transition:\s*opacity var\(--wt-snap\)/,
+      'incoming rides --wt-snap: ' + block[1].trim());
+    const snap = /--wt-snap:\s*(\d+)ms/.exec(cssSrc);
+    const out = /--wt-snap-out:\s*(\d+)ms/.exec(cssSrc);
+    assert.ok(snap && out, 'both snap tokens exist');
+    assert.ok(Number(snap[1]) <= 200, '--wt-snap is a snap, got ' + snap[1] + 'ms');
+    assert.ok(Number(out[1]) < Number(snap[1]),
+      'the outgoing layer clears before the incoming settles, so they never both sit at half opacity');
+  });
+
+  test('W38 — a tap is accepted the instant the previous one settles', () => {
+    // The lockout is a real guard, not a bug: it stops two crossfades
+    // overlapping and leaving a frame at half opacity. The contract is
+    // that it lasts exactly as long as the animation — a second tap
+    // inside it is dropped, a tap the moment after is not. A lockout
+    // left at the old 500ms would have dropped taps for a third of a
+    // second after the photo had visibly settled, which is precisely
+    // the "why isn't this responding" feeling.
+    const step = authored.find(s => (s.gallery || []).length >= 2);
+    const h = setup({ step: step.index });
+    const media = h.byId.wtMedia;
+    const hint = () => media.children.find(c => c.classList.contains('wt-media-hint')).textContent;
+
+    assert.equal(hint(), '1 / ' + (1 + step.gallery.length));
+    media.fire('click');
+    assert.equal(hint(), '2 / ' + (1 + step.gallery.length), 'the first tap advances');
+
+    // Inside the crossfade: dropped on purpose.
+    media.fire('click');
+    assert.equal(hint(), '2 / ' + (1 + step.gallery.length),
+      'a tap during the crossfade is ignored, so the fade cannot overlap itself');
+
+    // The moment it settles: accepted.
+    h.advance(160);
+    media.fire('click');
+    assert.equal(hint(), '3 / ' + (1 + step.gallery.length),
+      'the tap right after the settle is honoured');
+  });
+
+  test('W39 — the JS lockout and the CSS snap agree', () => {
+    // One number in two places, so it is pinned: SNAP_MS mirrors
+    // --wt-snap. Drift here is invisible until someone tunes one.
+    const js = /var SNAP_MS = (\d+);/.exec(runtimeSrc);
+    assert.ok(js, 'walkthrough.js declares SNAP_MS');
+    const css = /--wt-snap:\s*(\d+)ms/.exec(cssSrc);
+    assert.ok(css, 'walkthrough.css declares --wt-snap');
+    assert.equal(Number(js[1]), Number(css[1]),
+      'SNAP_MS (' + js[1] + ') must mirror --wt-snap (' + css[1] + ')');
   });
 });
 

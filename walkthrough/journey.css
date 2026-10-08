@@ -187,6 +187,44 @@ body.jr {
 }
 
 /* ── Controls ─────────────────────────────────────────────────────── */
+/* ── The landing's control bar ───────────────────────────────────
+   walkthrough.js moves the two ways on — into the deck, and the quiet
+   exit to the archive — into a .wt-landing-bar here. They are the same
+   .wt-cta / .wt-alt anchors the step pages use, so they keep the site's
+   own affordance; only their placement is new. Bottom-left, because the
+   footage's subject sits centre-frame in four of the five shots. */
+.wt-landing-bar {
+  position: fixed;
+  z-index: 3;
+  left: var(--jr-inset);
+  bottom: calc(var(--jr-inset) + env(safe-area-inset-bottom, 0px));
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  pointer-events: none;
+}
+.wt-landing-bar .wt-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  pointer-events: auto;
+}
+.wt-landing-bar .wt-cta {
+  width: auto;
+  height: 44px;
+  padding: 0 20px;
+  border-radius: var(--wt-r-md);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 10px 28px rgba(0, 0, 0, 0.44);
+}
+.wt-landing-bar .wt-alt { margin-top: 0; }
+
+/* Desktop only: the bottom group dissolves and each of its children
+   takes its own corner, the corners the footage leaves free. The phone
+   block below puts them back into one column. */
+.jr-bottom,
+.jr-landing-stack { display: contents; }
 .jr-controls {
   position: fixed;
   z-index: 3;
@@ -254,21 +292,59 @@ body.jr {
    normal flow over a scrim, which is what the walkthrough landing
    does at the same width. */
 @media (max-width: 999px) {
-  .jr-cards {
-    display: block;
+  /* One fixed column for the whole bottom group: card, then the two ways
+     on, then replay. Seven absolute cards cannot share a phone screen,
+     and stacking three separately-fixed bands on top of one another meant
+     guessing the card's height — which varies with each stage's note, so
+     every guess was wrong for some stage. In one column nothing is
+     measured twice and nothing can overlap. */
+  .jr-bottom {
+    position: fixed;
+    inset: auto 0 0 0;
+    z-index: 3;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 0 16px calc(16px + env(safe-area-inset-bottom, 0px));
     pointer-events: none;
   }
-  /* Seven absolute cards cannot share a phone screen, so below the
-     deck's own 999px breakpoint they all sit in the same bottom band and
-     only the lit one is opaque — the anchors still drive the connectors,
-     but there are no connectors here to drive. */
+  .jr-cards {
+    position: static;
+    inset: auto;
+    display: block;
+    padding: 0;
+    pointer-events: none;
+  }
+  /* Every card is out of flow except the lit one. Seven in-flow boxes in
+     a band would lay them out side by side and shrink each to a
+     seventh of the width, which is what happened. Out of flow, they all
+     sit in the same place and only the visible one matters — and only
+     .is-on is in flow, so it alone gives the band its height, whatever
+     length that stage's note happens to be. The outgoing card is
+     absolute throughout, which is also why the crossfade overlays
+     instead of stacking. */
   .jr-card {
+    position: absolute;
     left: 16px;
     right: 16px;
     top: auto;
-    bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+    bottom: 0;
     width: auto;
+    margin: 0;
     padding: 16px 18px;
+  }
+  .jr-card.is-on { position: relative; }
+  .jr-landing-stack {
+    position: static;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    pointer-events: none;
+  }
+  .jr-landing-stack .wt-actions,
+  .jr-landing-stack .jr-controls {
+    position: static;
+    pointer-events: auto;
   }
   /* Full width on a phone, so the accent moves to the top edge — the
      same rule the deck uses for its own narrow surfaces. */
@@ -284,4 +360,18 @@ body.jr {
   .jr-card-title { font-size: 19px; }
   .jr-card-copy { font-size: 13.5px; }
   .jr-lines { display: none; }
+  /* Edge to edge, and the two ways on sit on one line: on a phone the
+     card is the page, so everything under it is a thin strip. */
+  .wt-landing-bar {
+    position: static;
+    width: 100%;
+  }
+  .wt-landing-bar .wt-actions {
+    flex-direction: row;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+  }
+  .wt-landing-bar .wt-cta { flex: 1 1 auto; height: 42px; padding: 0 16px; font-size: 14px; }
+  .jr-controls { justify-content: flex-end; width: 100%; }
 }
