@@ -2484,22 +2484,95 @@ function openLightbox(folder, index, startSrc) {
   overlayPush('lightbox', closeLightbox);
   el('lightbox').hidden = false;
 }
-function updateLightbox() {
-  const items = lightboxItems(state.lightboxFolder);
-  if (state.lightboxIndex >= items.length) state.lightboxIndex = Math.max(0, items.length - 1);
-  const img = items[state.lightboxIndex];
-  if (!img) { if (!el('lightbox').hidden) overlayClose('lightbox'); return; }
-  const lb = el('lightboxImg');
-  // Always open crisp: the LARGEST committed variant (cached once the card
-  // revealed, ~66KB if nav); full-res original layers in silently after.
-  const start = state.lightboxStartSrc || lightboxSrc(img);
-  state.lightboxStartSrc = null;
-  lb.src = start;
-  lb.dataset.full = imgSrc(img);          // full-res — background upgrade only
-  lb.classList.add('is-loaded');          // open clear, never blurred
-  lb.onload = () => { if (lb.src !== lb.dataset.full && lb.dataset.full) lb.src = lb.dataset.full; };
-  lb.onerror = () => { if (lb.src !== lb.dataset.full && lb.dataset.full) lb.src = lb.dataset.full; };
-  lb.alt = prettyName(img.name);
+
+/* ── The slide window ──────────────────────────────────────────────
+   Three resident <img> slots on one track. A slot's role is its
+   position, not its identity: stepping moves the track by one slot
+   width and, once the transition lands, the slots are rotated so the
+   one that slid into the middle becomes current. Rotating rather than
+   refilling is the point — the promoted photo keeps the bitmap it was
+   already showing, so advancing never re-decodes what is on screen.
+
+   The whole animation is one compositor-owned transform. No layout, no
+   paint, and no JavaScript running while the photos move.
+
+   The window is what makes this affordable. These photos are 4080x3060
+   — 49.9 MB of bitmap once decoded — so a slider that kept the album
+   in the DOM would price memory by album length. Three slots cap it,
+   the two neighbours are held at the ~25 KB webp tier rather than
+   full-res, and a slot that leaves the window has its src dropped so
+   the decoder can release it. */
+const SLIDE_MS = 320;
+const SLIDE_IDS = ['lightboxImgPrev', 'lightboxImg', 'lightboxImgNext'];
+const SLIDE_CLASSES = ['is-prev', 'is-current', 'is-next'];
+let slideAnimating = false;
+
+function slideNodes() {
+  const track = el('lightboxTrack');
+  return track ? Array.from(track.children) : [];
+}
+/* Roles follow DOM position, so a rotation only has to re-stamp them. */
+function applySlideRoles() {
+  const nodes = slideNodes();
+  nodes.forEach((node, i) => {
+    if (SLIDE_IDS[i]) node.id = SLIDE_IDS[i];
+    for (const c of SLIDE_CLASSES) node.classList.remove(c);
+    node.classList.add(SLIDE_CLASSES[i]);
+    node.setAttribute('aria-hidden', i === 1 ? 'false' : 'true');
+    if (i !== 1) node.alt = '';
+  });
+}
+function reduceMotion() {
+  return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+}
+/* Put a photo in a slot. The cheap tier keeps a neighbour's decode
+   around 1.5 MB instead of 50. */
+function fillSlot(node, img) {
+  if (!node || !img) { if (node) releaseSlot(node); return; }
+  const cheap = node.id !== 'lightboxImg';
+  const src = cheap ? thumbSrc(img) : lightboxSrc(img);
+  if (node.dataset.path !== img.path) {
+    node.dataset.path = img.path;
+    node.classList.remove('is-loaded');
+    // Blur-up resolves on load. The current slot sets its own onload to
+    // upgrade to full-res, so this listens rather than assigning — a
+    // neighbour that never got this would sit blurred behind the slide
+    // for as long as the viewer is open.
+    const settle = () => node.classList.add('is-loaded');
+    node.addEventListener('load', settle, { once: true });
+    node.addEventListener('error', settle, { once: true });
+    node.src = src;
+  } else if (!node.getAttribute('src')) {
+    node.src = src;
+  }
+  node.alt = cheap ? '' : prettyName(img.name);
+}
+/* Hand back a slot's memory. An empty src is what lets the browser
+   evict the decoded bitmap rather than hold it for a thumbnail that
+   will never be looked at again. */
+function releaseSlot(node) {
+  if (!node) return;
+  delete node.dataset.path;
+  delete node.dataset.full;
+  node.removeAttribute('src');
+  node.classList.remove('is-loaded');
+  node.alt = '';
+}
+function windowItem(items, i) {
+  const n = items.length;
+  return n ? items[((i % n) + n) % n] : null;
+}
+/* Park the window around the live index, cheap on both flanks. */
+function fillWindow(items, index) {
+  const nodes = slideNodes();
+  if (nodes.length < 3) return;
+  const many = items.length > 1;
+  fillSlot(nodes[1], windowItem(items, index));
+  fillSlot(nodes[0], many ? windowItem(items, index - 1) : null);
+  fillSlot(nodes[2], many ? windowItem(items, index + 1) : null);
+}
+/* Labels, counter and the download target for the photo now on screen. */
+function paintViewerChrome(img, items) {
   const folder = state.view === 'images' ? (img.folder || state.lightboxFolder) : state.lightboxFolder;
   const j = journeyFor(folder);
   const iso = extractPhotoDate(img.name);
@@ -2520,6 +2593,26 @@ function updateLightbox() {
     });
   }
 }
+function updateLightbox() {
+  const items = lightboxItems(state.lightboxFolder);
+  if (state.lightboxIndex >= items.length) state.lightboxIndex = Math.max(0, items.length - 1);
+  const img = items[state.lightboxIndex];
+  if (!img) { if (!el('lightbox').hidden) overlayClose('lightbox'); return; }
+  const lb = el('lightboxImg');
+  // Always open crisp: the LARGEST committed variant (cached once the card
+  // revealed, ~66KB if nav); full-res original layers in silently after.
+  const start = state.lightboxStartSrc || lightboxSrc(img);
+  state.lightboxStartSrc = null;
+  lb.src = start;
+  lb.dataset.full = imgSrc(img);          // full-res — background upgrade only
+  lb.classList.add('is-loaded');          // open clear, never blurred
+  lb.onload = () => { if (lb.src !== lb.dataset.full && lb.dataset.full) lb.src = lb.dataset.full; };
+  lb.onerror = () => { if (lb.src !== lb.dataset.full && lb.dataset.full) lb.src = lb.dataset.full; };
+  lb.alt = prettyName(img.name);
+  applySlideRoles();
+  fillWindow(items, state.lightboxIndex);
+  paintViewerChrome(img, items);
+}
 
 /* Viewer bottom-bar admin actions act on the photo on screen. */
 function viewerTag() {
@@ -2533,12 +2626,71 @@ async function viewerDelete() {
   await deleteImage(img.path, img.sha, prettyName(img.name));
   // deleteImage re-renders; updateLightbox (via render) clamps or closes.
 }
-function closeLightbox() { el('lightbox').hidden = true; }
+/* Closing is when the window is worth most to release: a closed viewer
+   holding three decoded photos is 50 MB of bitmap nobody is looking at.
+   The main thread then has the wall to itself again. */
+function closeLightbox() {
+  el('lightbox').hidden = true;
+  const track = el('lightboxTrack');
+  if (track) {
+    track.classList.remove('is-moving');
+    track.style.transform = '';
+    track.style.willChange = '';
+  }
+  slideAnimating = false;
+  for (const node of slideNodes()) releaseSlot(node);
+}
+/* Land the slide: rotate the slots under the track, hand the recycled
+   one its new photo, and put the track back at rest. The rotation is
+   what preserves the bitmap that just slid into view. */
+function commitSlide(items, delta) {
+  const track = el('lightboxTrack');
+  if (!track) return;
+  const nodes = slideNodes();
+  if (nodes.length === 3) {
+    // Stepping forward promotes the trailing slot to the middle.
+    if (delta > 0) track.appendChild(nodes[0]);
+    else track.insertBefore(nodes[2], track.firstChild);
+  }
+  track.classList.remove('is-moving');
+  track.style.transform = '';
+  track.removeAttribute('will-change');
+  slideAnimating = false;
+  applySlideRoles();
+  fillWindow(items, state.lightboxIndex);
+  const img = items[state.lightboxIndex];
+  if (img) paintViewerChrome(img, items);
+}
 function lightboxStep(delta) {
   const items = lightboxItems(state.lightboxFolder);
-  if (!items.length) return;
+  if (!items.length || items.length < 2) return;
+  const track = el('lightboxTrack');
+  // Stepping again mid-slide must not stack a second animation on the
+  // first: land the one in flight, then slide from rest.
+  if (slideAnimating) commitSlide(items, state.lightboxStepDir || 1);
+  if (reduceMotion() || !track) {
+    state.lightboxIndex = (state.lightboxIndex + delta + items.length) % items.length;
+    updateLightbox();
+    return;
+  }
   state.lightboxIndex = (state.lightboxIndex + delta + items.length) % items.length;
-  updateLightbox();
+  state.lightboxStepDir = delta;
+  track.style.willChange = 'transform';
+  track.style.transform = `translateX(${-delta * 100}%)`;
+  track.classList.add('is-moving');
+  slideAnimating = true;
+  const done = (e) => {
+    if (e && e.target !== track) return;
+    track.removeEventListener('transitionend', done);
+    track.removeEventListener('transitioncancel', done);
+    if (!slideAnimating) return;
+    commitSlide(items, delta);
+  };
+  track.addEventListener('transitionend', done);
+  track.addEventListener('transitioncancel', done);
+  // A backgrounded tab paints nothing and would never fire transitionend,
+  // which would strand the track off-centre. Settle it by clock instead.
+  setTimeout(() => { if (slideAnimating) done(null); }, SLIDE_MS + 150);
 }
 
 /* ── Small helpers ────────────────────────────────────────────── */

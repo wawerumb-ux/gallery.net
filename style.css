@@ -707,14 +707,43 @@ body.is-selecting .tabbar, body.is-selecting .fab { transform: translateY(110%);
   display: flex; align-items: center; justify-content: center;
   max-width: 96vw; max-height: 100vh;
   width: 100%; height: 100%;
+  /* Isolate the slider: its repaints can never escape into the chrome. */
+  contain: layout paint;
+  overflow: hidden;
 }
-.viewer-img {
+
+/* ── The slide track ───────────────────────────────────────────────
+   Three resident slots — previous, current, next — on a track that
+   moves by one slot width. Nothing else is ever mounted, so the
+   decoded-bitmap cost is bounded by the window and not by the length
+   of the album. The movement is a single transform, which the
+   compositor owns end to end: no layout, no paint, and no JavaScript
+   running while the photos slide. */
+.viewer-track {
+  display: flex;
+  width: 100%; height: 100%;
+  will-change: auto;               /* a layer is only worth its RAM while moving */
+}
+.viewer-track.is-moving { transition: transform 320ms var(--ease-out); }
+.viewer-track.is-moving { will-change: transform; }
+.viewer-slide {
+  flex: 0 0 100%;
+  width: 100%; height: 100%;
+  min-width: 0;
   max-width: 100vw; max-height: 100vh;
   object-fit: contain;
+  /* Only the current photo is painted with anything expensive. The
+     neighbours carry the ~25 KB webp tier, so their blur-up is cheap;
+     a full-res neighbour at 4080x3060 would re-raster 50 MB to fade. */
   transition: opacity 0.3s ease, filter 0.35s ease, transform 0.3s var(--ease-spring);
 }
-.viewer-img:not(.is-loaded) { filter: blur(14px); transform: scale(1.02); opacity: 0.85; }
-.viewer-img.is-loaded { filter: none; transform: none; opacity: 1; }
+.viewer-slide:not(.is-loaded) { filter: blur(14px); transform: scale(1.02); opacity: 0.85; }
+.viewer-slide.is-loaded { filter: none; transform: none; opacity: 1; }
+
+/* The current slot keeps its old .viewer-img class as well as .viewer-slide,
+   so anything already styled against it still lands on the photo the
+   visitor is looking at. The rules themselves live on .viewer-slide above —
+   one source of truth for all three slots. */
 
 .viewer-nav {
   position: absolute; top: 50%;
@@ -1532,7 +1561,7 @@ select.text-input option { background: var(--surface-3); color: var(--text); }
 /* ── Reduced motion ──────────────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
   .card, .album-cover, .fab, .tab, .tab-ic, .appbar-hero, .appbar-mini,
-  .viewer, .viewer-top, .viewer-bottom, .viewer-nav, .viewer-img,
+  .viewer, .viewer-top, .viewer-bottom, .viewer-nav, .viewer-img, .viewer-slide,
   .sheet, .sheet-overlay, .modal, .toast, .selectbar, .tabbar,
   .card img, .card-pick, .appbar-icon, .viewer-icon, .viewer-action, .btn,
   .comfort-swatch {

@@ -138,7 +138,11 @@
     <svg viewBox="0 0 24 24" width="30" height="30" fill="currentColor" aria-hidden="true"><path d="M15.41 7.41 14 6l-6 6 6 6 1.41-1.41L10.83 12z"/></svg>
   </button>
   <div class="viewer-stage" id="lightboxViewport">
-    <img class="viewer-img" id="lightboxImg" alt="">
+    <div class="viewer-track" id="lightboxTrack">
+      <img class="viewer-slide is-prev" id="lightboxImgPrev" alt="" aria-hidden="true" draggable="false">
+      <img class="viewer-slide viewer-img is-current" id="lightboxImg" alt="" draggable="false">
+      <img class="viewer-slide is-next" id="lightboxImgNext" alt="" aria-hidden="true" draggable="false">
+    </div>
   </div>
   <button class="viewer-nav viewer-next" id="lightboxNext" aria-label="Next photo" data-tour-target="viewer-next">
     <svg viewBox="0 0 24 24" width="30" height="30" fill="currentColor" aria-hidden="true"><path d="M8.59 16.59 10 18l6-6-6-6-1.41 1.41L13.17 12z"/></svg>
