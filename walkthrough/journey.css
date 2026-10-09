@@ -271,9 +271,10 @@ body.jr {
 
 /* ── The line work ────────────────────────────────────────────────
    Stroke-based, and deliberately thin: one weight, round caps, no
-   fills. A connector is invisible until the journey walks it, so the
-   opening state is the video alone — one card, one figure, nothing
-   drawn between them. The write-on is a dash offset on the path, and
+   fills. A leader is invisible until the journey lights its card, so
+   the opening state is the video alone — one card, one figure, and one
+   line pointing at that card. The write-on is a dash offset on the
+   path, and
    once it lands the dash pattern itself travels: the line stops being
    a stroke and becomes the request moving along it. */
 .jr-lines path { fill: none; }

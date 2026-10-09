@@ -127,12 +127,11 @@
   }
 
   /* ── Connectors ─────────────────────────────────────────────────
-     One group per pair, from the bottom-right of card N to the
-     top-left of card N+1, drawn as a single clean stroke that the
-     journey then walks. This replaced a Rough.js sketch of the same
-     run: the sketch wobbled, which suited a hand-drawn deck and did
-     not suit a diagram sitting on live footage. One weight, one
-     curve, and the weight is the stylesheet's.
+     One leader line per card, drawn as a single clean stroke that the
+     journey then walks in. This replaced a Rough.js sketch running
+     between one card and the next: the sketch wobbled, which suited a
+     hand-drawn deck and did not suit a diagram sitting on live footage.
+     One weight, one curve, and the weight is the stylesheet's.
 
      Coordinates come from the laid-out cards, so they are cached and
      recomputed only when the cards move. */
@@ -177,23 +176,36 @@
     return fig;
   }
 
+/* One line per card, and it points at that card and nothing else. It
+     used to run from a card's bottom-right corner to the next card's
+     top-left — a path between two stages, six of them, which put the
+     line art in the business of connecting things rather than of
+     pointing at one. A leader line is the same stroke aimed at a single
+     card: it arrives at the card's top-left corner and stops.
+
+     The line comes in from up and to the left, clamped inside the frame
+     so a card anchored near an edge still gets a lead-in rather than one
+     that starts off-screen. */
+  var LEAD_X = 76;
+  var LEAD_Y = 52;
+  var EDGE = 20;
+
   function drawConnector(i) {
-    var a = cards[i];
-    var b = cards[i + 1];
-    if (!a || !b) return null;
-    var from = corner(a, 'br');
-    var to = corner(b, 'tl');
+    var card = cards[i];
+    if (!card) return null;
+    var to = corner(card, 'tl');
+    var from = {
+      x: Math.max(EDGE, to.x - LEAD_X),
+      y: Math.max(EDGE, to.y - LEAD_Y),
+    };
 
     var line = group('jr-line');
 
-    /* One cubic, flat where it leaves and where it arrives, so it reads
-       as leaving one card and arriving at the next rather than as a
-       curve drawn between two arbitrary points. The handles are a
-       third of the horizontal run each way, with a floor: a card pair
-       stacked vertically has almost no run to spend, and without the
-       floor the curve collapses to a straight line and stops bending
-       at all. */
-    var k = Math.max(24, Math.abs(to.x - from.x) / 3);
+    /* One cubic, flat where it leaves and flat where it arrives, so it
+       reads as a line coming in from off to one side and settling onto
+       the card rather than as a curve drawn between two arbitrary
+       points. */
+    var k = Math.max(20, Math.abs(to.x - from.x) / 3);
     line.appendChild(pathEl('jr-signal',
       'M' + from.x + ' ' + from.y +
       ' C' + (from.x + k) + ' ' + from.y + ', ' +
@@ -201,8 +213,8 @@
       to.x + ' ' + to.y));
 
     // The arrowhead is two short strokes off the end point, inside the
-    // connector's own group, so one class can fade it in when the line
-    // has finished drawing rather than with it.
+    // line's own group, so one class can fade it in when the line has
+    // finished drawing rather than with it.
     var ang = Math.atan2(to.y - from.y, to.x - from.x);
     var head = 12;
     var spread = 0.44;
@@ -218,42 +230,48 @@
     return line;
   }
 
-  // The connectors are the path taken, so they can be hidden again without
-// being re-measured — the geometry has not changed, only whether it has
-// been walked.
-  function resetLines() {
-    for (var i = 0; i < lines.length; i++) {
-      if (lines[i]) lines[i].classList.remove('is-on', 'is-drawn');
+  /* A leader belongs to the card that is lit, so hiding one never changes
+     its geometry and it is never measured twice. The inline dash the
+     write-on left behind is cleared too, or the next draw starts from a
+     pattern that is already part-drawn. */
+  function hideLine(line) {
+    if (!line) return;
+    line.classList.remove('is-on', 'is-drawn');
+    var sig = line.querySelector('.jr-signal');
+    if (sig) {
+      sig.style.strokeDasharray = '';
+      sig.style.strokeDashoffset = '';
+      sig.style.transition = '';
     }
   }
 
+  function resetLines() {
+    for (var i = 0; i < lines.length; i++) hideLine(lines[i]);
+  }
+
   function buildConnectors() {
-    // A rebuild is a re-measure, not a reset: which connectors the
-    // visitor has already walked is state, so it survives a resize.
-    var walked = lines.map(function (l) {
+    // A rebuild is a re-measure, not a reset: which card is lit is state,
+    // so its line survives a resize.
+    var lit = lines.map(function (l) {
       return !!(l && l.classList.contains('is-on'));
     });
     while (linesHost.firstChild) linesHost.removeChild(linesHost.firstChild);
     lines = [];
-    // Each connector is built hidden and stays that way until the journey
-    // walks it, so the opening state is the video and one card with
-    // nothing drawn across them.
-    for (var i = 0; i < N - 1; i++) {
+    // Each line is built hidden and stays that way until the journey
+    // lights its card, so the opening state is the video and one card
+    // with a single line pointing at it.
+    for (var i = 0; i < N; i++) {
       var line = drawConnector(i);
-      if (walked[i] && line) {
+      if (lit[i] && line) {
         line.classList.add('is-on');
-        // Under reduced motion the draw is a single step, so a walked
-        // connector is finished — arrow included.
+        // Under reduced motion the draw is a single step, so a lit
+        // card's line is finished — arrow included.
         if (reduce) line.classList.add('is-drawn');
       }
       lines.push(line);
     }
   }
 
-  /* The draw-in: each path is measured once and walked in from its own
-     length, so the whole line writes on as one stroke. The arrow's own
-     strokes are skipped — it fades in when the line has finished, not
-     with it. */
   function playDraw(lineGroup) {
     if (!lineGroup) return;
     // The line becomes visible as it starts drawing, and stays: the
@@ -314,10 +332,21 @@
       el.style.transition = 'none';
       el.style.strokeDasharray = len + ' ' + len;
       el.style.strokeDashoffset = String(len);
-      void el.getBoundingClientRect();
-      el.style.transition = 'stroke-dashoffset ' + FIGURE_MS + 'ms cubic-bezier(0.16, 1, 0.3, 1)';
-      el.style.strokeDashoffset = '0';
     }
+    if (reduce) return;
+    /* The start state has to be PAINTED before anything moves, and a
+       forced reflow is not enough: this is called as the card arrives,
+       and a transition whose start state was never rendered does not
+       run at all — the figure is simply on screen, un-drawn, which is
+       what a phone showed. Two frames is what the old arrivals used. */
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () {
+        for (var j = 0; j < paths.length; j++) {
+          paths[j].style.transition = 'stroke-dashoffset ' + FIGURE_MS + 'ms cubic-bezier(0.16, 1, 0.3, 1)';
+          paths[j].style.strokeDashoffset = '0';
+        }
+      });
+    });
   }
 
   /* ── State machine ──────────────────────────────────────────────
@@ -354,25 +383,43 @@
     // reading order for anyone stepping through with a screen reader.
     incoming.style.zIndex = '2';
 
-    // The stage's own figure writes itself on with the card, on every
-    // arrival — walked or merely followed by the footage. It draws the
-    // stage, not the path between two stages, so it is not gated on
-    // `draw` the way a connector is.
-    playFigure(incoming);
-
     if (reduce) {
       if (outgoing) { outgoing.classList.remove('is-held'); outgoing.classList.add('is-out'); }
       incoming.classList.add('is-on');
+      // The stage's own figure writes itself on with the card, on every
+      // arrival — walked or merely followed by the footage. It draws the
+      // stage, not a path between two stages, so it is not gated on
+      // `draw` the way the line is.
+      playFigure(incoming);
+      // Reduced motion: the line is simply there, pointing at the card
+      // that is lit. The pulse is off (journey.css), but a leader that
+      // never appears is a different design, not the same one made
+      // still.
+      for (var r = 0; r < lines.length; r++) {
+        if (r !== next) hideLine(lines[r]);
+      }
+      if (draw) playDraw(lines[next]);
+      else hideLine(lines[next]);
       return;
     }
 
     setTimeout(function () {
       if (outgoing) { outgoing.classList.remove('is-held'); outgoing.classList.add('is-out'); }
       incoming.classList.add('is-on');
-      // Only a walk draws a connector. A card changing because the
-      // footage free-ran past it does not, so an unwalked journey never
-      // scribbles a line across the video.
-      if (draw) playDraw(lines[prev] || lines[Math.max(0, prev - 1)]);
+      playFigure(incoming);
+      /* One line, and it is the lit card's. Every other leader goes with
+         the card it pointed at — a line pointing at a card nobody is
+         reading is a line to nothing — so the layer holds at most one
+         stroke no matter how far the journey has been walked.
+
+         Only a walk draws it. A card changing because the footage
+         free-ran past it does not, so an unwalked journey never puts a
+         line on the video. */
+      for (var l = 0; l < lines.length; l++) {
+        if (l !== next) hideLine(lines[l]);
+      }
+      if (draw) playDraw(lines[next]);
+      else hideLine(lines[next]);
       setTimeout(function () {
         if (outgoing) outgoing.classList.remove('is-on', 'is-out');
         busy = false;
@@ -625,6 +672,12 @@
   // only correct if the footage is actually at the start.
   state = stageAtTime(video.currentTime || 0);
   cards[state].classList.add('is-on');
+  playFigure(cards[state]);
+  // The opening state: one card, one figure, and the single line
+  // pointing at it. playDraw is called without the state machine, so
+  // under reduced motion it lands already drawn rather than waiting for
+  // a walk that has not happened.
+  playDraw(lines[state]);
   video.addEventListener('timeupdate', followFootage);
 
   // Cached coordinates, so this is the only thing that invalidates them.

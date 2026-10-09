@@ -25,19 +25,21 @@ PANEL → SWITCH → CEILING TRAY → DATA CENTER → CONNECTED — each with a 
 note for someone who has never thought about a network. A click advances;
 ArrowLeft/ArrowRight walk it both ways; right-click rewinds. Each stage
 carries its own **line figure** — one-weight stroke art in `stages.js`, drawn
-by walking its paths, so a figure writes itself on when its card lights. The
-connectors between the cards are a single clean stroke for the same hand, and
-once drawn they run a travelling dash: the line stops being a stroke and
-becomes the request moving along it. No drawing library — it is `path` data and
-CSS. The pointer moves three planes at three depths — the footage least, the
-lines most.
+by walking its paths, so a figure writes itself on when its card lights. Each
+card also gets **one line of its own** — a leader, pointing at that card and
+at nothing else, not a path from one card to the next. It draws on when the
+card lights and goes when the card does, so the layer never holds more than one
+stroke, and once drawn it runs a travelling dash: the line stops being a
+stroke and becomes the request moving along it. No drawing library — it is
+`path` data and CSS. The pointer moves three planes at three depths — the
+footage least, the lines most.
 
 The stages live in `walkthrough/stages.js`, and each one's card position is
 *measured*: its frame was sampled into a 4×3 grid and scored `lum + 2 × cyan`,
 so a card sits in the darkest cell holding least of the footage's own cyan
 light. `cell` records which, so the choice is auditable rather than eyeballed.
 The journey runtime (`walkthrough/journey.js`) is a sibling of
-`walkthrough.js` rather than part of it: the cards, connectors and parallax
+`walkthrough.js` rather than part of it: the cards, the line work and parallax
 belong to the journey, while `walkthrough.js` keeps the ambient node-and-link
 field, the way into the archive and the first-visit record the gallery's gate
 reads (`walkthrough.seen` — `completed` when the journey reaches its last card,
