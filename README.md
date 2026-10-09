@@ -16,8 +16,7 @@ just this repo.
 
 `/walkthrough/` is the site's front door: the gallery sends a first-time
 visitor there and the page's only job is to tell them what this is and
-offer the way in. Visitors reach it from the ⋮ menu → **Project walkthrough**
-and from the archive button in the app bar.
+offer the way in. Visitors reach it from the ⋮ menu → **Project walkthrough**.
 
 ## Eye comfort
 
