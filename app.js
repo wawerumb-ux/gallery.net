@@ -774,6 +774,77 @@ function openFontPicker() {
   el('fontOverlay').hidden = false;
 }
 function closeFontPicker() { el('fontOverlay').hidden = true; }
+/* The video backdrop. Three jobs the attribute set alone cannot do:
+
+   autoplay refused — iOS Low Power Mode and every desktop browser's
+   autoplay policy reject an unmuted video, and a rejected autoplay leaves a
+   black frame. play() is retried on the first real gesture, which is the
+   only user-initiated moment the policy will accept.
+
+   paused behind dialogs — the layer is position:fixed, so it never leaves
+   the viewport and an IntersectionObserver on it would never fire. What
+   actually covers it is the viewer and the seven modals, each opaque and
+   full-screen. While any is open the backdrop is paused: it is invisible and
+   30fps of decode behind an opaque dialog is pure battery.
+
+   suspended on tab hide — iOS suspends the decoder in the background and does
+   not reliably resume it, so returning to the tab has to re-issue play().
+   play() on an already-playing video is a no-op, which is why this can run
+   unconditionally. */
+function wireVideoBg() {
+  const video = el('videoBgEl');
+  if (!video) return;
+
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+  // The reduced-motion stylesheet hides the element; pausing keeps the
+  // decoder from running against display:none.
+  function syncMotion() {
+    if (reduce.matches) video.pause();
+    else safePlay();
+  }
+  function safePlay() {
+    // Rejected promises are the normal path here, not an error: autoplay
+    // policy refuses unmuted and low-power playback alike.
+    const p = video.play();
+    if (p && p.catch) p.catch(() => {});
+  }
+
+  // Every overlay that covers the viewport with an opaque surface.
+  const OVERLAYS = ['lightbox', 'adminModalOverlay', 'newAlbumOverlay',
+    'uploadModalOverlay', 'sortModalOverlay', 'settingsModalOverlay',
+    'tagModalOverlay'];
+  const anyOverlayOpen = () => OVERLAYS.some(id => {
+    const node = el(id);
+    return node && !node.hidden;
+  });
+
+  function syncPlayback() {
+    if (reduce.matches || document.hidden || anyOverlayOpen()) video.pause();
+    else safePlay();
+  }
+
+  reduce.addEventListener('change', syncMotion);
+  document.addEventListener('visibilitychange', syncPlayback);
+  OVERLAYS.forEach(id => {
+    const node = el(id);
+    if (!node) return;
+    // Observers rather than a call inside every open/close handler: seven
+    // overlays each already own their `hidden` writes, and the ones added
+    // later would not be covered.
+    new MutationObserver(syncPlayback).observe(node,
+      { attributes: true, attributeFilter: ['hidden'] });
+  });
+
+  // The gestures that unlock a refused autoplay. passive — nothing here
+  // touches the page's own handlers.
+  ['pointerdown', 'touchend', 'keydown'].forEach(evt => {
+    document.addEventListener(evt, syncPlayback, { passive: true });
+  });
+
+  syncMotion();
+}
+
 /* A popover has to go away when you tap the thing behind it — a sheet
    dims the page and owns the gesture, so it never needed this. Escape
    and the back button already route through overlayStack. */
@@ -813,6 +884,7 @@ async function init() {
   wireStaticEvents();
   syncAppbar();
   wireWelcome();
+  wireVideoBg();
 
   // Add unload handler to cancel requests
   window.addEventListener('beforeunload', cancelRequests);

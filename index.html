@@ -16,6 +16,25 @@
 <link rel="stylesheet" href="tour/tour.css">
 </head>
 <body>
+
+<!-- Video backdrop. Fixed to the viewport, behind the column, so the archive
+     paints over it. playsinline + webkit-playsinline + x5-playsinline keep iOS,
+     Android and Chinese OEM browsers from handing playback to the native
+     full-screen media player; the absent `controls` removes the expand
+     affordance, and disablepictureinpicture / disableremoteplayback close the
+     remaining hijack routes. Duplicated `muted` — autoplay policies key off
+     the property, not the attribute. One source, not a per-breakpoint pair:
+     video/ holds a single encode, and two <source media> entries pointing at
+     the same file would just be a second download decision. -->
+<div class="video-bg" id="videoBg" aria-hidden="true">
+  <video class="video-bg-el" id="videoBgEl"
+         autoplay muted loop playsinline webkit-playsinline x5-playsinline
+         disablepictureinpicture disableremoteplayback preload="metadata" muted>
+    <source src="video/Web_request_travels_through_netw%E2%80%A6_20261008015354.mp4" type="video/mp4">
+  </video>
+  <div class="video-bg-scrim"></div>
+</div>
+
 <div class="app" id="app">
 
   <!-- One UI app bar: compact row always visible, hero title collapses on scroll -->

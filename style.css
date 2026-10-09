@@ -128,6 +128,51 @@ code {
   font-size: 0.9em;
 }
 
+/* ── Video backdrop ──────────────────────────────────────────────── */
+/* The column below paints its own canvas, so a fixed video behind it is
+   never seen. This is the layer that replaces it: position:fixed pins the
+   video to the viewport (survives scroll), and the column goes transparent
+   so the frames read through. */
+.video-bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  /* 100dvh rather than 100vh: mobile URL bars shrink the visual viewport,
+     and vh leaves a black band under them. vh stays as the fallback. */
+  height: 100vh;
+  height: 100dvh;
+  /* Promoted once — scrolls would otherwise repaint it every frame.
+     No will-change: that holds the GPU buffer for the page's lifetime. */
+  transform: translateZ(0);
+  /* A background must never take the tap that was meant for the archive. */
+  pointer-events: none;
+}
+.video-bg-el {
+  width: 100%;
+  height: 100%;
+  /* cover crops to fill; contain letterboxes into black bars. */
+  object-fit: cover;
+  object-position: center;
+  display: block;
+}
+/* A gradient, not a flat dim. Content over a moving image needs the top and
+   bottom anchored harder than the middle — that is where the app bar, tab bar
+   and FAB sit, and those are the plates that have to stay legible. */
+.video-bg-scrim {
+  position: absolute;
+  inset: 0;
+  background-color: var(--scrim);
+  /* --bg-image leads so an eye-comfort theme's wash still tints the frames:
+     it can no longer paint on .app, which is transparent now. Both layers
+     size to the scrim box, which is itself the viewport — no
+     background-attachment:fixed here, because on a fixed-position ancestor
+     it only buys a full-viewport repaint on every scroll. */
+  background-image:
+    var(--bg-image),
+    linear-gradient(to bottom, var(--media-veil-top), transparent 22%, transparent 62%, var(--media-veil-bottom));
+}
+
 /* ── The phone column ────────────────────────────────────────────── */
 /* The tab bar is position:fixed, so it floats over the last row of the
    wall. Every piece of chrome already offsets itself by
@@ -144,9 +189,11 @@ code {
   min-height: 100dvh;
   padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px));
   margin: 0 auto;
-  background: var(--bg);
-  background-image: var(--bg-image);
-  background-attachment: fixed;
+  /* Transparent, so the video backdrop behind it shows through. The canvas
+     wash moves to the backdrop's scrim — --bg-image cannot paint over a
+     <video>, and an eye-comfort theme still has to be able to tint the
+     frames, so the scrim re-points it. */
+  background: transparent;
   display: flex;
   flex-direction: column;
 }
@@ -165,7 +212,12 @@ code {
   position: sticky;
   top: 0;
   z-index: 30;
-  background: var(--bg);
+  /* --chrome-bg, not --bg: the bar is sticky over moving frames, so it needs
+     the translucent blurred plate the tab bar already uses. Opaque --bg here
+     would cut a black band across the top of the video. */
+  background: var(--chrome-bg);
+  -webkit-backdrop-filter: blur(18px);
+  backdrop-filter: blur(18px);
   border-bottom: 1px solid transparent;
   transition: border-color var(--duration-fast) ease;
 }
@@ -1711,4 +1763,9 @@ select.text-input option { background: var(--surface-3); color: var(--text); }
     transition: none !important;
     animation: none !important;
   }
+  /* The backdrop is the page's only looping motion, and on this archive it
+     runs behind every photo — reduced-motion has to stop it, not just the
+     transitions above. The scrim stays, so the canvas keeps its wash. */
+  .video-bg-el { display: none; }
+  .video-bg { background: var(--bg); background-image: none; }
 }
