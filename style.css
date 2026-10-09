@@ -976,11 +976,10 @@ select.text-input option { background: var(--surface-3); color: var(--text); }
 
 /* ── Eye-comfort backgrounds ───────────────────────────────────────
    Picked from the app bar toggle (comfortBtn) and written to
-   <html data-theme>. Fifteen canvases: pure black, then two neutrals
-   (graphite, slate), four cool casts (dusk, teal, plum, sage), three
-   low-chroma earth casts (olive, clay, sepia), the blue-light-free
-   amber, and four light canvases (paper, linen, mist, bone) for bright
-   rooms, where a black page is itself the glare.
+   <html data-theme>. Eleven canvases: pure black, then seven dark casts
+   (sepia, amber, clay, olive, sage, fern, plum) and three light ones
+   (bone, linen, mint) for bright rooms, where a black page is itself
+   the glare.
 
    Every variant is self-contained: a theme sets the canvas, the
    surfaces, the ink, the hairlines AND the chrome that used to be
@@ -993,244 +992,218 @@ select.text-input option { background: var(--surface-3); color: var(--text); }
    image rather than the canvas. Pure black stays the default, and
    --bg-image carries the soft wash each theme paints.
 
-   Where the colours come from: every canvas is derived from a real
-   Color Hunt submission, and the source code is written above each
-   block so the choice can be re-checked. 2,292 palettes were pulled
-   from colorhunt.co's feed across twenty-three tags and scored on three
-   axes — the chroma-weighted mean hue against the theme's own hue, the
-   agreement between the family's chromatic members, and peak chroma
-   against the restraint eye comfort needs. A winner supplies the hue
-   and how much colour the family is allowed; a per-role OKLCh ramp
-   supplies the luminance, so no palette ships as a raw swatch. Canvas
-   luminance is then solved against the themes already placed, because
-   the picker shows them side by side and two that render alike are one
-   theme too many. */
-/* Graphite — Color Hunt f1efecd4c9be123458030303 (9196 likes), hue 264° C 0.075 */
-[data-theme='graphite'] {
-  --bg: #101010;
-  --surface: #1d1d1d;
-  --surface-2: #292929;
-  --surface-3: #353535;
-  --hairline: rgba(255, 255, 255, 0.08);
-  --hairline-strong: rgba(255, 255, 255, 0.14);
-  --chrome-bg: rgba(16, 16, 16, 0.94);
-  --text: #f0f0f0;
-  --text-dim: rgba(240, 240, 240, 0.58);
-  --text-faint: rgba(240, 240, 240, 0.36);
-  --accent: #425a8b;
-  --accent-text: #8eabe4;
-  --accent-dim: rgba(66, 90, 139, 0.20);
-  --accent-glow: rgba(66, 90, 139, 0.40);
-  --accent-glow-hi: rgba(66, 90, 139, 0.55);
-  --plate-faint: rgba(255, 255, 255, 0.06);
-  --plate: rgba(255, 255, 255, 0.07);
-  --plate-mid: rgba(255, 255, 255, 0.08);
-  --plate-active: rgba(255, 255, 255, 0.1);
-  --handle: rgba(255, 255, 255, 0.22);
-  --scrim: rgba(0, 0, 0, 0.55);
-  --scrim-strong: rgba(0, 0, 0, 0.62);
-  --shadow: rgba(0, 0, 0, 0.6);
-  --shadow-soft: rgba(0, 0, 0, 0.45);
-  --column-shadow: rgba(0, 0, 0, 0.9);
-  --code-bg: rgba(255, 255, 255, 0.07);
-  --scroll-thumb: rgba(255, 255, 255, 0.14);
-  --warn-ink: #ffd98a;
-  --toast-bg: #2c2c30;
-  --on-accent: #ffffff;
-  --bg-image: radial-gradient(120% 70% at 50% 0%, #121927 0%, #101010 58%, #03050c 100%);
-}
-/* Dusk blue — Color Hunt 0000004e4feb068fffeeeeee (5724 likes), hue 266° C 0.228 */
-[data-theme='dusk'] {
-  --bg: #060a13;
-  --surface: #101622;
-  --surface-2: #1b2130;
-  --surface-3: #262e3f;
-  --hairline: rgba(255, 255, 255, 0.155);
-  --hairline-strong: rgba(255, 255, 255, 0.231);
-  --chrome-bg: rgba(6, 10, 19, 0.94);
-  --text: #edf0f7;
-  --text-dim: rgba(237, 240, 247, 0.58);
-  --text-faint: rgba(237, 240, 247, 0.36);
-  --accent: #3d5798;
-  --accent-text: #89a9f4;
-  --accent-dim: rgba(61, 87, 152, 0.20);
-  --accent-glow: rgba(61, 87, 152, 0.40);
-  --accent-glow-hi: rgba(61, 87, 152, 0.55);
-  --plate-faint: rgba(255, 255, 255, 0.089);
-  --plate: rgba(255, 255, 255, 0.099);
-  --plate-mid: rgba(255, 255, 255, 0.109);
-  --plate-active: rgba(255, 255, 255, 0.141);
-  --handle: rgba(255, 255, 255, 0.278);
-  --scrim: rgba(0, 0, 0, 0.55);
-  --scrim-strong: rgba(0, 0, 0, 0.62);
-  --shadow: rgba(0, 0, 0, 0.6);
-  --shadow-soft: rgba(0, 0, 0, 0.45);
-  --column-shadow: rgba(0, 0, 0, 0.9);
-  --code-bg: rgba(255, 255, 255, 0.099);
-  --scroll-thumb: rgba(255, 255, 255, 0.176);
-  --warn-ink: #fdc256;
-  --toast-bg: #2e3645;
-  --on-accent: #ffffff;
-  --bg-image: radial-gradient(120% 70% at 50% 0%, #131927 0%, #060a13 58%, #03050c 100%);
-}
-/* Sage — Color Hunt 18230f27391c255f381f7d53 (6858 likes), hue 150° C 0.109 */
-[data-theme='sage'] {
-  --bg: #040d06;
-  --surface: #0d1910;
-  --surface-2: #17261a;
-  --surface-3: #213325;
-  --hairline: rgba(255, 255, 255, 0.113);
-  --hairline-strong: rgba(255, 255, 255, 0.183);
-  --chrome-bg: rgba(4, 13, 6, 0.94);
-  --text: #edf2ed;
-  --text-dim: rgba(237, 242, 237, 0.58);
-  --text-faint: rgba(237, 242, 237, 0.36);
-  --accent: #226b38;
-  --accent-text: #80bc8c;
-  --accent-dim: rgba(34, 107, 56, 0.20);
-  --accent-glow: rgba(34, 107, 56, 0.40);
-  --accent-glow-hi: rgba(34, 107, 56, 0.55);
-  --plate-faint: rgba(255, 255, 255, 0.071);
-  --plate: rgba(255, 255, 255, 0.081);
-  --plate-mid: rgba(255, 255, 255, 0.091);
-  --plate-active: rgba(255, 255, 255, 0.117);
-  --handle: rgba(255, 255, 255, 0.243);
-  --scrim: rgba(0, 0, 0, 0.55);
-  --scrim-strong: rgba(0, 0, 0, 0.62);
-  --shadow: rgba(0, 0, 0, 0.6);
-  --shadow-soft: rgba(0, 0, 0, 0.45);
-  --column-shadow: rgba(0, 0, 0, 0.9);
-  --code-bg: rgba(255, 255, 255, 0.081);
-  --scroll-thumb: rgba(255, 255, 255, 0.152);
-  --warn-ink: #edb345;
-  --toast-bg: #1f2e22;
-  --on-accent: #ffffff;
-  --bg-image: radial-gradient(120% 70% at 50% 0%, #0f1d12 0%, #040d06 58%, #020703 100%);
-}
-/* Sepia — Color Hunt 000000f4dfc8f4eae0faf6f0 (8551 likes), hue 70° C 0.038 */
+   Where the colours come from: the ten most recent Color Hunt
+   submissions, one palette per theme, and the source code is written
+   above each block so the choice can be re-checked. The palette drives
+   hue and the chroma budget; a per-role OKLCh ramp supplies the
+   luminance. That split matters more than it sounds — not one of these
+   ten has a dark end (the darkest member across all ten is 2a1a0e at
+   L 0.24), so every dark canvas here is reached by ramping a light
+   palette down rather than by reusing a dark swatch. Canvas luminance
+   is solved against the themes already placed, because the picker shows
+   them side by side and two that render alike are one theme too many.
+
+   This set replaced fourteen themes drawn from a 2,292-palette search.
+   The five that went — graphite, slate, dusk, mist, paper — were the
+   neutrals and cools, and not one of the ten newest palettes is either.
+   A Graphite that comes out green would be worse than no Graphite. */
+/* Sepia — Color Hunt de7272ffca88fff6a9b4e4d6 (158 likes, 2 days), hue 71° C 0.135 */
 [data-theme='sepia'] {
-  --bg: #1d140b;
+  --bg: #1c140b;
   --surface: #2b2115;
   --surface-2: #392d1e;
   --surface-3: #473928;
-  --hairline: rgba(255, 255, 255, 0.088);
-  --hairline-strong: rgba(255, 255, 255, 0.155);
-  --chrome-bg: rgba(29, 20, 11, 0.94);
+  --hairline: rgba(255, 255, 255, 0.122);
+  --hairline-strong: rgba(255, 255, 255, 0.194);
+  --chrome-bg: rgba(28, 20, 11, 0.94);
   --text: #f4efea;
   --text-dim: rgba(244, 239, 234, 0.58);
   --text-faint: rgba(244, 239, 234, 0.36);
-  --accent: #79511e;
-  --accent-text: #d0a16b;
-  --accent-dim: rgba(121, 81, 30, 0.20);
-  --accent-glow: rgba(121, 81, 30, 0.40);
-  --accent-glow-hi: rgba(121, 81, 30, 0.55);
-  --plate-faint: rgba(255, 255, 255, 0.061);
-  --plate: rgba(255, 255, 255, 0.071);
-  --plate-mid: rgba(255, 255, 255, 0.081);
-  --plate-active: rgba(255, 255, 255, 0.103);
-  --handle: rgba(255, 255, 255, 0.222);
+  --accent: #705534;
+  --accent-text: #c3a582;
+  --accent-dim: rgba(112, 85, 52, 0.20);
+  --accent-glow: rgba(112, 85, 52, 0.40);
+  --accent-glow-hi: rgba(112, 85, 52, 0.55);
+  --plate-faint: rgba(255, 255, 255, 0.075);
+  --plate: rgba(255, 255, 255, 0.085);
+  --plate-mid: rgba(255, 255, 255, 0.095);
+  --plate-active: rgba(255, 255, 255, 0.122);
+  --handle: rgba(255, 255, 255, 0.251);
   --scrim: rgba(0, 0, 0, 0.55);
   --scrim-strong: rgba(0, 0, 0, 0.62);
   --shadow: rgba(0, 0, 0, 0.6);
   --shadow-soft: rgba(0, 0, 0, 0.45);
   --column-shadow: rgba(0, 0, 0, 0.9);
-  --code-bg: rgba(255, 255, 255, 0.071);
-  --scroll-thumb: rgba(255, 255, 255, 0.138);
-  --warn-ink: #e3b666;
-  --toast-bg: #2c2013;
+  --code-bg: rgba(255, 255, 255, 0.085);
+  --scroll-thumb: rgba(255, 255, 255, 0.157);
+  --warn-ink: #edb345;
+  --toast-bg: #362a1c;
   --on-accent: #ffffff;
-  --bg-image: radial-gradient(120% 70% at 50% 0%, #221709 0%, #1d140b 58%, #090401 100%);
+  --bg-image: radial-gradient(120% 70% at 50% 0%, #221709 0%, #1c140b 58%, #090401 100%);
 }
-/* Amber — Color Hunt fff0dcf0bb78543a14131010 (6660 likes), hue 78° C 0.104 */
+
+/* Amber — Color Hunt 4f7d32ffd16af5b52ed9361e (12 likes, 6 hours), hue 75° C 0.203 */
 [data-theme='amber'] {
   --bg: #140d04;
-  --surface: #21190c;
-  --surface-2: #2f2515;
-  --surface-3: #3c311f;
-  --hairline: rgba(255, 255, 255, 0.111);
-  --hairline-strong: rgba(255, 255, 255, 0.182);
+  --surface: #22190d;
+  --surface-2: #2f2415;
+  --surface-3: #3d301f;
+  --hairline: rgba(255, 255, 255, 0.146);
+  --hairline-strong: rgba(255, 255, 255, 0.221);
   --chrome-bg: rgba(20, 13, 4, 0.94);
-  --text: #f3f0ea;
-  --text-dim: rgba(243, 240, 234, 0.58);
-  --text-faint: rgba(243, 240, 234, 0.36);
-  --accent: #7a5200;
-  --accent-text: #caa468;
-  --accent-dim: rgba(122, 82, 0, 0.20);
-  --accent-glow: rgba(122, 82, 0, 0.40);
-  --accent-glow-hi: rgba(122, 82, 0, 0.55);
-  --plate-faint: rgba(255, 255, 255, 0.071);
-  --plate: rgba(255, 255, 255, 0.081);
-  --plate-mid: rgba(255, 255, 255, 0.091);
-  --plate-active: rgba(255, 255, 255, 0.116);
-  --handle: rgba(255, 255, 255, 0.241);
+  --text: #f3efea;
+  --text-dim: rgba(243, 239, 234, 0.58);
+  --text-faint: rgba(243, 239, 234, 0.36);
+  --accent: #785214;
+  --accent-text: #cca369;
+  --accent-dim: rgba(120, 82, 20, 0.20);
+  --accent-glow: rgba(120, 82, 20, 0.40);
+  --accent-glow-hi: rgba(120, 82, 20, 0.55);
+  --plate-faint: rgba(255, 255, 255, 0.085);
+  --plate: rgba(255, 255, 255, 0.095);
+  --plate-mid: rgba(255, 255, 255, 0.105);
+  --plate-active: rgba(255, 255, 255, 0.136);
+  --handle: rgba(255, 255, 255, 0.271);
   --scrim: rgba(0, 0, 0, 0.55);
   --scrim-strong: rgba(0, 0, 0, 0.62);
   --shadow: rgba(0, 0, 0, 0.6);
   --shadow-soft: rgba(0, 0, 0, 0.45);
   --column-shadow: rgba(0, 0, 0, 0.9);
-  --code-bg: rgba(255, 255, 255, 0.081);
-  --scroll-thumb: rgba(255, 255, 255, 0.151);
+  --code-bg: rgba(255, 255, 255, 0.095);
+  --scroll-thumb: rgba(255, 255, 255, 0.171);
+  --warn-ink: #f4ba4d;
+  --toast-bg: #3c3122;
+  --on-accent: #ffffff;
+  --bg-image: radial-gradient(120% 70% at 50% 0%, #221709 0%, #140d04 58%, #090401 100%);
+}
+
+/* Clay — Color Hunt a14646da6556eb895bfdb773 (387 likes, 1 week), hue 39° C 0.150 */
+[data-theme='clay'] {
+  --bg: #0f0503;
+  --surface: #1d0f0a;
+  --surface-2: #2a1913;
+  --surface-3: #39241d;
+  --hairline: rgba(255, 255, 255, 0.128);
+  --hairline-strong: rgba(255, 255, 255, 0.200);
+  --chrome-bg: rgba(15, 5, 3, 0.94);
+  --text: #f5eeec;
+  --text-dim: rgba(245, 238, 236, 0.58);
+  --text-faint: rgba(245, 238, 236, 0.36);
+  --accent: #834935;
+  --accent-text: #da9983;
+  --accent-dim: rgba(131, 73, 53, 0.20);
+  --accent-glow: rgba(131, 73, 53, 0.40);
+  --accent-glow-hi: rgba(131, 73, 53, 0.55);
+  --plate-faint: rgba(255, 255, 255, 0.077);
+  --plate: rgba(255, 255, 255, 0.087);
+  --plate-mid: rgba(255, 255, 255, 0.098);
+  --plate-active: rgba(255, 255, 255, 0.125);
+  --handle: rgba(255, 255, 255, 0.255);
+  --scrim: rgba(0, 0, 0, 0.55);
+  --scrim-strong: rgba(0, 0, 0, 0.62);
+  --shadow: rgba(0, 0, 0, 0.6);
+  --shadow-soft: rgba(0, 0, 0, 0.45);
+  --column-shadow: rgba(0, 0, 0, 0.9);
+  --code-bg: rgba(255, 255, 255, 0.087);
+  --scroll-thumb: rgba(255, 255, 255, 0.160);
   --warn-ink: #edb345;
-  --toast-bg: #312818;
+  --toast-bg: #3b2923;
   --on-accent: #ffffff;
-  --bg-image: radial-gradient(120% 70% at 50% 0%, #211809 0%, #140d04 58%, #080401 100%);
+  --bg-image: radial-gradient(120% 70% at 50% 0%, #25150f 0%, #0f0503 58%, #0b0302 100%);
 }
-/* Slate — Color Hunt 27374d526d829db2bfdde6ed (36176 likes), hue 248° C 0.046 */
-[data-theme='slate'] {
-  --bg: #01050c;
-  --surface: #06101a;
-  --surface-2: #0f1c28;
-  --surface-3: #192836;
-  --hairline: rgba(255, 255, 255, 0.091);
-  --hairline-strong: rgba(255, 255, 255, 0.158);
-  --chrome-bg: rgba(1, 5, 12, 0.94);
-  --text: #ecf1f5;
-  --text-dim: rgba(236, 241, 245, 0.58);
-  --text-faint: rgba(236, 241, 245, 0.36);
-  --accent: #305e88;
-  --accent-text: #7db0e1;
-  --accent-dim: rgba(48, 94, 136, 0.20);
-  --accent-glow: rgba(48, 94, 136, 0.40);
-  --accent-glow-hi: rgba(48, 94, 136, 0.55);
-  --plate-faint: rgba(255, 255, 255, 0.062);
-  --plate: rgba(255, 255, 255, 0.072);
-  --plate-mid: rgba(255, 255, 255, 0.082);
-  --plate-active: rgba(255, 255, 255, 0.104);
-  --handle: rgba(255, 255, 255, 0.224);
+
+/* Olive — Color Hunt 8ad6d1359fa0fff0c5ff8c52 (262 likes, 5 days), hue 113° C 0.157 */
+[data-theme='olive'] {
+  --bg: #040500;
+  --surface: #0e1003;
+  --surface-2: #191b0a;
+  --surface-3: #252713;
+  --hairline: rgba(255, 255, 255, 0.130);
+  --hairline-strong: rgba(255, 255, 255, 0.203);
+  --chrome-bg: rgba(4, 5, 0, 0.94);
+  --text: #f0f1eb;
+  --text-dim: rgba(240, 241, 235, 0.58);
+  --text-faint: rgba(240, 241, 235, 0.36);
+  --accent: #5b5f33;
+  --accent-text: #aab080;
+  --accent-dim: rgba(91, 95, 51, 0.20);
+  --accent-glow: rgba(91, 95, 51, 0.40);
+  --accent-glow-hi: rgba(91, 95, 51, 0.55);
+  --plate-faint: rgba(255, 255, 255, 0.079);
+  --plate: rgba(255, 255, 255, 0.089);
+  --plate-mid: rgba(255, 255, 255, 0.099);
+  --plate-active: rgba(255, 255, 255, 0.126);
+  --handle: rgba(255, 255, 255, 0.257);
   --scrim: rgba(0, 0, 0, 0.55);
   --scrim-strong: rgba(0, 0, 0, 0.62);
   --shadow: rgba(0, 0, 0, 0.6);
   --shadow-soft: rgba(0, 0, 0, 0.45);
   --column-shadow: rgba(0, 0, 0, 0.9);
-  --code-bg: rgba(255, 255, 255, 0.072);
-  --scroll-thumb: rgba(255, 255, 255, 0.139);
-  --warn-ink: #e7b459;
-  --toast-bg: #182532;
+  --code-bg: rgba(255, 255, 255, 0.089);
+  --scroll-thumb: rgba(255, 255, 255, 0.161);
+  --warn-ink: #edb345;
+  --toast-bg: #2e301f;
   --on-accent: #ffffff;
-  --bg-image: radial-gradient(120% 70% at 50% 0%, #0e1b27 0%, #01050c 58%, #02050c 100%);
+  --bg-image: radial-gradient(120% 70% at 50% 0%, #191b0a 0%, #040500 58%, #050601 100%);
 }
-/* Teal — Color Hunt 2c33332e4f4f0e8388cbe4de (13453 likes), hue 195° C 0.092 */
-[data-theme='teal'] {
-  --bg: #091919;
-  --surface: #132727;
-  --surface-2: #1c3434;
-  --surface-3: #254241;
+
+/* Sage — Color Hunt 5c705789a482acc5a6d1edd3 (414 likes, 6 days), hue 141° C 0.057 */
+[data-theme='sage'] {
+  --bg: #151d14;
+  --surface: #212b1f;
+  --surface-2: #2c382a;
+  --surface-3: #374635;
+  --hairline: rgba(255, 255, 255, 0.095);
+  --hairline-strong: rgba(255, 255, 255, 0.163);
+  --chrome-bg: rgba(21, 29, 20, 0.94);
+  --text: #edf1ed;
+  --text-dim: rgba(237, 241, 237, 0.58);
+  --text-faint: rgba(237, 241, 237, 0.36);
+  --accent: #486344;
+  --accent-text: #96b591;
+  --accent-dim: rgba(72, 99, 68, 0.20);
+  --accent-glow: rgba(72, 99, 68, 0.40);
+  --accent-glow-hi: rgba(72, 99, 68, 0.55);
+  --plate-faint: rgba(255, 255, 255, 0.064);
+  --plate: rgba(255, 255, 255, 0.074);
+  --plate-mid: rgba(255, 255, 255, 0.084);
+  --plate-active: rgba(255, 255, 255, 0.106);
+  --handle: rgba(255, 255, 255, 0.227);
+  --scrim: rgba(0, 0, 0, 0.55);
+  --scrim-strong: rgba(0, 0, 0, 0.62);
+  --shadow: rgba(0, 0, 0, 0.6);
+  --shadow-soft: rgba(0, 0, 0, 0.45);
+  --column-shadow: rgba(0, 0, 0, 0.9);
+  --code-bg: rgba(255, 255, 255, 0.074);
+  --scroll-thumb: rgba(255, 255, 255, 0.141);
+  --warn-ink: #edb345;
+  --toast-bg: #1d281b;
+  --on-accent: #ffffff;
+  --bg-image: radial-gradient(120% 70% at 50% 0%, #121d10 0%, #151d14 58%, #020602 100%);
+}
+
+/* Fern — Color Hunt 287a7455a9a0aeeed3fff8b0 (256 likes, 4 days), hue 161° C 0.091 */
+[data-theme='fern'] {
+  --bg: #091610;
+  --surface: #14231b;
+  --surface-2: #1e3027;
+  --surface-3: #283e32;
   --hairline: rgba(255, 255, 255, 0.107);
-  --hairline-strong: rgba(255, 255, 255, 0.177);
-  --chrome-bg: rgba(9, 25, 25, 0.94);
-  --text: #eaf2f2;
-  --text-dim: rgba(234, 242, 242, 0.58);
-  --text-faint: rgba(234, 242, 242, 0.36);
-  --accent: #006a6b;
-  --accent-text: #5ebdbc;
-  --accent-dim: rgba(0, 106, 107, 0.20);
-  --accent-glow: rgba(0, 106, 107, 0.40);
-  --accent-glow-hi: rgba(0, 106, 107, 0.55);
+  --hairline-strong: rgba(255, 255, 255, 0.176);
+  --chrome-bg: rgba(9, 22, 16, 0.94);
+  --text: #ebf2ee;
+  --text-dim: rgba(235, 242, 238, 0.58);
+  --text-faint: rgba(235, 242, 238, 0.36);
+  --accent: #2e684d;
+  --accent-text: #80ba9c;
+  --accent-dim: rgba(46, 104, 77, 0.20);
+  --accent-glow: rgba(46, 104, 77, 0.40);
+  --accent-glow-hi: rgba(46, 104, 77, 0.55);
   --plate-faint: rgba(255, 255, 255, 0.069);
   --plate: rgba(255, 255, 255, 0.079);
   --plate-mid: rgba(255, 255, 255, 0.089);
   --plate-active: rgba(255, 255, 255, 0.113);
-  --handle: rgba(255, 255, 255, 0.238);
+  --handle: rgba(255, 255, 255, 0.237);
   --scrim: rgba(0, 0, 0, 0.55);
   --scrim-strong: rgba(0, 0, 0, 0.62);
   --shadow: rgba(0, 0, 0, 0.6);
@@ -1239,238 +1212,63 @@ select.text-input option { background: var(--surface-3); color: var(--text); }
   --code-bg: rgba(255, 255, 255, 0.079);
   --scroll-thumb: rgba(255, 255, 255, 0.148);
   --warn-ink: #edb345;
-  --toast-bg: #152d2d;
+  --toast-bg: #1a2d23;
   --on-accent: #ffffff;
-  --bg-image: radial-gradient(120% 70% at 50% 0%, #061e1e 0%, #091919 58%, #000707 100%);
+  --bg-image: radial-gradient(120% 70% at 50% 0%, #0c1e15 0%, #091610 58%, #010703 100%);
 }
-/* Plum — Color Hunt 200f213820395a3d5cf638dc (2969 likes), hue 330° C 0.272 */
+
+/* Plum — Color Hunt 8e1ea2c654c3ed96d7ffc0de (524 likes, 1 week), hue 330° C 0.206 */
 [data-theme='plum'] {
   --bg: #1b111a;
   --surface: #291d28;
   --surface-2: #372835;
   --surface-3: #453443;
-  --hairline: rgba(255, 255, 255, 0.170);
-  --hairline-strong: rgba(255, 255, 255, 0.249);
+  --hairline: rgba(255, 255, 255, 0.147);
+  --hairline-strong: rgba(255, 255, 255, 0.223);
   --chrome-bg: rgba(27, 17, 26, 0.94);
   --text: #f3eef3;
   --text-dim: rgba(243, 238, 243, 0.58);
   --text-faint: rgba(243, 238, 243, 0.36);
-  --accent: #7c4178;
-  --accent-text: #d490cd;
-  --accent-dim: rgba(124, 65, 120, 0.20);
-  --accent-glow: rgba(124, 65, 120, 0.40);
-  --accent-glow-hi: rgba(124, 65, 120, 0.55);
-  --plate-faint: rgba(255, 255, 255, 0.096);
-  --plate: rgba(255, 255, 255, 0.106);
-  --plate-mid: rgba(255, 255, 255, 0.116);
-  --plate-active: rgba(255, 255, 255, 0.149);
-  --handle: rgba(255, 255, 255, 0.292);
+  --accent: #7a4475;
+  --accent-text: #cf94c9;
+  --accent-dim: rgba(122, 68, 117, 0.20);
+  --accent-glow: rgba(122, 68, 117, 0.40);
+  --accent-glow-hi: rgba(122, 68, 117, 0.55);
+  --plate-faint: rgba(255, 255, 255, 0.086);
+  --plate: rgba(255, 255, 255, 0.096);
+  --plate-mid: rgba(255, 255, 255, 0.106);
+  --plate-active: rgba(255, 255, 255, 0.136);
+  --handle: rgba(255, 255, 255, 0.272);
   --scrim: rgba(0, 0, 0, 0.55);
   --scrim-strong: rgba(0, 0, 0, 0.62);
   --shadow: rgba(0, 0, 0, 0.6);
   --shadow-soft: rgba(0, 0, 0, 0.45);
   --column-shadow: rgba(0, 0, 0, 0.9);
-  --code-bg: rgba(255, 255, 255, 0.106);
-  --scroll-thumb: rgba(255, 255, 255, 0.184);
-  --warn-ink: #ffd166;
-  --toast-bg: #433542;
+  --code-bg: rgba(255, 255, 255, 0.096);
+  --scroll-thumb: rgba(255, 255, 255, 0.171);
+  --warn-ink: #f5bb4e;
+  --toast-bg: #3d2e3b;
   --on-accent: #ffffff;
   --bg-image: radial-gradient(120% 70% at 50% 0%, #211420 0%, #1b111a 58%, #090308 100%);
 }
-/* Olive — Color Hunt 41431baeb784e3dbbbf8f3e1 (5126 likes), hue 110° C 0.070 */
-[data-theme='olive'] {
-  --bg: #050600;
-  --surface: #101004;
-  --surface-2: #1b1c0b;
-  --surface-3: #272814;
-  --hairline: rgba(255, 255, 255, 0.099);
-  --hairline-strong: rgba(255, 255, 255, 0.168);
-  --chrome-bg: rgba(5, 6, 0, 0.94);
-  --text: #f0f1eb;
-  --text-dim: rgba(240, 241, 235, 0.58);
-  --text-faint: rgba(240, 241, 235, 0.36);
-  --accent: #5e5f1f;
-  --accent-text: #aeb06c;
-  --accent-dim: rgba(94, 95, 31, 0.20);
-  --accent-glow: rgba(94, 95, 31, 0.40);
-  --accent-glow-hi: rgba(94, 95, 31, 0.55);
-  --plate-faint: rgba(255, 255, 255, 0.065);
-  --plate: rgba(255, 255, 255, 0.075);
-  --plate-mid: rgba(255, 255, 255, 0.085);
-  --plate-active: rgba(255, 255, 255, 0.109);
-  --handle: rgba(255, 255, 255, 0.231);
-  --scrim: rgba(0, 0, 0, 0.55);
-  --scrim-strong: rgba(0, 0, 0, 0.62);
-  --shadow: rgba(0, 0, 0, 0.6);
-  --shadow-soft: rgba(0, 0, 0, 0.45);
-  --column-shadow: rgba(0, 0, 0, 0.9);
-  --code-bg: rgba(255, 255, 255, 0.075);
-  --scroll-thumb: rgba(255, 255, 255, 0.144);
-  --warn-ink: #edb345;
-  --toast-bg: #272716;
-  --on-accent: #ffffff;
-  --bg-image: radial-gradient(120% 70% at 50% 0%, #1a1b0a 0%, #050600 58%, #050501 100%);
-}
-/* Clay — Color Hunt 0c0c0c481e149b3922f2613f (9326 likes), hue 40° C 0.186 */
-[data-theme='clay'] {
-  --bg: #120704;
-  --surface: #20120d;
-  --surface-2: #2e1d17;
-  --surface-3: #3d2821;
-  --hairline: rgba(255, 255, 255, 0.140);
-  --hairline-strong: rgba(255, 255, 255, 0.214);
-  --chrome-bg: rgba(18, 7, 4, 0.94);
-  --text: #f5eeec;
-  --text-dim: rgba(245, 238, 236, 0.58);
-  --text-faint: rgba(245, 238, 236, 0.36);
-  --accent: #8d4226;
-  --accent-text: #e89172;
-  --accent-dim: rgba(141, 66, 38, 0.20);
-  --accent-glow: rgba(141, 66, 38, 0.40);
-  --accent-glow-hi: rgba(141, 66, 38, 0.55);
-  --plate-faint: rgba(255, 255, 255, 0.083);
-  --plate: rgba(255, 255, 255, 0.093);
-  --plate-mid: rgba(255, 255, 255, 0.103);
-  --plate-active: rgba(255, 255, 255, 0.132);
-  --handle: rgba(255, 255, 255, 0.266);
-  --scrim: rgba(0, 0, 0, 0.55);
-  --scrim-strong: rgba(0, 0, 0, 0.62);
-  --shadow: rgba(0, 0, 0, 0.6);
-  --shadow-soft: rgba(0, 0, 0, 0.45);
-  --column-shadow: rgba(0, 0, 0, 0.9);
-  --code-bg: rgba(255, 255, 255, 0.093);
-  --scroll-thumb: rgba(255, 255, 255, 0.167);
-  --warn-ink: #eeb447;
-  --toast-bg: #3f2c26;
-  --on-accent: #ffffff;
-  --bg-image: radial-gradient(120% 70% at 50% 0%, #25150f 0%, #120704 58%, #0b0302 100%);
-}
 
-/* ── Light canvases ──────────────────────────────────────────────
-   Same contract as the dark family above, inverted: ink is near-black
-   on a light page, hairlines are black-alpha, and every chrome token
-   (plates, scrims, shadows, scrollbar, toast) flips with it. The
-   --media-* family is untouched — the viewer and the album badges sit
-   on photographs and stay dark whatever the page is doing. */
-/* Paper — Color Hunt f9f5f6f8e8eefdcedff2bed1 (42069 likes), hue 264° C 0.064 */
-[data-theme='paper'] {
-  --bg: #f3f3f3;
-  --surface: #ffffff;
-  --surface-2: #dfdfdf;
-  --surface-3: #fafafa;
-  --hairline: rgba(22, 22, 26, 0.11);
-  --hairline-strong: rgba(22, 22, 26, 0.19);
-  --chrome-bg: rgba(243, 243, 243, 0.94);
-  --text: #131313;
-  --text-dim: rgba(19, 19, 19, 0.60);
-  --text-faint: rgba(19, 19, 19, 0.38);
-  --accent: #3e5993;
-  --accent-text: #34508c;
-  --accent-dim: rgba(62, 89, 147, 0.14);
-  --accent-glow: rgba(62, 89, 147, 0.30);
-  --accent-glow-hi: rgba(62, 89, 147, 0.42);
-  --plate-faint: rgba(22, 22, 26, 0.04);
-  --plate: rgba(22, 22, 26, 0.06);
-  --plate-mid: rgba(22, 22, 26, 0.07);
-  --plate-active: rgba(22, 22, 26, 0.10);
-  --handle: rgba(22, 22, 26, 0.25);
-  --scrim: rgba(20, 20, 26, 0.34);
-  --scrim-strong: rgba(20, 20, 26, 0.40);
-  --shadow: rgba(20, 20, 30, 0.18);
-  --shadow-soft: rgba(20, 20, 30, 0.13);
-  --column-shadow: rgba(20, 20, 30, 0.14);
-  --code-bg: rgba(22, 22, 26, 0.07);
-  --scroll-thumb: rgba(22, 22, 26, 0.25);
-  --warn-ink: #6a2900;
-  --toast-bg: #131a29;
-  --on-accent: #ffffff;
-  --bg-image: radial-gradient(120% 70% at 50% 0%, #ffffff 0%, #f3f3f3 58%, #d5ddeb 100%);
-}
-/* Linen — Color Hunt 8e806ac3b091e4cda7ffe6bc (16359 likes), hue 80° C 0.061 */
-[data-theme='linen'] {
-  --bg: #eee9df;
-  --surface: #ffffff;
-  --surface-2: #e7ded1;
-  --surface-3: #fef9f1;
-  --hairline: rgba(22, 22, 26, 0.11);
-  --hairline-strong: rgba(22, 22, 26, 0.19);
-  --chrome-bg: rgba(238, 233, 223, 0.94);
-  --text: #171209;
-  --text-dim: rgba(23, 18, 9, 0.60);
-  --text-faint: rgba(23, 18, 9, 0.38);
-  --accent: #785300;
-  --accent-text: #704a00;
-  --accent-dim: rgba(120, 83, 0, 0.14);
-  --accent-glow: rgba(120, 83, 0, 0.30);
-  --accent-glow-hi: rgba(120, 83, 0, 0.42);
-  --plate-faint: rgba(22, 22, 26, 0.04);
-  --plate: rgba(22, 22, 26, 0.06);
-  --plate-mid: rgba(22, 22, 26, 0.07);
-  --plate-active: rgba(22, 22, 26, 0.10);
-  --handle: rgba(22, 22, 26, 0.25);
-  --scrim: rgba(20, 20, 26, 0.34);
-  --scrim-strong: rgba(20, 20, 26, 0.40);
-  --shadow: rgba(20, 20, 30, 0.18);
-  --shadow-soft: rgba(20, 20, 30, 0.13);
-  --column-shadow: rgba(20, 20, 30, 0.14);
-  --code-bg: rgba(22, 22, 26, 0.07);
-  --scroll-thumb: rgba(22, 22, 26, 0.25);
-  --warn-ink: #672900;
-  --toast-bg: #22190a;
-  --on-accent: #ffffff;
-  --bg-image: radial-gradient(120% 70% at 50% 0%, #ffffff 0%, #eee9df 58%, #e4dbcd 100%);
-}
-/* Mist — Color Hunt f8fafcd9eafdbcccdc9aa6b2 (15245 likes), hue 250° C 0.032 */
-[data-theme='mist'] {
-  --bg: #e3eaf3;
-  --surface: #ffffff;
-  --surface-2: #d6e1ed;
-  --surface-3: #f4fbff;
-  --hairline: rgba(22, 22, 26, 0.11);
-  --hairline-strong: rgba(22, 22, 26, 0.19);
-  --chrome-bg: rgba(227, 234, 243, 0.94);
-  --text: #0d131a;
-  --text-dim: rgba(13, 19, 26, 0.60);
-  --text-faint: rgba(13, 19, 26, 0.38);
-  --accent: #295e90;
-  --accent-text: #1b558a;
-  --accent-dim: rgba(41, 94, 144, 0.14);
-  --accent-glow: rgba(41, 94, 144, 0.30);
-  --accent-glow-hi: rgba(41, 94, 144, 0.42);
-  --plate-faint: rgba(22, 22, 26, 0.04);
-  --plate: rgba(22, 22, 26, 0.06);
-  --plate-mid: rgba(22, 22, 26, 0.07);
-  --plate-active: rgba(22, 22, 26, 0.10);
-  --handle: rgba(22, 22, 26, 0.25);
-  --scrim: rgba(20, 20, 26, 0.34);
-  --scrim-strong: rgba(20, 20, 26, 0.40);
-  --shadow: rgba(20, 20, 30, 0.18);
-  --shadow-soft: rgba(20, 20, 30, 0.13);
-  --column-shadow: rgba(20, 20, 30, 0.14);
-  --code-bg: rgba(22, 22, 26, 0.07);
-  --scroll-thumb: rgba(22, 22, 26, 0.25);
-  --warn-ink: #532a00;
-  --toast-bg: #101c28;
-  --on-accent: #ffffff;
-  --bg-image: radial-gradient(120% 70% at 50% 0%, #ffffff 0%, #e3eaf3 58%, #d2deeb 100%);
-}
-/* Bone — Color Hunt fdefeff4dfd0dad0c2cdbba7 (22885 likes), hue 60° C 0.034 */
+/* Bone — Color Hunt fef3e2f4ae52d4621a2a1a0e (212 likes, 3 days), hue 59° C 0.163 */
 [data-theme='bone'] {
-  --bg: #fffaf3;
+  --bg: #fbf1ea;
   --surface: #ffffff;
   --surface-2: #eaddd3;
   --surface-3: #fff8f2;
   --hairline: rgba(22, 22, 26, 0.11);
   --hairline-strong: rgba(22, 22, 26, 0.19);
-  --chrome-bg: rgba(255, 250, 243, 0.94);
+  --chrome-bg: rgba(251, 241, 234, 0.94);
   --text: #19110b;
   --text-dim: rgba(25, 17, 11, 0.60);
   --text-faint: rgba(25, 17, 11, 0.38);
-  --accent: #834b14;
-  --accent-text: #7b4200;
-  --accent-dim: rgba(131, 75, 20, 0.14);
-  --accent-glow: rgba(131, 75, 20, 0.30);
-  --accent-glow-hi: rgba(131, 75, 20, 0.42);
+  --accent: #745338;
+  --accent-text: #6b4a30;
+  --accent-dim: rgba(116, 83, 56, 0.14);
+  --accent-glow: rgba(116, 83, 56, 0.30);
+  --accent-glow-hi: rgba(116, 83, 56, 0.42);
   --plate-faint: rgba(22, 22, 26, 0.04);
   --plate: rgba(22, 22, 26, 0.06);
   --plate-mid: rgba(22, 22, 26, 0.07);
@@ -1483,10 +1281,80 @@ select.text-input option { background: var(--surface-3); color: var(--text); }
   --column-shadow: rgba(20, 20, 30, 0.14);
   --code-bg: rgba(22, 22, 26, 0.07);
   --scroll-thumb: rgba(22, 22, 26, 0.25);
-  --warn-ink: #552a00;
+  --warn-ink: #884500;
   --toast-bg: #25170c;
   --on-accent: #ffffff;
-  --bg-image: radial-gradient(120% 70% at 50% 0%, #ffffff 0%, #fffaf3 58%, #e8d9ce 100%);
+  --bg-image: radial-gradient(120% 70% at 50% 0%, #ffffff 0%, #fbf1ea 58%, #e8d9ce 100%);
+}
+
+/* Linen — Color Hunt fcf0daaeac78f2c46a4c4541 (371 likes, 1 week), hue 88° C 0.120 */
+[data-theme='linen'] {
+  --bg: #ece8de;
+  --surface: #ffffff;
+  --surface-2: #e5dfd1;
+  --surface-3: #fdfaf1;
+  --hairline: rgba(22, 22, 26, 0.11);
+  --hairline-strong: rgba(22, 22, 26, 0.19);
+  --chrome-bg: rgba(236, 232, 222, 0.94);
+  --text: #161209;
+  --text-dim: rgba(22, 18, 9, 0.60);
+  --text-faint: rgba(22, 18, 9, 0.38);
+  --accent: #695932;
+  --accent-text: #605129;
+  --accent-dim: rgba(105, 89, 50, 0.14);
+  --accent-glow: rgba(105, 89, 50, 0.30);
+  --accent-glow-hi: rgba(105, 89, 50, 0.42);
+  --plate-faint: rgba(22, 22, 26, 0.04);
+  --plate: rgba(22, 22, 26, 0.06);
+  --plate-mid: rgba(22, 22, 26, 0.07);
+  --plate-active: rgba(22, 22, 26, 0.10);
+  --handle: rgba(22, 22, 26, 0.25);
+  --scrim: rgba(20, 20, 26, 0.34);
+  --scrim-strong: rgba(20, 20, 26, 0.40);
+  --shadow: rgba(20, 20, 30, 0.18);
+  --shadow-soft: rgba(20, 20, 30, 0.13);
+  --column-shadow: rgba(20, 20, 30, 0.14);
+  --code-bg: rgba(22, 22, 26, 0.07);
+  --scroll-thumb: rgba(22, 22, 26, 0.25);
+  --warn-ink: #7b3900;
+  --toast-bg: #201a09;
+  --on-accent: #ffffff;
+  --bg-image: radial-gradient(120% 70% at 50% 0%, #ffffff 0%, #ece8de 58%, #e2dccc 100%);
+}
+
+/* Mint — Color Hunt f6e2e9fefaf3b8cfb384a282 (149 likes, Yesterday), hue 128° C 0.057 */
+[data-theme='mint'] {
+  --bg: #f9fef4;
+  --surface: #ffffff;
+  --surface-2: #dce2d4;
+  --surface-3: #f8fcf3;
+  --hairline: rgba(22, 22, 26, 0.11);
+  --hairline-strong: rgba(22, 22, 26, 0.19);
+  --chrome-bg: rgba(249, 254, 244, 0.94);
+  --text: #10140c;
+  --text-dim: rgba(16, 20, 12, 0.60);
+  --text-faint: rgba(16, 20, 12, 0.38);
+  --accent: #51613c;
+  --accent-text: #495934;
+  --accent-dim: rgba(81, 97, 60, 0.14);
+  --accent-glow: rgba(81, 97, 60, 0.30);
+  --accent-glow-hi: rgba(81, 97, 60, 0.42);
+  --plate-faint: rgba(22, 22, 26, 0.04);
+  --plate: rgba(22, 22, 26, 0.06);
+  --plate-mid: rgba(22, 22, 26, 0.07);
+  --plate-active: rgba(22, 22, 26, 0.10);
+  --handle: rgba(22, 22, 26, 0.25);
+  --scrim: rgba(20, 20, 26, 0.34);
+  --scrim-strong: rgba(20, 20, 26, 0.40);
+  --shadow: rgba(20, 20, 30, 0.18);
+  --shadow-soft: rgba(20, 20, 30, 0.13);
+  --column-shadow: rgba(20, 20, 30, 0.14);
+  --code-bg: rgba(22, 22, 26, 0.07);
+  --scroll-thumb: rgba(22, 22, 26, 0.25);
+  --warn-ink: #652900;
+  --toast-bg: #161d0e;
+  --on-accent: #ffffff;
+  --bg-image: radial-gradient(120% 70% at 50% 0%, #ffffff 0%, #f9fef4 58%, #d8dfd0 100%);
 }
 
 /* Picker — a swatch wall in the One UI bottom sheet. Each swatch previews

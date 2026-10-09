@@ -21,30 +21,31 @@ and from the archive button in the app bar.
 
 ## Eye comfort
 
-The app bar's eye-comfort button (☾) offers fifteen backgrounds. Each one
+The app bar's eye-comfort button (☾) offers eleven backgrounds. Each one
 carries its whole palette, not just a colour: the canvas, the surfaces, the
 ink, the hairlines and the chrome — hover plates, scrims, shadows, the
 scrollbar, the FAB halo — so picking one repaints the entire interface
-instead of only its background. Eleven are dark (pure black is the default)
-and four are light (paper, linen, mist, bone) for bright rooms, where a
-black page is itself the glare. The chrome that sits on a *photograph* — the
+instead of only its background. Seven are dark (pure black is the default)
+and three are light (bone, linen, mint) for bright rooms, where a black
+page is itself the glare. The chrome that sits on a *photograph* — the
 fullscreen viewer and the album badges — is a separate `--media-*` family and
 stays dark in every theme, because there the surface under it is an image
 rather than the page. The choice is stored under `gallery.comfort` and read
 back into `<html data-theme>`.
 
-Every canvas is derived from a real **Color Hunt** palette, and the source
-code is written above each block in `style.css` so the choice can be
-re-checked. 2,292 palettes were pulled from Color Hunt's feed across
-twenty-three tags and scored on three axes — the chroma-weighted mean hue
-against the theme's own hue, how well the family's chromatic members agree
-with each other, and peak chroma against the restraint eye comfort needs.
-The winner supplies the hue and how much colour the family is allowed; a
-per-role OKLCh ramp supplies the luminance. Raw palette swatches are never
-used as-is — they are far too bright and saturated for an eye-comfort
-canvas. Canvas luminance is then solved against the themes already placed,
-because the picker shows them side by side and two that render alike are one
-theme too many.
+Every canvas comes from one of the **ten most recent Color Hunt** submissions,
+and the source code is written above each block in `style.css` so the choice
+can be re-checked. The palette drives hue and the chroma budget; a per-role
+OKLCh ramp supplies the luminance. That split matters more than it sounds —
+not one of these ten palettes has a dark end (the darkest member across all
+ten is `2a1a0e` at L 0.24), so every dark canvas is reached by ramping a
+light palette down rather than by reusing a dark swatch. Canvas luminance is
+solved against the themes already placed, because the picker shows them side
+by side and two that render alike are one theme too many.
+
+This set replaced fourteen themes drawn from a 2,292-palette search. The five
+that went — graphite, slate, dusk, mist, paper — were the neutrals and cools,
+and not one of the ten newest palettes is either.
 
 **The landing is the request journey.** It plays `video/` full-bleed behind
 seven cards, one per stage of a web request's trip — CLIENT → CAT6A → PATCH

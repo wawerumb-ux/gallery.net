@@ -427,11 +427,11 @@ function shouldRequireWalkthrough(search) {
 }
 
 /* ── Eye-comfort backgrounds ──────────────────────────────────────
-   Fifteen canvases, each carrying its whole palette. Eleven are dark —
+   Eleven canvases, each carrying its whole palette. Seven are dark —
    pure black is the default and the rest trade OLED contrast for lower
-   luminance and a different cast: neutrals, cools (blue, cyan, violet,
-   green) and warms (olive, red, sepia, amber). Four are light (paper,
-   linen, mist, bone) for bright rooms, where a black page is itself
+   luminance and a different cast: warms (sepia, amber, clay), earths
+   (olive), greens (sage, fern) and a violet (plum). Three are light
+   (bone, linen, mint) for bright rooms, where a black page is itself
    the glare.
 
    A theme is not a background colour. style.css keeps every value a
@@ -442,9 +442,11 @@ function shouldRequireWalkthrough(search) {
    and the album badges stay dark because the surface under them is an
    image, not the page.
 
-   Each canvas is derived from a real Color Hunt palette; the chip and
-   chrome values below are the same colours the stylesheet ramps down to,
-   so the swatch in the picker and the page it sets agree.
+   Each canvas comes from one of the ten most recent Color Hunt
+   submissions; the chip and chrome values below are the same colours
+   the stylesheet ramps down to, so the swatch in the picker and the
+   page it sets agree. A stored id that is no longer in this list (the
+   five themes this set replaced) falls back to pure black.
 
    The choice lives on <html data-theme>, which is how style.css
    re-points the whole token set. Storage that throws (private mode,
@@ -454,20 +456,16 @@ function shouldRequireWalkthrough(search) {
 const COMFORT_KEY = 'gallery.comfort';
 const COMFORT_THEMES = [
   { id: 'oled',     label: 'Pure black', hint: 'OLED dark',     chip: '#000000', chrome: '#000000' },
-  { id: 'graphite', label: 'Graphite',   hint: 'Soft neutral',  chip: '#292929', chrome: '#101010' },
-  { id: 'slate',    label: 'Slate',      hint: 'Cool neutral',  chip: '#0f1c28', chrome: '#01050c' },
-  { id: 'dusk',     label: 'Dusk blue',  hint: 'Dimmed, cool',  chip: '#1b2130', chrome: '#060a13' },
-  { id: 'teal',     label: 'Teal',       hint: 'Deep cyan',     chip: '#1c3434', chrome: '#091919' },
-  { id: 'plum',     label: 'Plum',       hint: 'Soft violet',   chip: '#372835', chrome: '#1b111a' },
-  { id: 'sage',     label: 'Sage',       hint: 'Green cast',    chip: '#17261a', chrome: '#040d06' },
-  { id: 'olive',    label: 'Olive',      hint: 'Muted earth',   chip: '#1b1c0b', chrome: '#050600' },
-  { id: 'clay',     label: 'Clay',       hint: 'Warm red',      chip: '#2e1d17', chrome: '#120704' },
-  { id: 'sepia',    label: 'Sepia',      hint: 'Warm reading',  chip: '#392d1e', chrome: '#1d140b' },
-  { id: 'amber',    label: 'Amber',      hint: 'No blue light', chip: '#2f2515', chrome: '#140d04' },
-  { id: 'paper',    label: 'Paper',      hint: 'Bright neutral', chip: '#dfdfdf', chrome: '#f3f3f3' },
-  { id: 'linen',    label: 'Linen',      hint: 'Warm light',    chip: '#e7ded1', chrome: '#eee9df' },
-  { id: 'mist',     label: 'Mist',       hint: 'Cool light',    chip: '#d6e1ed', chrome: '#e3eaf3' },
-  { id: 'bone',     label: 'Bone',       hint: 'Low glare',     chip: '#eaddd3', chrome: '#fffaf3' },
+  { id: 'sepia',    label: 'Sepia',         hint: 'Warm reading',        chip: '#392d1e', chrome: '#1c140b' },
+  { id: 'amber',    label: 'Amber',         hint: 'No blue light',       chip: '#2f2415', chrome: '#140d04' },
+  { id: 'clay',     label: 'Clay',          hint: 'Warm red',            chip: '#2a1913', chrome: '#0f0503' },
+  { id: 'olive',    label: 'Olive',         hint: 'Muted earth',         chip: '#191b0a', chrome: '#040500' },
+  { id: 'sage',     label: 'Sage',          hint: 'Green cast',          chip: '#2c382a', chrome: '#151d14' },
+  { id: 'fern',     label: 'Fern',          hint: 'Deep green',          chip: '#1e3027', chrome: '#091610' },
+  { id: 'plum',     label: 'Plum',          hint: 'Soft violet',         chip: '#372835', chrome: '#1b111a' },
+  { id: 'bone',     label: 'Bone',          hint: 'Warm light',          chip: '#eaddd3', chrome: '#fbf1ea' },
+  { id: 'linen',    label: 'Linen',         hint: 'Parchment',           chip: '#e5dfd1', chrome: '#ece8de' },
+  { id: 'mint',     label: 'Mint',          hint: 'Pale light',          chip: '#dce2d4', chrome: '#f9fef4' },
 ];
 const COMFORT_DEFAULT = 'oled';
 const COMFORT_BY_ID = new Map(COMFORT_THEMES.map(t => [t.id, t]));
