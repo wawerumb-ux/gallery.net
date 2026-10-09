@@ -427,10 +427,10 @@ function shouldRequireWalkthrough(search) {
 }
 
 /* ── Eye-comfort backgrounds ──────────────────────────────────────
-   Six canvases, all dark: pure black is the default and the other
-   five trade OLED contrast for lower luminance and less blue light
-   (dimmed blue, a green cast, and two warm reading tints). Dark-only
-   is a constraint, not a shortcut — the archive's ink is white on
+   Eleven canvases, all dark: pure black is the default and the other
+   ten trade OLED contrast for lower luminance and a different cast —
+   neutrals, cools (blue, cyan, violet, green) and warms (olive, red,
+   sepia, amber). Dark-only is a constraint, not a shortcut — the ink is white on
    black with white-alpha hairlines and hover plates throughout
    style.css, so a light canvas would leave those rules invisible.
 
@@ -441,12 +441,17 @@ function shouldRequireWalkthrough(search) {
    the walkthrough gate uses at shouldRequireWalkthrough(). */
 const COMFORT_KEY = 'gallery.comfort';
 const COMFORT_THEMES = [
-  { id: 'oled',     label: 'Pure black', hint: 'OLED dark',     chip: '#000000',                     chrome: '#000000' },
-  { id: 'graphite', label: 'Graphite',   hint: 'Soft neutral',  chip: '#26262b',                     chrome: '#131316' },
-  { id: 'dusk',     label: 'Dusk blue',  hint: 'Dimmed, cool',  chip: '#1d2530',                     chrome: '#0d1218' },
-  { id: 'sage',     label: 'Sage',       hint: 'Green cast',    chip: '#1d2823',                     chrome: '#0e1512' },
-  { id: 'sepia',    label: 'Sepia',      hint: 'Warm reading',  chip: '#2d251c',                     chrome: '#1a1510' },
-  { id: 'amber',    label: 'Amber',      hint: 'No blue light', chip: '#332716',                     chrome: '#150f06' },
+  { id: 'oled',     label: 'Pure black', hint: 'OLED dark',     chip: '#000000', chrome: '#000000' },
+  { id: 'graphite', label: 'Graphite',   hint: 'Soft neutral',  chip: '#26262b', chrome: '#131316' },
+  { id: 'slate',    label: 'Slate',      hint: 'Cool neutral',  chip: '#2a3036', chrome: '#111316' },
+  { id: 'dusk',     label: 'Dusk blue',  hint: 'Dimmed, cool',  chip: '#1d2530', chrome: '#0d1218' },
+  { id: 'teal',     label: 'Teal',       hint: 'Deep cyan',     chip: '#152a2e', chrome: '#08181a' },
+  { id: 'plum',     label: 'Plum',       hint: 'Soft violet',   chip: '#271d31', chrome: '#150f1c' },
+  { id: 'sage',     label: 'Sage',       hint: 'Green cast',    chip: '#1d2823', chrome: '#0e1512' },
+  { id: 'olive',    label: 'Olive',      hint: 'Muted earth',   chip: '#24281c', chrome: '#14160f' },
+  { id: 'clay',     label: 'Clay',       hint: 'Warm red',      chip: '#2f1e19', chrome: '#1b100d' },
+  { id: 'sepia',    label: 'Sepia',      hint: 'Warm reading',  chip: '#2d251c', chrome: '#1a1510' },
+  { id: 'amber',    label: 'Amber',      hint: 'No blue light', chip: '#332716', chrome: '#150f06' },
 ];
 const COMFORT_DEFAULT = 'oled';
 const COMFORT_BY_ID = new Map(COMFORT_THEMES.map(t => [t.id, t]));

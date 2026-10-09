@@ -899,7 +899,10 @@ select.text-input option { background: var(--surface-3); color: var(--text); }
 
 /* ── Eye-comfort backgrounds ───────────────────────────────────────
    Picked from the app bar toggle (comfortBtn) and written to
-   <html data-theme>. Every variant stays dark: the archive's ink is
+   <html data-theme>. Eleven canvases: pure black, then two neutrals
+   (graphite, slate), four cool casts (dusk, teal, plum, sage), three
+   low-chroma earth casts (olive, clay, sepia) and the blue-light-free
+   amber. Every variant stays dark: the archive's ink is
    white-on-black with white-alpha hairlines and hover plates baked
    through the stylesheet, so a light canvas would leave dozens of
    rules invisible. What varies is luminance and hue — dimmed, warm
@@ -974,12 +977,83 @@ select.text-input option { background: var(--surface-3); color: var(--text); }
   --accent-dim: rgba(168, 98, 15, 0.22);
   --bg-image: radial-gradient(120% 70% at 50% 0%, #2b1d0d 0%, #150f06 58%, #0e0904 100%);
 }
+[data-theme='slate'] {
+  --bg: #111316;
+  --surface: #191d21;
+  --surface-2: #21262b;
+  --surface-3: #2a3036;
+  --hairline: rgba(206, 216, 226, 0.1);
+  --hairline-strong: rgba(206, 216, 226, 0.17);
+  --chrome-bg: rgba(17, 19, 22, 0.94);
+  --text: #eceff2;
+  --text-dim: rgba(236, 239, 242, 0.53);
+  --text-faint: rgba(236, 239, 242, 0.3);
+  --accent: #4a6d84;
+  --accent-text: #86b3cc;
+  --accent-dim: rgba(74, 109, 132, 0.2);
+  --bg-image: radial-gradient(120% 70% at 50% 0%, #1d232a 0%, #111316 58%, #0b0d10 100%);
+}
+[data-theme='teal'] {
+  --bg: #08181a;
+  --surface: #0f2225;
+  --surface-2: #152a2e;
+  --surface-3: #1c3439;
+  --hairline: rgba(186, 228, 230, 0.1);
+  --hairline-strong: rgba(186, 228, 230, 0.17);
+  --chrome-bg: rgba(8, 24, 26, 0.94);
+  --accent: #2b7f88;
+  --accent-text: #79c8d1;
+  --accent-dim: rgba(43, 127, 136, 0.2);
+  --bg-image: radial-gradient(120% 70% at 50% 0%, #102b2f 0%, #08181a 58%, #050f11 100%);
+}
+[data-theme='plum'] {
+  --bg: #150f1c;
+  --surface: #1e1626;
+  --surface-2: #271d31;
+  --surface-3: #31253c;
+  --hairline: rgba(219, 205, 238, 0.11);
+  --hairline-strong: rgba(219, 205, 238, 0.18);
+  --chrome-bg: rgba(21, 15, 28, 0.94);
+  --accent: #7454a8;
+  --accent-text: #b79ae0;
+  --accent-dim: rgba(116, 84, 168, 0.22);
+  --bg-image: radial-gradient(120% 70% at 50% 0%, #241830 0%, #150f1c 58%, #0e0913 100%);
+}
+[data-theme='olive'] {
+  --bg: #14160f;
+  --surface: #1c1f16;
+  --surface-2: #24281c;
+  --surface-3: #2e3324;
+  --hairline: rgba(214, 224, 190, 0.11);
+  --hairline-strong: rgba(214, 224, 190, 0.18);
+  --chrome-bg: rgba(20, 22, 15, 0.94);
+  --accent: #6b7a3c;
+  --accent-text: #adbe76;
+  --accent-dim: rgba(107, 122, 60, 0.22);
+  --bg-image: radial-gradient(120% 70% at 50% 0%, #21261a 0%, #14160f 58%, #0d0e09 100%);
+}
+[data-theme='clay'] {
+  --bg: #1b100d;
+  --surface: #251713;
+  --surface-2: #2f1e19;
+  --surface-3: #3a2620;
+  --hairline: rgba(240, 210, 196, 0.11);
+  --hairline-strong: rgba(240, 210, 196, 0.18);
+  --chrome-bg: rgba(27, 16, 13, 0.94);
+  --text: #f3e4dc;
+  --text-dim: rgba(243, 228, 220, 0.55);
+  --text-faint: rgba(243, 228, 220, 0.32);
+  --accent: #a34f3d;
+  --accent-text: #e09a83;
+  --accent-dim: rgba(163, 79, 61, 0.22);
+  --bg-image: radial-gradient(120% 70% at 50% 0%, #2c1a15 0%, #1b100d 58%, #120b09 100%);
+}
 
 /* Picker — a swatch wall in the One UI bottom sheet. Each swatch previews
    its own gradient, so the choice is visible before it is made. */
 .comfort-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 10px;
   padding: 2px 12px 4px;
 }
