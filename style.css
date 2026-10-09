@@ -1589,21 +1589,26 @@ select.text-input option { background: var(--surface-3); color: var(--text); }
 
 /* Picker — a swatch wall in the One UI bottom sheet. Each swatch previews
    its own gradient, so the choice is visible before it is made. */
+/* The swatch wall inside the popover. Three columns, not four: the
+   panel is the sidebar-class width Digioh recommends (340px), and four
+   chips plus two lines of label will not fit across it without the
+   labels wrapping. */
+.pop-themes { width: min(340px, calc(100vw - 16px)); }
 .comfort-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 10px;
-  padding: 2px 12px 4px;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  padding: 0 6px;
 }
 .comfort-swatch {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
-  padding: 14px 6px 12px;
-  background: var(--surface-3);
+  gap: 6px;
+  padding: 10px 4px 9px;
+  background: var(--surface-2);
   border: 1px solid transparent;
-  border-radius: 18px;
+  border-radius: 14px;
   color: var(--text);
   cursor: pointer;
   transition: border-color var(--duration-fast) ease, transform var(--duration-fast) var(--ease-spring);
@@ -1612,15 +1617,15 @@ select.text-input option { background: var(--surface-3); color: var(--text); }
 .comfort-swatch:active { transform: scale(0.96); }
 .comfort-swatch.is-active { border-color: var(--accent-text); }
 .comfort-chip {
-  width: 40px;
-  height: 40px;
+  width: 32px;
+  height: 32px;
   border-radius: 50%;
   box-shadow: inset 0 0 0 1px var(--hairline-strong), 0 2px 8px var(--shadow-soft);
 }
 .comfort-chip-ink { color: var(--text); font-size: 15px; font-weight: 500; }
 .comfort-swatch.is-active .comfort-chip { box-shadow: inset 0 0 0 1px var(--hairline-strong), 0 0 0 3px var(--accent-dim); }
-.comfort-label { font-size: 11.5px; font-weight: 500; letter-spacing: 0.01em; }
-.comfort-hint { font-size: 10px; color: var(--text-faint); margin-top: -6px; }
+.comfort-label { font-size: 11px; font-weight: 500; letter-spacing: 0.01em; }
+.comfort-hint { font-size: 9.5px; color: var(--text-faint); margin-top: -4px; }
 .comfort-note {
   padding: 10px 20px 0;
   font-size: 11.5px;

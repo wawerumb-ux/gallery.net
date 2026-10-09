@@ -589,6 +589,16 @@ function openComfortPicker() {
 }
 
 function closeComfortPicker() { el('comfortOverlay').hidden = true; }
+/* Same dismissal contract as the typeface popover: a tap on the modal
+   screen closes, a tap on the panel does not. Escape and the back button
+   already route through overlayStack. */
+function wireComfortPopover() {
+  const overlay = el('comfortOverlay');
+  if (!overlay) return;
+  overlay.addEventListener('pointerdown', e => {
+    if (e.target === overlay) overlayClose('comfortOverlay');
+  });
+}
 
 /* ── Typeface ──────────────────────────────────────────────────────
    Samsung's S10 runs One UI on SamsungOne, which cannot be shipped — it
@@ -1631,6 +1641,7 @@ function wireStaticEvents() {
   el('comfortBtn').addEventListener('click', openComfortPicker);
   el('fontBtn').addEventListener('click', openFontPicker);
   wireFontPopover();
+  wireComfortPopover();
   el('comfortOverlay').addEventListener('click', e => { if (e.target.id === 'comfortOverlay') overlayClose('comfortOverlay'); });
 
   // Admin search (header pill)
