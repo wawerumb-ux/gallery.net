@@ -30,6 +30,7 @@
   --handle: rgba(255, 255, 255, 0.22);       /* sheet grab handle */
   --scrim: rgba(0, 0, 0, 0.55);              /* dim behind a bottom sheet */
   --scrim-strong: rgba(0, 0, 0, 0.62);       /* dim behind a dialog */
+  --pop-screen: rgba(0, 0, 0, 0.34);          /* the typeface popover's modal screen */
   --shadow: rgba(0, 0, 0, 0.6);              /* sheet, dialog, toast lift */
   --shadow-soft: rgba(0, 0, 0, 0.45);        /* FAB, swatch, close plates */
   --column-shadow: rgba(0, 0, 0, 0.9);       /* column edge on wide screens */
@@ -1044,6 +1045,8 @@ select.text-input option { background: var(--surface-3); color: var(--text); }
 /* Scrollbars track the canvas, not a fixed dark */
 .pick-list::-webkit-scrollbar { width: 8px; }
 .pick-list::-webkit-scrollbar-thumb { background: var(--scroll-thumb); border-radius: 4px; }
+.pop::-webkit-scrollbar { width: 6px; }
+.pop::-webkit-scrollbar-thumb { background: var(--scroll-thumb); border-radius: 3px; }
 
 /* ── Compact phones ──────────────────────────────────────────────── */
 @media (max-width: 380px) {
@@ -1086,6 +1089,71 @@ select.text-input option { background: var(--surface-3); color: var(--text); }
 [data-font='josefin']    { --font-sans: 'Josefin Sans', system-ui, sans-serif; }
 [data-font='outfit']     { --font-sans: 'Outfit', system-ui, sans-serif; }
 
+/* The typeface popover. Not a bottom sheet: choosing a face is a
+   preference, not a task, and a sheet that owns the whole column leaves
+   the wall it is dimming unusable while you read it.
+
+   Sized from Digioh's "Recommended Sizes for Campaigns on Desktop and
+   Mobile". This is sidebar-class, not popup-class — it appears beside
+   the content rather than over it, and their guidance for those is
+   340x200 with a ceiling of 500x500 on desktop and 360x360 on mobile,
+   "slightly smaller than a popup". The width already sits inside their
+   300-375px starting band at 320px.
+
+   The height keeps the third-of-the-page rule and gains their ceiling:
+   a viewport percentage alone has no upper bound, and on a 1600px-tall
+   screen a third is 533px, well past their 500px maximum. min() means
+   whichever binds first — the third on a normal screen, their ceiling
+   on a very tall one. Their 650px desktop figure is a ceiling for
+   popups and we never approach it. */
+/* Balsamiq's "modal screen": "a semi-transparent block that sits in
+   between your pop-up design and the rest of the screen. This helps keep
+   the focus on the pop-up." It had no background at all here, which left
+   a modal-class component with nothing doing that job — the wall behind
+   competed with the panel for attention. Kept far lighter than the sheet
+   scrim: the panel is a preference, not a decision, and the wall behind
+   it stays readable and one tap from closing the popover. */
+.pop-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 110;
+  background: var(--pop-screen);
+  animation: screenIn var(--duration-fast) ease;
+}
+@keyframes screenIn { from { opacity: 0; } to { opacity: 1; } }
+.pop {
+  position: absolute;
+  top: calc(var(--chrome-h, 54px) + 6px);
+  right: max(8px, calc(50% - var(--col) / 2 + 8px));
+  width: min(320px, calc(100vw - 16px));
+  max-height: min(500px, 33.333vh);
+  max-height: min(500px, 33.333dvh);
+  overflow-y: auto;
+  overscroll-behavior: contain;      /* scrolling it must not chain to the wall */
+  -webkit-overflow-scrolling: touch;
+  padding: 4px 4px 6px;
+  background: var(--surface-3);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sheet);
+  box-shadow: 0 16px 44px var(--shadow);
+  animation: popIn var(--duration-normal) var(--ease-out);
+}
+/* Their mobile sidebar ceiling. Below this the 360px one is what binds
+   on a phone, and on a tablet held tall the third of the page would
+   otherwise pass it. */
+@media (max-width: 480px) {
+  .pop {
+    width: min(340px, calc(100vw - 16px));
+    max-height: min(360px, 33.333vh);
+    max-height: min(360px, 33.333dvh);
+  }
+}
+@keyframes popIn {
+  from { opacity: 0; transform: translateY(-8px) scale(0.97); }
+  to   { opacity: 1; transform: none; }
+}
+.pop .sheet-title { padding-left: 12px; }
+
 /* The "ff" mark. It inherits the page face on purpose: the icon is
    itself a sample of whatever is currently set. */
 .font-btn {
@@ -1100,18 +1168,18 @@ select.text-input option { background: var(--surface-3); color: var(--text); }
 .font-grid {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  padding: 2px 8px 4px;
+  gap: 1px;
+  padding: 0;
 }
 .font-swatch {
   display: grid;
   grid-template-columns: 1fr auto;
   grid-template-areas: "sample note" "style style";
   align-items: baseline;
-  column-gap: 12px;
-  row-gap: 2px;
+  column-gap: 10px;
+  row-gap: 0;
   width: 100%;
-  padding: 11px 14px;
+  padding: 7px 12px;
   border: 1px solid transparent;
   border-radius: 14px;
   background: transparent;
@@ -1125,7 +1193,7 @@ select.text-input option { background: var(--surface-3); color: var(--text); }
 .font-swatch .font-meta { grid-area: note; }
 .font-swatch:hover { background: var(--plate); }
 .font-swatch.is-active { border-color: var(--accent-text); background: var(--accent-dim); }
-.font-sample { font-size: 17px; font-weight: 400; letter-spacing: -0.01em; }
+.font-sample { font-size: 15px; font-weight: 400; letter-spacing: -0.01em; }
 .font-style {
   font-family: var(--font-mono);
   font-size: 10px;
@@ -1433,6 +1501,7 @@ select.text-input option { background: var(--surface-3); color: var(--text); }
   --plate-mid: rgba(22, 22, 26, 0.07);
   --plate-active: rgba(22, 22, 26, 0.10);
   --handle: rgba(22, 22, 26, 0.25);
+  --pop-screen: rgba(34, 28, 20, 0.16);
   --scrim: rgba(20, 20, 26, 0.34);
   --scrim-strong: rgba(20, 20, 26, 0.40);
   --shadow: rgba(20, 20, 30, 0.18);
@@ -1468,6 +1537,7 @@ select.text-input option { background: var(--surface-3); color: var(--text); }
   --plate-mid: rgba(22, 22, 26, 0.07);
   --plate-active: rgba(22, 22, 26, 0.10);
   --handle: rgba(22, 22, 26, 0.25);
+  --pop-screen: rgba(34, 28, 20, 0.16);
   --scrim: rgba(20, 20, 26, 0.34);
   --scrim-strong: rgba(20, 20, 26, 0.40);
   --shadow: rgba(20, 20, 30, 0.18);
@@ -1503,6 +1573,7 @@ select.text-input option { background: var(--surface-3); color: var(--text); }
   --plate-mid: rgba(22, 22, 26, 0.07);
   --plate-active: rgba(22, 22, 26, 0.10);
   --handle: rgba(22, 22, 26, 0.25);
+  --pop-screen: rgba(34, 28, 20, 0.16);
   --scrim: rgba(20, 20, 26, 0.34);
   --scrim-strong: rgba(20, 20, 26, 0.40);
   --shadow: rgba(20, 20, 30, 0.18);
@@ -1588,7 +1659,7 @@ select.text-input option { background: var(--surface-3); color: var(--text); }
 /* ── Reduced motion ──────────────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
   .card, .album-cover, .fab, .tab, .tab-ic, .appbar-hero, .appbar-mini,
-  .welcome-card, .welcome-faces,
+  .welcome-card, .welcome-faces, .pop, .pop-overlay,
   .viewer, .viewer-top, .viewer-bottom, .viewer-nav, .viewer-img, .viewer-slide,
   .sheet, .sheet-overlay, .modal, .toast, .selectbar, .tabbar,
   .card img, .card-pick, .appbar-icon, .viewer-icon, .viewer-action, .btn,

@@ -143,13 +143,19 @@
   </div>
 </div>
 
-<!-- Typeface picker -->
-<div class="sheet-overlay" id="fontOverlay" hidden>
-  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="fontTitle">
-    <div class="sheet-handle" aria-hidden="true"></div>
+<!-- Typeface picker: a popover, not a sheet. It is a preference, not a
+     task, so it stays out of the way of the wall behind it.
+
+     No aria-modal here, deliberately. Balsamiq's taxonomy puts this in
+     the modal class — the user initiated it by tapping ff — but a modal
+     screen on this one is dismissible from outside and leaves the page
+     usable, so aria-modal="true" would be claiming the rest of the
+     document is inert when it plainly is not. See the Typeface section
+     in style.css for the sizing and the sourcing. -->
+<div class="pop-overlay" id="fontOverlay" hidden>
+  <div class="pop" role="dialog" aria-labelledby="fontTitle">
     <div class="sheet-title" id="fontTitle">Typeface</div>
     <div class="font-grid" id="fontGrid" role="radiogroup" aria-labelledby="fontTitle"></div>
-    <p class="comfort-note">One UI Sans is the Galaxy's own face — on a Samsung device this picks it up with nothing to download. The style names come from LingoJam's text generator; the faces behind them are real. Your choice is remembered on this device.</p>
   </div>
 </div>
 

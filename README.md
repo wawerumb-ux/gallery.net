@@ -56,6 +56,42 @@ they read as code in any face.
 The choice is stored under `gallery.font` and read back into
 `<html data-font>`.
 
+### The popover
+
+The picker is a **popover**, not a bottom sheet, and both of its
+references say so explicitly.
+
+[Balsamiq's pop-up/modal/lightbox guidelines](https://balsamiq.com/learn/popups-modals-lightboxes/)
+classify the three: a *pop-up* is marketing material that appears on page
+load and interrupts the journey ("use them very sparingly"); a *modal* is
+one **the user initiated as part of their journey**, for a specific task;
+a *lightbox* is what opens when a user **clicks to enlarge an image**. The
+typeface picker is modal-class — the visitor tapped `ff` to get it, and it
+is a task. The fullscreen viewer is lightbox-class, and the walkthrough's
+first-visit redirect is the only thing here that is pop-up-class.
+
+Balsamiq also names the piece that was missing: the **modal screen**, "a
+semi-transparent block that sits in between your pop-up design and the
+rest of the screen… helps keep the focus on the pop-up." The popover had
+no background at all, so a modal-class component was missing the one
+thing that makes it read as modal. It now has a shallow one — far lighter
+than the sheet scrim, because this is a preference rather than a
+decision, and the wall behind stays visible and one tap from closing it.
+
+That is also why the panel carries **no `aria-modal`**. The page behind
+is plainly still live, so claiming it is inert would be a lie to a screen
+reader; the light themes get a warm dim rather than a black one for the
+same reason.
+
+Sizing comes from [Digioh's recommended campaign
+sizes](https://help.digioh.com/docs/recommended-sizes-for-pop-ups-on-desktop-and-mobile).
+The popover is sidebar-class there — beside the content, not over it —
+so it inherits their sidebar numbers: 340×200 with a ceiling of
+500×500 on desktop and 360×360 on mobile. The width sits inside their
+300–375px starting band at 320px (340px on mobile). The height is
+`min(cap, 33.333dvh)`: a viewport percentage alone has no upper bound,
+and on a 1600px-tall screen a third is 533px, past their 500px maximum.
+
 ## Eye comfort
 
 The app bar's eye-comfort button (☾) offers eleven backgrounds. Each one

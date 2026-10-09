@@ -572,9 +572,11 @@ function renderComfortGrid() {
       `<span class="comfort-label">${theme.label}</span>` +
       `<span class="comfort-hint">${theme.hint}</span>`;
     b.addEventListener('click', () => {
+      // Same order as the typeface picker: dismiss, then confirm, so a
+      // missing #toast cannot strand the sheet open.
       applyComfortTheme(theme.id, true);
-      showToast(`Background — ${theme.label}`);
       closeComfortPicker();
+      showToast(`Background — ${theme.label}`);
     });
     grid.appendChild(b);
   }
@@ -744,9 +746,12 @@ function renderFontGrid() {
       `<span class="font-style">${font.style}</span>` +
       `<span class="font-meta">${font.note}</span>`;
     b.addEventListener('click', () => {
+      // Dismiss first, confirm second. The toast is a nicety and it
+      // reaches for #toast, so letting it run before the close would
+      // leave the popover stuck open whenever that element is missing.
       applyFont(font.id, true);
-      showToast(`Typeface — ${font.label}`);
       closeFontPicker();
+      showToast(`Typeface — ${font.label}`);
     });
     grid.appendChild(b);
   }
@@ -759,6 +764,16 @@ function openFontPicker() {
   el('fontOverlay').hidden = false;
 }
 function closeFontPicker() { el('fontOverlay').hidden = true; }
+/* A popover has to go away when you tap the thing behind it — a sheet
+   dims the page and owns the gesture, so it never needed this. Escape
+   and the back button already route through overlayStack. */
+function wireFontPopover() {
+  const overlay = el('fontOverlay');
+  if (!overlay) return;
+  overlay.addEventListener('pointerdown', e => {
+    if (e.target === overlay) overlayClose('fontOverlay');
+  });
+}
 
 // Runs at parse time, beside the background's, so a remembered typeface
 // is already in place for the first paint rather than swapping under it.
@@ -1615,6 +1630,7 @@ function wireStaticEvents() {
   // Eye-comfort background picker (app bar toggle → bottom sheet)
   el('comfortBtn').addEventListener('click', openComfortPicker);
   el('fontBtn').addEventListener('click', openFontPicker);
+  wireFontPopover();
   el('comfortOverlay').addEventListener('click', e => { if (e.target.id === 'comfortOverlay') overlayClose('comfortOverlay'); });
 
   // Admin search (header pill)
