@@ -18,6 +18,51 @@
   --chrome-bg: rgba(12, 12, 14, 0.94);  /* blurred tab bar plate */
   --bg-image: none;          /* optional canvas wash set by an eye-comfort theme */
 
+  /* Chrome that follows the canvas. These used to be baked into the rules
+     below as white and black literals, which pinned every eye-comfort theme
+     to a dark page: a light canvas left the hover plates, scrims, shadows and
+     scrollbars invisible. An eye-comfort theme re-points them along with the
+     surface tokens, so picking one repaints the whole interface. */
+  --plate-faint: rgba(255, 255, 255, 0.06);   /* resting walkthrough pill, row hover */
+  --plate: rgba(255, 255, 255, 0.07);        /* hover wash, code chips */
+  --plate-mid: rgba(255, 255, 255, 0.08);    /* app-bar icon hover */
+  --plate-active: rgba(255, 255, 255, 0.1);  /* pressed */
+  --handle: rgba(255, 255, 255, 0.22);       /* sheet grab handle */
+  --scrim: rgba(0, 0, 0, 0.55);              /* dim behind a bottom sheet */
+  --scrim-strong: rgba(0, 0, 0, 0.62);       /* dim behind a dialog */
+  --shadow: rgba(0, 0, 0, 0.6);              /* sheet, dialog, toast lift */
+  --shadow-soft: rgba(0, 0, 0, 0.45);        /* FAB, swatch, close plates */
+  --column-shadow: rgba(0, 0, 0, 0.9);       /* column edge on wide screens */
+  --code-bg: rgba(255, 255, 255, 0.07);
+  --scroll-thumb: rgba(255, 255, 255, 0.14);
+  --accent-glow: rgba(0, 114, 239, 0.4);     /* FAB halo, tinted per theme */
+  --accent-glow-hi: rgba(0, 114, 239, 0.55);
+  --toast-bg: #2c2c30;               /* the snackbar keeps its own plate */
+  --toast-ink: #f5f5f7;              /* ...so its ink is its own too, not --text */
+  --toast-ink-dim: rgba(245, 245, 247, 0.55);
+  --on-accent: #ffffff;                      /* ink on an --accent fill */
+
+  /* Chrome that sits on a photograph — album covers, the viewer. It keeps
+     white-on-dark in every theme, because the surface under it is an image,
+     not the canvas. */
+  --media-dim: rgba(0, 0, 0, 0.28);          /* selected-tile scrim */
+  --media-plate: rgba(0, 0, 0, 0.55);        /* badge / menu plate */
+  --media-plate-2: rgba(0, 0, 0, 0.45);      /* pick badge plate */
+  --media-plate-strong: rgba(0, 0, 0, 0.62);
+  --media-plate-hover: rgba(0, 0, 0, 0.78);
+  --media-glass: rgba(255, 255, 255, 0.1);    /* hover wash over a photo */
+  --media-glass-soft: rgba(255, 255, 255, 0.07);
+  --media-glass-strong: rgba(255, 255, 255, 0.18);
+  --media-ring: rgba(255, 255, 255, 0.1);
+  --media-ring-strong: rgba(255, 255, 255, 0.85);
+  --media-ink: #ffffff;
+  --media-ink-dim: rgba(255, 255, 255, 0.6);
+  --media-ink-soft: rgba(255, 255, 255, 0.75);
+  --media-ink-label: rgba(255, 255, 255, 0.78);
+  --media-veil-top: rgba(0, 0, 0, 0.72);
+  --media-veil-bottom: rgba(0, 0, 0, 0.78);
+  --viewer-bg: #000000;
+
   /* Type */
   --text: #f5f5f7;
   --text-dim: rgba(245, 245, 247, 0.55);
@@ -30,6 +75,8 @@
   --danger: #ff5a52;
   --danger-dim: rgba(255, 90, 82, 0.12);
   --warn: #f2a33c;
+  --warn-ink: #ffd98a;           /* demo badge on the page — flips with the theme */
+  --media-warn-ink: #ffd98a;     /* album badge on a cover — always light ink */
 
   /* Geometry */
   --col: 480px;              /* the phone column every screen centers on */
@@ -71,7 +118,7 @@ button { font-family: inherit; }
 :focus-visible { outline: 2px solid var(--accent-text); outline-offset: 2px; }
 code {
   font-family: var(--font-mono);
-  background: rgba(255, 255, 255, 0.07);
+  background: var(--code-bg);
   padding: 0.15em 0.45em;
   border-radius: 6px;
   font-size: 0.9em;
@@ -94,7 +141,7 @@ code {
   .app {
     border-left: 1px solid var(--hairline);
     border-right: 1px solid var(--hairline);
-    box-shadow: 0 0 80px rgba(0, 0, 0, 0.9);
+    box-shadow: 0 0 80px var(--column-shadow);
   }
 }
 /* Fixed chrome (tab bar, select bar, sheets, FAB) centers on the column via
@@ -134,7 +181,7 @@ code {
   height: 36px;
   padding: 0 14px;
   border-radius: var(--radius-pill);
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--plate-faint);
   border: 1px solid var(--hairline);
   color: var(--text);
   font-size: 13px;
@@ -145,7 +192,7 @@ code {
               transform var(--duration-fast) var(--ease-spring);
 }
 .appbar-walkthrough:hover {
-  background: rgba(255, 255, 255, 0.1);
+  background: var(--plate-active);
   border-color: var(--hairline-strong);
 }
 .appbar-walkthrough:active { transform: scale(0.97); }
@@ -157,7 +204,7 @@ code {
   color: var(--text); cursor: pointer;
   transition: background var(--duration-fast) ease, transform var(--duration-fast) var(--ease-spring);
 }
-.appbar-icon:hover { background: rgba(255, 255, 255, 0.08); }
+.appbar-icon:hover { background: var(--plate-mid); }
 .appbar-icon:active { transform: scale(0.9); }
 
 .appbar-hero {
@@ -190,7 +237,7 @@ code {
   font-family: var(--font-mono);
   font-size: 10.5px;
   font-weight: 500;
-  color: #ffd98a;
+  color: var(--warn-ink);
   background: rgba(242, 163, 60, 0.14);
   border: 1px solid rgba(242, 163, 60, 0.35);
   padding: 2px 9px;
@@ -313,7 +360,7 @@ body.is-selecting .tabbar, body.is-selecting .fab { transform: translateY(110%);
   padding: 9px 28px;
   border: none; border-radius: var(--radius-pill);
   background: var(--accent);
-  color: #ffffff;
+  color: var(--on-accent);
   font-family: inherit; font-size: 13.5px; font-weight: 500;
   cursor: pointer;
   pointer-events: auto;
@@ -386,7 +433,7 @@ body.is-selecting .tabbar, body.is-selecting .fab { transform: translateY(110%);
 .card.card-selected::after {
   content: "";
   position: absolute; inset: 0;
-  background: rgba(0, 0, 0, 0.28);
+  background: var(--media-dim);
   border: 2px solid var(--accent);
   border-radius: inherit;
   pointer-events: none;
@@ -396,9 +443,9 @@ body.is-selecting .tabbar, body.is-selecting .fab { transform: translateY(110%);
   top: 6px; left: 6px;
   width: 22px; height: 22px;
   border-radius: 50%;
-  border: 2px solid rgba(255, 255, 255, 0.85);
-  background: rgba(0, 0, 0, 0.45);
-  color: #ffffff;
+  border: 2px solid var(--media-ring-strong);
+  background: var(--media-plate-2);
+  color: var(--media-ink);
   font-size: 13px; font-weight: 700; line-height: 1;
   display: flex; align-items: center; justify-content: center;
   transition: all 0.16s var(--ease-spring);
@@ -437,8 +484,8 @@ body.is-selecting .tabbar, body.is-selecting .fab { transform: translateY(110%);
 .album-badge {
   position: absolute; top: 8px; left: 8px;
   font-size: 10.5px; font-weight: 500;
-  color: #ffd98a;
-  background: rgba(0, 0, 0, 0.62);
+  color: var(--media-warn-ink);
+  background: var(--media-plate-strong);
   border: 1px solid rgba(242, 163, 60, 0.5);
   border-radius: var(--radius-pill);
   padding: 2px 9px;
@@ -450,13 +497,13 @@ body.is-selecting .tabbar, body.is-selecting .fab { transform: translateY(110%);
   width: 32px; height: 32px;
   display: flex; align-items: center; justify-content: center;
   border: none; border-radius: 50%;
-  background: rgba(0, 0, 0, 0.55);
+  background: var(--media-plate);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
-  color: #ffffff; cursor: pointer;
+  color: var(--media-ink); cursor: pointer;
   transition: background var(--duration-fast) ease, transform var(--duration-fast) var(--ease-spring);
 }
-.album-more:hover { background: rgba(0, 0, 0, 0.78); }
+.album-more:hover { background: var(--media-plate-hover); }
 .album-more:active { transform: scale(0.88); }
 .album-meta { padding: 8px 4px 0; }
 .album-name {
@@ -518,13 +565,13 @@ body.is-selecting .tabbar, body.is-selecting .fab { transform: translateY(110%);
   width: 54px; height: 54px;
   border: none; border-radius: 50%;
   background: var(--accent);
-  color: #ffffff;
+  color: var(--on-accent);
   display: flex; align-items: center; justify-content: center;
   cursor: pointer;
-  box-shadow: 0 8px 24px rgba(0, 114, 239, 0.4), 0 2px 8px rgba(0, 0, 0, 0.5);
+  box-shadow: 0 8px 24px var(--accent-glow), 0 2px 8px var(--shadow-soft);
   transition: transform var(--duration-fast) var(--ease-spring), box-shadow var(--duration-fast) ease;
 }
-.fab:hover { transform: scale(1.06); box-shadow: 0 10px 28px rgba(0, 114, 239, 0.55), 0 2px 8px rgba(0, 0, 0, 0.5); }
+.fab:hover { transform: scale(1.06); box-shadow: 0 10px 28px var(--accent-glow-hi), 0 2px 8px var(--shadow-soft); }
 .fab:active { transform: scale(0.92); }
 
 /* ── Bottom tab bar ──────────────────────────────────────────────── */
@@ -563,7 +610,7 @@ body.is-selecting .tabbar, body.is-selecting .fab { transform: translateY(110%);
 /* ── Bottom sheet (One UI pop-up menus) ──────────────────────────── */
 .sheet-overlay {
   position: fixed; inset: 0;
-  background: rgba(0, 0, 0, 0.55);
+  background: var(--scrim);
   z-index: 110;
   animation: sheetDim var(--duration-fast) ease;
 }
@@ -576,14 +623,14 @@ body.is-selecting .tabbar, body.is-selecting .fab { transform: translateY(110%);
   background: var(--surface-2);
   border-radius: var(--radius-sheet) var(--radius-sheet) 0 0;
   padding: 6px 8px calc(14px + env(safe-area-inset-bottom, 0px));
-  box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 -12px 40px var(--shadow);
   animation: sheetUp var(--duration-normal) var(--ease-spring);
 }
 @keyframes sheetUp { from { transform: translateY(30%); opacity: 0.4; } to { transform: none; opacity: 1; } }
 .sheet-handle {
   width: 36px; height: 4px;
   border-radius: 2px;
-  background: rgba(255, 255, 255, 0.22);
+  background: var(--handle);
   margin: 4px auto 8px;
 }
 .sheet-title {
@@ -601,8 +648,8 @@ body.is-selecting .tabbar, body.is-selecting .fab { transform: translateY(110%);
   text-align: left; cursor: pointer;
   transition: background var(--duration-fast) ease;
 }
-.sheet-item:hover { background: rgba(255, 255, 255, 0.06); }
-.sheet-item:active { background: rgba(255, 255, 255, 0.1); }
+.sheet-item:hover { background: var(--plate-faint); }
+.sheet-item:active { background: var(--plate-active); }
 .sheet-ic {
   width: 24px; height: 24px; flex-shrink: 0;
   display: inline-flex; align-items: center; justify-content: center;
@@ -614,7 +661,7 @@ body.is-selecting .tabbar, body.is-selecting .fab { transform: translateY(110%);
 /* ── Viewer (fullscreen photo) ───────────────────────────────────── */
 .viewer {
   position: fixed; inset: 0;
-  background: #000000;
+  background: var(--viewer-bg);
   z-index: 90;
   display: flex; align-items: center; justify-content: center;
   user-select: none;
@@ -626,7 +673,7 @@ body.is-selecting .tabbar, body.is-selecting .fab { transform: translateY(110%);
   display: flex; align-items: center; gap: 12px;
   padding: 10px 12px;
   padding-top: calc(10px + env(safe-area-inset-top, 0px));
-  background: linear-gradient(to bottom, rgba(0, 0, 0, 0.72), transparent);
+  background: linear-gradient(to bottom, var(--media-veil-top), transparent);
   z-index: 95;
   transition: opacity var(--duration-fast) ease, transform var(--duration-fast) ease;
 }
@@ -634,24 +681,24 @@ body.is-selecting .tabbar, body.is-selecting .fab { transform: translateY(110%);
   width: 42px; height: 42px; flex-shrink: 0;
   display: inline-flex; align-items: center; justify-content: center;
   background: transparent; border: none; border-radius: 50%;
-  color: #ffffff; cursor: pointer;
+  color: var(--media-ink); cursor: pointer;
   transition: background var(--duration-fast) ease, transform var(--duration-fast) var(--ease-spring);
 }
-.viewer-icon:hover { background: rgba(255, 255, 255, 0.1); }
+.viewer-icon:hover { background: var(--media-glass); }
 .viewer-icon:active { transform: scale(0.9); }
 .viewer-title { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
 .viewer-name {
-  font-size: 14.5px; font-weight: 500; color: #ffffff;
+  font-size: 14.5px; font-weight: 500; color: var(--media-ink);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .viewer-meta {
-  font-size: 12px; color: rgba(255, 255, 255, 0.6);
+  font-size: 12px; color: var(--media-ink-dim);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
 .viewer-counter {
   flex-shrink: 0;
   font-size: 13px; font-weight: 500;
-  color: rgba(255, 255, 255, 0.75);
+  color: var(--media-ink-soft);
   font-variant-numeric: tabular-nums;
   padding: 0 6px;
 }
@@ -674,17 +721,17 @@ body.is-selecting .tabbar, body.is-selecting .fab { transform: translateY(110%);
   transform: translateY(-50%);
   width: 44px; height: 44px;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.07);
+  background: var(--media-glass-soft);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  color: #ffffff;
+  border: 1px solid var(--media-ring);
+  color: var(--media-ink);
   display: flex; align-items: center; justify-content: center;
   cursor: pointer;
   z-index: 95;
   transition: all var(--duration-fast) var(--ease-spring);
 }
-.viewer-nav:hover { background: rgba(255, 255, 255, 0.18); transform: translateY(-50%) scale(1.07); }
+.viewer-nav:hover { background: var(--media-glass-strong); transform: translateY(-50%) scale(1.07); }
 .viewer-nav:active { transform: translateY(-50%) scale(0.94); }
 .viewer-prev { left: 14px; }
 .viewer-next { right: 14px; }
@@ -695,7 +742,7 @@ body.is-selecting .tabbar, body.is-selecting .fab { transform: translateY(110%);
   gap: 8px;
   padding: 14px 16px;
   padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px));
-  background: linear-gradient(to top, rgba(0, 0, 0, 0.78), transparent);
+  background: linear-gradient(to top, var(--media-veil-bottom), transparent);
   z-index: 95;
   transition: opacity var(--duration-fast) ease, transform var(--duration-fast) ease;
 }
@@ -704,14 +751,14 @@ body.is-selecting .tabbar, body.is-selecting .fab { transform: translateY(110%);
   min-width: 72px;
   padding: 8px 10px;
   background: transparent; border: none; border-radius: 14px;
-  color: #ffffff;
+  color: var(--media-ink);
   font-size: 11px; font-weight: 400;
   cursor: pointer;
   transition: background var(--duration-fast) ease, transform var(--duration-fast) var(--ease-spring);
 }
-.viewer-action:hover { background: rgba(255, 255, 255, 0.09); }
+.viewer-action:hover { background: var(--media-glass); }
 .viewer-action:active { transform: scale(0.92); }
-.viewer-action span { color: rgba(255, 255, 255, 0.78); }
+.viewer-action span { color: var(--media-ink-label); }
 
 /* Tap the photo: chrome slides away like the S10 immersive mode */
 .viewer.chrome-off .viewer-top,
@@ -727,7 +774,7 @@ body.is-selecting .tabbar, body.is-selecting .fab { transform: translateY(110%);
 /* ── One UI dialogs ──────────────────────────────────────────────── */
 .modal-overlay {
   position: fixed; inset: 0;
-  background: rgba(0, 0, 0, 0.62);
+  background: var(--scrim-strong);
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
   z-index: 120;
@@ -744,7 +791,7 @@ body.is-selecting .tabbar, body.is-selecting .fab { transform: translateY(110%);
   padding: 24px 22px 20px;
   max-width: 400px;
   width: 100%;
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 24px 64px var(--shadow);
   animation: modalPopIn var(--duration-normal) var(--ease-spring);
 }
 @keyframes modalPopIn {
@@ -811,7 +858,7 @@ select.text-input option { background: var(--surface-3); color: var(--text); }
 .btn-primary:hover { background: var(--accent-dim); }
 .btn-primary:disabled { color: var(--text-faint); background: none; cursor: default; }
 .btn-ghost { color: var(--text-dim); }
-.btn-ghost:hover { background: rgba(255, 255, 255, 0.07); color: var(--text); }
+.btn-ghost:hover { background: var(--plate); color: var(--text); }
 .btn-danger { color: var(--danger); }
 .btn-danger:hover { background: var(--danger-dim); }
 .btn-sm { padding: 6px 12px; font-size: 12.5px; }
@@ -857,13 +904,13 @@ select.text-input option { background: var(--surface-3); color: var(--text); }
   left: 50%;
   transform: translateX(-50%);
   z-index: 130;
-  background: #2c2c30;
+  background: var(--toast-bg);
   border: 1px solid var(--hairline);
-  color: var(--text);
+  color: var(--toast-ink);
   padding: 11px 40px 11px 18px;
   border-radius: var(--radius-pill);
   font-size: 13px;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.55);
+  box-shadow: 0 12px 32px var(--shadow);
   max-width: min(92vw, 440px);
   animation: toastPop var(--duration-normal) var(--ease-spring);
 }
@@ -875,19 +922,20 @@ select.text-input option { background: var(--surface-3); color: var(--text); }
   position: absolute; top: 50%; right: 12px;
   transform: translateY(-50%);
   background: none; border: none;
-  color: var(--text-dim); font-size: 17px; line-height: 1;
+  color: var(--toast-ink-dim);
+  font-size: 17px; line-height: 1;
   cursor: pointer; padding: 0;
   transition: color var(--duration-fast) ease;
 }
-.toast-close:hover { color: var(--text); }
+.toast-close:hover { color: var(--toast-ink); }
 
 /* ── Overflow & fluid safety ─────────────────────────────────────── */
 .modal-copy, .modal-note, .modal h2, .empty, .empty-sub, .loading-caption,
 .tag-field, .toast, .viewer-name, .viewer-meta { overflow-wrap: anywhere; }
 
-/* Thin dark scrollbars inside the column */
+/* Scrollbars track the canvas, not a fixed dark */
 .pick-list::-webkit-scrollbar { width: 8px; }
-.pick-list::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.14); border-radius: 4px; }
+.pick-list::-webkit-scrollbar-thumb { background: var(--scroll-thumb); border-radius: 4px; }
 
 /* ── Compact phones ──────────────────────────────────────────────── */
 @media (max-width: 380px) {
@@ -899,15 +947,22 @@ select.text-input option { background: var(--surface-3); color: var(--text); }
 
 /* ── Eye-comfort backgrounds ───────────────────────────────────────
    Picked from the app bar toggle (comfortBtn) and written to
-   <html data-theme>. Eleven canvases: pure black, then two neutrals
+   <html data-theme>. Fifteen canvases: pure black, then two neutrals
    (graphite, slate), four cool casts (dusk, teal, plum, sage), three
-   low-chroma earth casts (olive, clay, sepia) and the blue-light-free
-   amber. Every variant stays dark: the archive's ink is
-   white-on-black with white-alpha hairlines and hover plates baked
-   through the stylesheet, so a light canvas would leave dozens of
-   rules invisible. What varies is luminance and hue — dimmed, warm
-   and blue-light-free rather than pitch black. Pure black stays the
-   default, and --bg-image carries the soft wash each theme paints. */
+   low-chroma earth casts (olive, clay, sepia), the blue-light-free
+   amber, and four light canvases (paper, linen, mist, bone) for bright
+   rooms, where a black page is itself the glare.
+
+   Every variant is self-contained: a theme sets the canvas, the
+   surfaces, the ink, the hairlines AND the chrome that used to be
+   white and black literals in the rules above — hover plates, scrims,
+   shadows, the scrollbar, the FAB halo. Nothing on the page reads a
+   baked-in dark, so picking a theme repaints the whole interface rather
+   than only its background. The chrome that sits on a photograph (the
+   viewer, album badges) stays in the separate --media-* family and is
+   left dark in every theme, because there the surface under it is an
+   image rather than the canvas. Pure black stays the default, and
+   --bg-image carries the soft wash each theme paints. */
 [data-theme='graphite'] {
   --bg: #131316;
   --surface: #1b1b1f;
@@ -930,6 +985,8 @@ select.text-input option { background: var(--surface-3); color: var(--text); }
   --accent: #2f6ea8;
   --accent-text: #7fb3dd;
   --accent-dim: rgba(47, 110, 168, 0.2);
+  --accent-glow: rgba(47, 110, 168, 0.4);
+  --accent-glow-hi: rgba(47, 110, 168, 0.55);
   --bg-image: radial-gradient(120% 70% at 50% 0%, #16222e 0%, #0d1218 58%, #080c10 100%);
 }
 [data-theme='sage'] {
@@ -943,6 +1000,8 @@ select.text-input option { background: var(--surface-3); color: var(--text); }
   --accent: #4c8a6b;
   --accent-text: #85c6a3;
   --accent-dim: rgba(76, 138, 107, 0.2);
+  --accent-glow: rgba(76, 138, 107, 0.4);
+  --accent-glow-hi: rgba(76, 138, 107, 0.55);
   --bg-image: radial-gradient(120% 70% at 50% 0%, #18241e 0%, #0e1512 58%, #090f0c 100%);
 }
 [data-theme='sepia'] {
@@ -959,6 +1018,8 @@ select.text-input option { background: var(--surface-3); color: var(--text); }
   --accent: #8d5f28;
   --accent-text: #d6a463;
   --accent-dim: rgba(141, 95, 40, 0.2);
+  --accent-glow: rgba(141, 95, 40, 0.4);
+  --accent-glow-hi: rgba(141, 95, 40, 0.55);
   --bg-image: radial-gradient(120% 70% at 50% 0%, #2a2118 0%, #1a1510 58%, #120e0a 100%);
 }
 [data-theme='amber'] {
@@ -975,6 +1036,8 @@ select.text-input option { background: var(--surface-3); color: var(--text); }
   --accent: #a8620f;
   --accent-text: #f0ae52;
   --accent-dim: rgba(168, 98, 15, 0.22);
+  --accent-glow: rgba(168, 98, 15, 0.4);
+  --accent-glow-hi: rgba(168, 98, 15, 0.55);
   --bg-image: radial-gradient(120% 70% at 50% 0%, #2b1d0d 0%, #150f06 58%, #0e0904 100%);
 }
 [data-theme='slate'] {
@@ -991,6 +1054,8 @@ select.text-input option { background: var(--surface-3); color: var(--text); }
   --accent: #4a6d84;
   --accent-text: #86b3cc;
   --accent-dim: rgba(74, 109, 132, 0.2);
+  --accent-glow: rgba(74, 109, 132, 0.4);
+  --accent-glow-hi: rgba(74, 109, 132, 0.55);
   --bg-image: radial-gradient(120% 70% at 50% 0%, #1d232a 0%, #111316 58%, #0b0d10 100%);
 }
 [data-theme='teal'] {
@@ -1004,6 +1069,8 @@ select.text-input option { background: var(--surface-3); color: var(--text); }
   --accent: #2b7f88;
   --accent-text: #79c8d1;
   --accent-dim: rgba(43, 127, 136, 0.2);
+  --accent-glow: rgba(43, 127, 136, 0.4);
+  --accent-glow-hi: rgba(43, 127, 136, 0.55);
   --bg-image: radial-gradient(120% 70% at 50% 0%, #102b2f 0%, #08181a 58%, #050f11 100%);
 }
 [data-theme='plum'] {
@@ -1017,6 +1084,8 @@ select.text-input option { background: var(--surface-3); color: var(--text); }
   --accent: #7454a8;
   --accent-text: #b79ae0;
   --accent-dim: rgba(116, 84, 168, 0.22);
+  --accent-glow: rgba(116, 84, 168, 0.4);
+  --accent-glow-hi: rgba(116, 84, 168, 0.55);
   --bg-image: radial-gradient(120% 70% at 50% 0%, #241830 0%, #150f1c 58%, #0e0913 100%);
 }
 [data-theme='olive'] {
@@ -1030,6 +1099,8 @@ select.text-input option { background: var(--surface-3); color: var(--text); }
   --accent: #6b7a3c;
   --accent-text: #adbe76;
   --accent-dim: rgba(107, 122, 60, 0.22);
+  --accent-glow: rgba(107, 122, 60, 0.4);
+  --accent-glow-hi: rgba(107, 122, 60, 0.55);
   --bg-image: radial-gradient(120% 70% at 50% 0%, #21261a 0%, #14160f 58%, #0d0e09 100%);
 }
 [data-theme='clay'] {
@@ -1046,7 +1117,148 @@ select.text-input option { background: var(--surface-3); color: var(--text); }
   --accent: #a34f3d;
   --accent-text: #e09a83;
   --accent-dim: rgba(163, 79, 61, 0.22);
+  --accent-glow: rgba(163, 79, 61, 0.4);
+  --accent-glow-hi: rgba(163, 79, 61, 0.55);
   --bg-image: radial-gradient(120% 70% at 50% 0%, #2c1a15 0%, #1b100d 58%, #120b09 100%);
+}
+
+/* ── Light canvases ──────────────────────────────────────────────
+   Same contract as the dark family above, inverted: ink is near-black
+   on a light page, hairlines are black-alpha, and every chrome token
+   (plates, scrims, shadows, scrollbar, toast) flips with it. The
+   --media-* family is untouched — the viewer and the album badges sit
+   on photographs and stay dark whatever the page is doing. */
+[data-theme='paper'] {
+  --bg: #f4f4f5;
+  --surface: #ffffff;
+  --surface-2: #ebebed;
+  --surface-3: #ffffff;
+  --hairline: rgba(16, 16, 20, 0.1);
+  --hairline-strong: rgba(16, 16, 20, 0.18);
+  --chrome-bg: rgba(244, 244, 245, 0.94);
+  --text: #15151a;
+  --text-dim: rgba(21, 21, 26, 0.6);
+  --text-faint: rgba(21, 21, 26, 0.38);
+  --accent: #0a63d8;
+  --accent-text: #0a58bd;
+  --accent-dim: rgba(10, 99, 216, 0.14);
+  --accent-glow: rgba(10, 99, 216, 0.3);
+  --accent-glow-hi: rgba(10, 99, 216, 0.42);
+  --plate-faint: rgba(16, 16, 20, 0.05);
+  --plate: rgba(16, 16, 20, 0.06);
+  --plate-mid: rgba(16, 16, 20, 0.07);
+  --plate-active: rgba(16, 16, 20, 0.1);
+  --handle: rgba(16, 16, 20, 0.24);
+  --scrim: rgba(20, 20, 26, 0.34);
+  --scrim-strong: rgba(20, 20, 26, 0.4);
+  --shadow: rgba(20, 20, 30, 0.18);
+  --shadow-soft: rgba(20, 20, 30, 0.14);
+  --column-shadow: rgba(20, 20, 30, 0.14);
+  --code-bg: rgba(16, 16, 20, 0.07);
+  --scroll-thumb: rgba(16, 16, 20, 0.24);
+  --warn-ink: #7a4f09;
+  --toast-bg: #1d1d22;
+  --on-accent: #ffffff;
+  --bg-image: radial-gradient(120% 70% at 50% 0%, #ffffff 0%, #f4f4f5 58%, #ebebee 100%);
+}
+[data-theme='linen'] {
+  --bg: #f6f1e7;
+  --surface: #fffdf9;
+  --surface-2: #ece4d6;
+  --surface-3: #fffdf9;
+  --hairline: rgba(58, 44, 26, 0.12);
+  --hairline-strong: rgba(58, 44, 26, 0.2);
+  --chrome-bg: rgba(246, 241, 231, 0.94);
+  --text: #241d13;
+  --text-dim: rgba(36, 29, 19, 0.62);
+  --text-faint: rgba(36, 29, 19, 0.4);
+  --accent: #8a5a1c;
+  --accent-text: #7a4d13;
+  --accent-dim: rgba(138, 90, 28, 0.16);
+  --accent-glow: rgba(138, 90, 28, 0.3);
+  --accent-glow-hi: rgba(138, 90, 28, 0.42);
+  --plate-faint: rgba(58, 44, 26, 0.05);
+  --plate: rgba(58, 44, 26, 0.07);
+  --plate-mid: rgba(58, 44, 26, 0.08);
+  --plate-active: rgba(58, 44, 26, 0.11);
+  --handle: rgba(58, 44, 26, 0.26);
+  --scrim: rgba(36, 28, 16, 0.34);
+  --scrim-strong: rgba(36, 28, 16, 0.4);
+  --shadow: rgba(50, 38, 22, 0.2);
+  --shadow-soft: rgba(50, 38, 22, 0.15);
+  --column-shadow: rgba(50, 38, 22, 0.15);
+  --code-bg: rgba(58, 44, 26, 0.08);
+  --scroll-thumb: rgba(58, 44, 26, 0.26);
+  --warn-ink: #7a4d13;
+  --toast-bg: #2c2418;
+  --on-accent: #ffffff;
+  --bg-image: radial-gradient(120% 70% at 50% 0%, #fffdf9 0%, #f6f1e7 58%, #ece4d6 100%);
+}
+[data-theme='mist'] {
+  --bg: #eef2f6;
+  --surface: #ffffff;
+  --surface-2: #e2e8ef;
+  --surface-3: #ffffff;
+  --hairline: rgba(22, 38, 56, 0.12);
+  --hairline-strong: rgba(22, 38, 56, 0.2);
+  --chrome-bg: rgba(238, 242, 246, 0.94);
+  --text: #121b26;
+  --text-dim: rgba(18, 27, 38, 0.62);
+  --text-faint: rgba(18, 27, 38, 0.4);
+  --accent: #1d5f9e;
+  --accent-text: #17568f;
+  --accent-dim: rgba(29, 95, 158, 0.16);
+  --accent-glow: rgba(29, 95, 158, 0.3);
+  --accent-glow-hi: rgba(29, 95, 158, 0.42);
+  --plate-faint: rgba(22, 38, 56, 0.04);
+  --plate: rgba(22, 38, 56, 0.06);
+  --plate-mid: rgba(22, 38, 56, 0.07);
+  --plate-active: rgba(22, 38, 56, 0.1);
+  --handle: rgba(22, 38, 56, 0.26);
+  --scrim: rgba(18, 28, 40, 0.34);
+  --scrim-strong: rgba(18, 28, 40, 0.4);
+  --shadow: rgba(24, 38, 54, 0.2);
+  --shadow-soft: rgba(24, 38, 54, 0.15);
+  --column-shadow: rgba(24, 38, 54, 0.15);
+  --code-bg: rgba(22, 38, 56, 0.07);
+  --scroll-thumb: rgba(22, 38, 56, 0.26);
+  --warn-ink: #8a5310;
+  --toast-bg: #1b232e;
+  --on-accent: #ffffff;
+  --bg-image: radial-gradient(120% 70% at 50% 0%, #ffffff 0%, #eef2f6 58%, #e2e8ef 100%);
+}
+[data-theme='bone'] {
+  --bg: #efe9e2;
+  --surface: #f8f4ef;
+  --surface-2: #e4dcd2;
+  --surface-3: #f8f4ef;
+  --hairline: rgba(44, 34, 24, 0.13);
+  --hairline-strong: rgba(44, 34, 24, 0.22);
+  --chrome-bg: rgba(239, 233, 226, 0.94);
+  --text: #1f1a14;
+  --text-dim: rgba(31, 26, 20, 0.62);
+  --text-faint: rgba(31, 26, 20, 0.4);
+  --accent: #7a4a3a;
+  --accent-text: #6b3f31;
+  --accent-dim: rgba(122, 74, 58, 0.16);
+  --accent-glow: rgba(122, 74, 58, 0.3);
+  --accent-glow-hi: rgba(122, 74, 58, 0.42);
+  --plate-faint: rgba(44, 34, 24, 0.05);
+  --plate: rgba(44, 34, 24, 0.07);
+  --plate-mid: rgba(44, 34, 24, 0.08);
+  --plate-active: rgba(44, 34, 24, 0.11);
+  --handle: rgba(44, 34, 24, 0.26);
+  --scrim: rgba(32, 26, 20, 0.34);
+  --scrim-strong: rgba(32, 26, 20, 0.4);
+  --shadow: rgba(40, 32, 24, 0.2);
+  --shadow-soft: rgba(40, 32, 24, 0.15);
+  --column-shadow: rgba(40, 32, 24, 0.15);
+  --code-bg: rgba(44, 34, 24, 0.08);
+  --scroll-thumb: rgba(44, 34, 24, 0.26);
+  --warn-ink: #6b3f2b;
+  --toast-bg: #2a231c;
+  --on-accent: #ffffff;
+  --bg-image: radial-gradient(120% 70% at 50% 0%, #f8f4ef 0%, #efe9e2 58%, #e4dcd2 100%);
 }
 
 /* Picker — a swatch wall in the One UI bottom sheet. Each swatch previews
@@ -1077,7 +1289,7 @@ select.text-input option { background: var(--surface-3); color: var(--text); }
   width: 40px;
   height: 40px;
   border-radius: 50%;
-  box-shadow: inset 0 0 0 1px var(--hairline-strong), 0 2px 8px rgba(0, 0, 0, 0.45);
+  box-shadow: inset 0 0 0 1px var(--hairline-strong), 0 2px 8px var(--shadow-soft);
 }
 .comfort-chip-ink { color: var(--text); font-size: 15px; font-weight: 500; }
 .comfort-swatch.is-active .comfort-chip { box-shadow: inset 0 0 0 1px var(--hairline-strong), 0 0 0 3px var(--accent-dim); }

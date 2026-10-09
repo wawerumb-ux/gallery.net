@@ -19,6 +19,20 @@ visitor there and the page's only job is to tell them what this is and
 offer the way in. Visitors reach it from the ⋮ menu → **Project walkthrough**
 and from the archive button in the app bar.
 
+## Eye comfort
+
+The app bar's eye-comfort button (☾) offers fifteen backgrounds. Each one
+carries its whole palette, not just a colour: the canvas, the surfaces, the
+ink, the hairlines and the chrome — hover plates, scrims, shadows, the
+scrollbar, the FAB halo — so picking one repaints the entire interface
+instead of only its background. Eleven are dark (pure black is the default)
+and four are light (paper, linen, mist, bone) for bright rooms, where a
+black page is itself the glare. The chrome that sits on a *photograph* — the
+fullscreen viewer and the album badges — is a separate `--media-*` family and
+stays dark in every theme, because there the surface under it is an image
+rather than the page. The choice is stored under `gallery.comfort` and read
+back into `<html data-theme>`.
+
 **The landing is the request journey.** It plays `video/` full-bleed behind
 seven cards, one per stage of a web request's trip — CLIENT → CAT6A → PATCH
 PANEL → SWITCH → CEILING TRAY → DATA CENTER → CONNECTED — each with a plain

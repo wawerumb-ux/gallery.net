@@ -427,12 +427,20 @@ function shouldRequireWalkthrough(search) {
 }
 
 /* ── Eye-comfort backgrounds ──────────────────────────────────────
-   Eleven canvases, all dark: pure black is the default and the other
-   ten trade OLED contrast for lower luminance and a different cast —
-   neutrals, cools (blue, cyan, violet, green) and warms (olive, red,
-   sepia, amber). Dark-only is a constraint, not a shortcut — the ink is white on
-   black with white-alpha hairlines and hover plates throughout
-   style.css, so a light canvas would leave those rules invisible.
+   Fifteen canvases, each carrying its whole palette. Eleven are dark —
+   pure black is the default and the rest trade OLED contrast for lower
+   luminance and a different cast: neutrals, cools (blue, cyan, violet,
+   green) and warms (olive, red, sepia, amber). Four are light (paper,
+   linen, mist, bone) for bright rooms, where a black page is itself
+   the glare.
+
+   A theme is not a background colour. style.css keeps every value a
+   theme can touch in a token — canvas, surfaces, ink, hairlines, and
+   the chrome (hover plates, scrims, shadows, scrollbar, FAB halo) —
+   so picking one repaints the whole interface. The chrome that sits on
+   a photograph is a separate family the themes leave alone; the viewer
+   and the album badges stay dark because the surface under them is an
+   image, not the page.
 
    The choice lives on <html data-theme>, which is how style.css
    re-points the whole token set. Storage that throws (private mode,
@@ -452,6 +460,10 @@ const COMFORT_THEMES = [
   { id: 'clay',     label: 'Clay',       hint: 'Warm red',      chip: '#2f1e19', chrome: '#1b100d' },
   { id: 'sepia',    label: 'Sepia',      hint: 'Warm reading',  chip: '#2d251c', chrome: '#1a1510' },
   { id: 'amber',    label: 'Amber',      hint: 'No blue light', chip: '#332716', chrome: '#150f06' },
+  { id: 'paper',    label: 'Paper',      hint: 'Bright neutral', chip: '#f4f4f5', chrome: '#f4f4f5' },
+  { id: 'linen',    label: 'Linen',      hint: 'Warm light',    chip: '#f6f1e7', chrome: '#f6f1e7' },
+  { id: 'mist',     label: 'Mist',       hint: 'Cool light',    chip: '#eef2f6', chrome: '#eef2f6' },
+  { id: 'bone',     label: 'Bone',       hint: 'Low glare',     chip: '#efe9e2', chrome: '#efe9e2' },
 ];
 const COMFORT_DEFAULT = 'oled';
 const COMFORT_BY_ID = new Map(COMFORT_THEMES.map(t => [t.id, t]));
