@@ -23,10 +23,14 @@ and from the archive button in the app bar.
 seven cards, one per stage of a web request's trip — CLIENT → CAT6A → PATCH
 PANEL → SWITCH → CEILING TRAY → DATA CENTER → CONNECTED — each with a plain
 note for someone who has never thought about a network. A click advances;
-ArrowLeft/ArrowRight walk it both ways; right-click rewinds. Hand-drawn
-connectors are drawn between each pair with Rough.js (`walkthrough/rough.js`,
-vendored), and the pointer moves three planes at three depths — the footage
-least, the lines most.
+ArrowLeft/ArrowRight walk it both ways; right-click rewinds. Each stage
+carries its own **line figure** — one-weight stroke art in `stages.js`, drawn
+by walking its paths, so a figure writes itself on when its card lights. The
+connectors between the cards are a single clean stroke for the same hand, and
+once drawn they run a travelling dash: the line stops being a stroke and
+becomes the request moving along it. No drawing library — it is `path` data and
+CSS. The pointer moves three planes at three depths — the footage least, the
+lines most.
 
 The stages live in `walkthrough/stages.js`, and each one's card position is
 *measured*: its frame was sampled into a 4×3 grid and scored `lum + 2 × cyan`,

@@ -2,8 +2,9 @@
    walkthrough/journey.js — the landing runtime: the request journey.
 
    Four things, in this order: the video layer, seven cards built from
-   STAGES, a Rough.js connector between each pair, and a seven-state
-   machine a click walks forward through.
+   STAGES, the line work — one drawn connector between each pair and a
+   line-art figure in each card — and a seven-state machine a click
+   walks forward through.
 
    It runs on the landing only, and it is a sibling of walkthrough.js
    rather than part of it: that runtime owns the ambient layer, the
@@ -39,8 +40,12 @@
   // The arrow waits for the line to finish before it arrives, so the
   // line reads as drawn and then pointed rather than both at once.
   var ARROW_MS = 200;
+  // A stage's own figure writes on faster than a connector draws: it is
+  // a few strokes of the same hand, not a run between two cards.
+  var FIGURE_MS = 420;
 
-  var ACCENT = '#22d3ee';
+  // No accent literal here — every stroke in the layer takes its colour
+  // from journey.css, which is the only place a hex is written.
   var N = STAGES.length;
 
   var videoHost = document.getElementById('jrVideo');
@@ -101,6 +106,11 @@
       num.textContent = (step.index < 10 ? '0' + step.index : step.index) + ' / 07';
       card.appendChild(num);
 
+      // The stage's own line drawing, above the number. First in the
+      // card because it is the first thing read: what this stop IS,
+      // before what it is called.
+      card.insertBefore(buildFigure(step), num);
+
       var title = document.createElement('h2');
       title.className = 'jr-card-title';
       title.textContent = step.title;
@@ -117,10 +127,12 @@
   }
 
   /* ── Connectors ─────────────────────────────────────────────────
-     One Rough.js group per pair, from the bottom-right of card N to
-     the top-left of card N+1. The seed is 42 + the connector index, so
-     the sketch is the same shape every load: a line that redraws itself
-     differently each visit reads as a glitch, not a flourish.
+     One group per pair, from the bottom-right of card N to the
+     top-left of card N+1, drawn as a single clean stroke that the
+     journey then walks. This replaced a Rough.js sketch of the same
+     run: the sketch wobbled, which suited a hand-drawn deck and did
+     not suit a diagram sitting on live footage. One weight, one
+     curve, and the weight is the stylesheet's.
 
      Coordinates come from the laid-out cards, so they are cached and
      recomputed only when the cards move. */
@@ -133,11 +145,36 @@
       : { x: b.left, y: b.top };
   }
 
+  function svgEl(name, className) {
+    var el = document.createElementNS(NS, name);
+    if (className) el.setAttribute('class', className);
+    return el;
+  }
+
+  function pathEl(className, d) {
+    var p = svgEl('path', className);
+    p.setAttribute('d', d);
+    return p;
+  }
+
   function group(className) {
-    var g = document.createElementNS(NS, 'g');
-    g.setAttribute('class', className);
+    var g = svgEl('g', className);
     linesHost.appendChild(g);
     return g;
+  }
+
+  /* The stage's own drawing, into the card. Line art rather than an
+     icon set: the figures share one weight and one square so seven of
+     them read as a set, and each writes itself on when its card lights
+     (see playFigure). */
+  function buildFigure(step) {
+    var fig = svgEl('svg', 'jr-figure');
+    fig.setAttribute('viewBox', '0 0 100 100');
+    fig.setAttribute('aria-hidden', 'true');
+    for (var i = 0; i < step.figure.length; i++) {
+      fig.appendChild(pathEl('jr-figure-path', step.figure[i]));
+    }
+    return fig;
   }
 
   function drawConnector(i) {
@@ -148,31 +185,34 @@
     var to = corner(b, 'tl');
 
     var line = group('jr-line');
-    var rc = rough.svg(line);
-    // rough.svg() returns the <g> it built rather than appending it, so
-    // the returned node is adopted here. Ignoring the return value is
-    // how six empty groups end up on the page with no lines in them.
-    line.appendChild(rc.line(from.x, from.y, to.x, to.y, {
-      stroke: ACCENT, strokeWidth: 2, roughness: 1.5, bowing: 1.2, seed: 42 + i,
-    }));
 
-    // The arrowhead is two short Rough strokes at the end point, so it
-    // carries the same hand as the line instead of sitting on top of it.
-    // It lives INSIDE the connector's group, because it is that
-    // connector's arrow — which is what lets one class fade it in when
-    // the line has finished drawing.
+    /* One cubic, flat where it leaves and where it arrives, so it reads
+       as leaving one card and arriving at the next rather than as a
+       curve drawn between two arbitrary points. The handles are a
+       third of the horizontal run each way, with a floor: a card pair
+       stacked vertically has almost no run to spend, and without the
+       floor the curve collapses to a straight line and stops bending
+       at all. */
+    var k = Math.max(24, Math.abs(to.x - from.x) / 3);
+    line.appendChild(pathEl('jr-signal',
+      'M' + from.x + ' ' + from.y +
+      ' C' + (from.x + k) + ' ' + from.y + ', ' +
+      (to.x - k) + ' ' + to.y + ', ' +
+      to.x + ' ' + to.y));
+
+    // The arrowhead is two short strokes off the end point, inside the
+    // connector's own group, so one class can fade it in when the line
+    // has finished drawing rather than with it.
     var ang = Math.atan2(to.y - from.y, to.x - from.x);
     var head = 12;
     var spread = 0.44;
-    var arrow = document.createElementNS(NS, 'g');
-    arrow.setAttribute('class', 'jr-arrow');
+    var arrow = svgEl('g', 'jr-arrow');
     line.appendChild(arrow);
-    var ra = rough.svg(arrow);
     for (var s = -1; s <= 1; s += 2) {
-      arrow.appendChild(ra.line(to.x, to.y,
-        to.x - head * Math.cos(ang + s * spread),
-        to.y - head * Math.sin(ang + s * spread),
-        { stroke: ACCENT, strokeWidth: 2, roughness: 1.2, bowing: 1, seed: 42 + i }));
+      arrow.appendChild(pathEl('jr-head',
+        'M' + to.x + ' ' + to.y +
+        ' L' + (to.x - head * Math.cos(ang + s * spread)) + ' ' +
+        (to.y - head * Math.sin(ang + s * spread))));
     }
 
     return line;
@@ -211,10 +251,9 @@
   }
 
   /* The draw-in: each path is measured once and walked in from its own
-     length. Rough emits two or three passes per stroke; they reveal
-     together, which is what keeps it reading as one line being drawn.
-     The arrow's own strokes are skipped — it fades in when the line has
-     finished, not with it. */
+     length, so the whole line writes on as one stroke. The arrow's own
+     strokes are skipped — it fades in when the line has finished, not
+     with it. */
   function playDraw(lineGroup) {
     if (!lineGroup) return;
     // The line becomes visible as it starts drawing, and stays: the
@@ -235,7 +274,50 @@
       el.style.transition = 'stroke-dashoffset ' + DRAW_MS + 'ms cubic-bezier(0.16, 1, 0.3, 1)';
       el.style.strokeDashoffset = '0';
     }
-    setTimeout(function () { lineGroup.classList.add('is-drawn'); }, DRAW_MS + ARROW_MS);
+    setTimeout(function () {
+      lineGroup.classList.add('is-drawn');
+      /* The write-on parks the dash at the path's full length. The
+         pulse needs a dash pattern back, so the inline values are
+         dropped and the stylesheet's travelling dash takes over. The
+         transition goes with them: a pulse that eased in from the
+         write-on's dashoffset would jump. */
+      var sig = lineGroup.querySelector('.jr-signal');
+      if (sig) {
+        sig.style.strokeDasharray = '';
+        sig.style.strokeDashoffset = '';
+        sig.style.transition = '';
+      }
+    }, DRAW_MS + ARROW_MS);
+  }
+
+  /* The same write-on, for the stage's own figure. It sits in the card
+     rather than the line layer, so it is visible on a phone where the
+     connectors are not — and on a phone it is the only line work the
+     landing has. */
+  function playFigure(card) {
+    if (!card) return;
+    var fig = card.querySelector('.jr-figure');
+    if (!fig) return;
+    var paths = fig.querySelectorAll('path');
+    for (var i = 0; i < paths.length; i++) {
+      var el = paths[i];
+      var len = typeof el.getTotalLength === 'function' ? el.getTotalLength() : 0;
+      // A browser without getTotalLength gets the finished drawing
+      // rather than a figure stuck at dash offset — a still image beats
+      // an invisible one.
+      if (!len) continue;
+      if (reduce) {
+        el.style.strokeDasharray = '';
+        el.style.strokeDashoffset = '';
+        continue;
+      }
+      el.style.transition = 'none';
+      el.style.strokeDasharray = len + ' ' + len;
+      el.style.strokeDashoffset = String(len);
+      void el.getBoundingClientRect();
+      el.style.transition = 'stroke-dashoffset ' + FIGURE_MS + 'ms cubic-bezier(0.16, 1, 0.3, 1)';
+      el.style.strokeDashoffset = '0';
+    }
   }
 
   /* ── State machine ──────────────────────────────────────────────
@@ -271,6 +353,12 @@
     // container would reorder the document and put the stages out of
     // reading order for anyone stepping through with a screen reader.
     incoming.style.zIndex = '2';
+
+    // The stage's own figure writes itself on with the card, on every
+    // arrival — walked or merely followed by the footage. It draws the
+    // stage, not the path between two stages, so it is not gated on
+    // `draw` the way a connector is.
+    playFigure(incoming);
 
     if (reduce) {
       if (outgoing) { outgoing.classList.remove('is-held'); outgoing.classList.add('is-out'); }

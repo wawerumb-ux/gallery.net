@@ -269,16 +269,51 @@ body.jr {
   border: 0;
 }
 
-/* ── The drawn lines ───────────────────────────────────────────────
-   A connector is invisible until the journey walks it, so the opening
-   state is the video alone — one card, nothing scribbled over it. The
-   draw-in is a dash offset on every path inside the group, so the whole
-   sketch writes on together. */
+/* ── The line work ────────────────────────────────────────────────
+   Stroke-based, and deliberately thin: one weight, round caps, no
+   fills. A connector is invisible until the journey walks it, so the
+   opening state is the video alone — one card, one figure, nothing
+   drawn between them. The write-on is a dash offset on the path, and
+   once it lands the dash pattern itself travels: the line stops being
+   a stroke and becomes the request moving along it. */
 .jr-lines path { fill: none; }
 .jr-lines .jr-line { opacity: 0; }
 .jr-lines .jr-line.is-on { opacity: 1; }
+.jr-lines .jr-line path {
+  stroke: var(--jr-accent);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.jr-lines .jr-line.is-drawn .jr-signal {
+  stroke-dasharray: 9 15;
+  animation: jr-signal-dash 1.2s linear infinite;
+}
+@keyframes jr-signal-dash {
+  /* One full dash period (24) per step, so the loop has no seam. */
+  to { stroke-dashoffset: -24; }
+}
 .jr-lines .jr-arrow { opacity: 0; transition: opacity 200ms var(--jr-ease); }
 .jr-lines .is-drawn .jr-arrow { opacity: 1; }
+
+/* The stage's own drawing. It sits in the card rather than the line
+   layer, so it survives the phone breakpoint where the connectors are
+   dropped — on a phone this is the only line work on the page. Sized
+   in CSS because the runtime's stroke width is in the viewBox's own
+   units, not screen pixels. */
+.jr-figure {
+  width: 60px;
+  height: 60px;
+  margin: 0 0 14px;
+  overflow: visible;
+}
+.jr-card .jr-figure path {
+  fill: none;
+  stroke: var(--jr-accent);
+  stroke-width: 4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
 
 /* ── Reduced motion: the stages still change, nothing moves ────────
    The cards switch instantly and no line animates, but the video keeps
@@ -290,6 +325,10 @@ body.jr {
     transition: none !important;
   }
   .jr-lines .jr-arrow { transition: none !important; }
+  /* The line arrives already drawn and stays a plain stroke — a dash
+     travelling down it is motion for its own sake. */
+  .jr-lines .jr-line.is-drawn .jr-signal { animation: none !important; stroke-dasharray: none !important; }
+  .jr-card .jr-figure path { transition: none !important; }
   .jr-video { transform: none !important; will-change: auto; }
 }
 

@@ -12,9 +12,9 @@
         the gallery's gate (app.js, shouldRequireWalkthrough) stop
         sending visitors back here
 
-   The journey itself — the cards, the Rough.js connectors, the
-   three-depth parallax — is journey.js, reading STAGES. It owns the
-   landing end to end; this file only surrounds it.
+   The journey itself — the cards, the line work, the three-depth
+   parallax — is journey.js, reading STAGES. It owns the landing end to
+   end; this file only surrounds it.
    ──────────────────────────────────────────────────────────────────── */
 (function () {
   'use strict';

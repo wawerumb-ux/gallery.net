@@ -37,11 +37,12 @@
          autoplay muted loop playsinline preload="metadata"></video>
   <div class="jr-scrim"></div>
 </div>
-<!-- Depth plane 3 of 3 — the most responsive. Rough.js appends into this
-     element, one group per connector. -->
+<!-- Depth plane 3 of 3 — the most responsive. journey.js appends into
+     this element, one group per connector. -->
 <svg class="jr-lines" id="jrLines" aria-hidden="true" focusable="false"></svg>
-<!-- Depth plane 2 of 3. Seven cards, one lit; journey.js builds them
-     from stages.js so a stage is one object, not a page of markup. -->
+<!-- Depth plane 2 of 3. Seven cards, one lit, each carrying its own line
+     figure; journey.js builds them from stages.js so a stage is one
+     object, not a page of markup. -->
 <!-- The bottom group. Desktop dissolves it (display: contents) and each
      child takes its own corner; a phone keeps it as one fixed column, so
      the card, the two ways on and replay stack in flow and cannot
@@ -72,7 +73,6 @@
   </section>
 </main>
 
-<script src="./rough.js"></script>
 <script src="./walkthrough.js"></script>
 <script src="./stages.js"></script>
 <script src="./journey.js"></script>
