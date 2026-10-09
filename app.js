@@ -442,6 +442,10 @@ function shouldRequireWalkthrough(search) {
    and the album badges stay dark because the surface under them is an
    image, not the page.
 
+   Each canvas is derived from a real Color Hunt palette; the chip and
+   chrome values below are the same colours the stylesheet ramps down to,
+   so the swatch in the picker and the page it sets agree.
+
    The choice lives on <html data-theme>, which is how style.css
    re-points the whole token set. Storage that throws (private mode,
    blocked cookies) must not break the archive, so reads and writes
@@ -450,20 +454,20 @@ function shouldRequireWalkthrough(search) {
 const COMFORT_KEY = 'gallery.comfort';
 const COMFORT_THEMES = [
   { id: 'oled',     label: 'Pure black', hint: 'OLED dark',     chip: '#000000', chrome: '#000000' },
-  { id: 'graphite', label: 'Graphite',   hint: 'Soft neutral',  chip: '#26262b', chrome: '#131316' },
-  { id: 'slate',    label: 'Slate',      hint: 'Cool neutral',  chip: '#2a3036', chrome: '#111316' },
-  { id: 'dusk',     label: 'Dusk blue',  hint: 'Dimmed, cool',  chip: '#1d2530', chrome: '#0d1218' },
-  { id: 'teal',     label: 'Teal',       hint: 'Deep cyan',     chip: '#152a2e', chrome: '#08181a' },
-  { id: 'plum',     label: 'Plum',       hint: 'Soft violet',   chip: '#271d31', chrome: '#150f1c' },
-  { id: 'sage',     label: 'Sage',       hint: 'Green cast',    chip: '#1d2823', chrome: '#0e1512' },
-  { id: 'olive',    label: 'Olive',      hint: 'Muted earth',   chip: '#24281c', chrome: '#14160f' },
-  { id: 'clay',     label: 'Clay',       hint: 'Warm red',      chip: '#2f1e19', chrome: '#1b100d' },
-  { id: 'sepia',    label: 'Sepia',      hint: 'Warm reading',  chip: '#2d251c', chrome: '#1a1510' },
-  { id: 'amber',    label: 'Amber',      hint: 'No blue light', chip: '#332716', chrome: '#150f06' },
-  { id: 'paper',    label: 'Paper',      hint: 'Bright neutral', chip: '#f4f4f5', chrome: '#f4f4f5' },
-  { id: 'linen',    label: 'Linen',      hint: 'Warm light',    chip: '#f6f1e7', chrome: '#f6f1e7' },
-  { id: 'mist',     label: 'Mist',       hint: 'Cool light',    chip: '#eef2f6', chrome: '#eef2f6' },
-  { id: 'bone',     label: 'Bone',       hint: 'Low glare',     chip: '#efe9e2', chrome: '#efe9e2' },
+  { id: 'graphite', label: 'Graphite',   hint: 'Soft neutral',  chip: '#292929', chrome: '#101010' },
+  { id: 'slate',    label: 'Slate',      hint: 'Cool neutral',  chip: '#0f1c28', chrome: '#01050c' },
+  { id: 'dusk',     label: 'Dusk blue',  hint: 'Dimmed, cool',  chip: '#1b2130', chrome: '#060a13' },
+  { id: 'teal',     label: 'Teal',       hint: 'Deep cyan',     chip: '#1c3434', chrome: '#091919' },
+  { id: 'plum',     label: 'Plum',       hint: 'Soft violet',   chip: '#372835', chrome: '#1b111a' },
+  { id: 'sage',     label: 'Sage',       hint: 'Green cast',    chip: '#17261a', chrome: '#040d06' },
+  { id: 'olive',    label: 'Olive',      hint: 'Muted earth',   chip: '#1b1c0b', chrome: '#050600' },
+  { id: 'clay',     label: 'Clay',       hint: 'Warm red',      chip: '#2e1d17', chrome: '#120704' },
+  { id: 'sepia',    label: 'Sepia',      hint: 'Warm reading',  chip: '#392d1e', chrome: '#1d140b' },
+  { id: 'amber',    label: 'Amber',      hint: 'No blue light', chip: '#2f2515', chrome: '#140d04' },
+  { id: 'paper',    label: 'Paper',      hint: 'Bright neutral', chip: '#dfdfdf', chrome: '#f3f3f3' },
+  { id: 'linen',    label: 'Linen',      hint: 'Warm light',    chip: '#e7ded1', chrome: '#eee9df' },
+  { id: 'mist',     label: 'Mist',       hint: 'Cool light',    chip: '#d6e1ed', chrome: '#e3eaf3' },
+  { id: 'bone',     label: 'Bone',       hint: 'Low glare',     chip: '#eaddd3', chrome: '#fffaf3' },
 ];
 const COMFORT_DEFAULT = 'oled';
 const COMFORT_BY_ID = new Map(COMFORT_THEMES.map(t => [t.id, t]));

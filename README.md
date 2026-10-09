@@ -33,6 +33,19 @@ stays dark in every theme, because there the surface under it is an image
 rather than the page. The choice is stored under `gallery.comfort` and read
 back into `<html data-theme>`.
 
+Every canvas is derived from a real **Color Hunt** palette, and the source
+code is written above each block in `style.css` so the choice can be
+re-checked. 2,292 palettes were pulled from Color Hunt's feed across
+twenty-three tags and scored on three axes — the chroma-weighted mean hue
+against the theme's own hue, how well the family's chromatic members agree
+with each other, and peak chroma against the restraint eye comfort needs.
+The winner supplies the hue and how much colour the family is allowed; a
+per-role OKLCh ramp supplies the luminance. Raw palette swatches are never
+used as-is — they are far too bright and saturated for an eye-comfort
+canvas. Canvas luminance is then solved against the themes already placed,
+because the picker shows them side by side and two that render alike are one
+theme too many.
+
 **The landing is the request journey.** It plays `video/` full-bleed behind
 seven cards, one per stage of a web request's trip — CLIENT → CAT6A → PATCH
 PANEL → SWITCH → CEILING TRAY → DATA CENTER → CONNECTED — each with a plain
