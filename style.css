@@ -1671,12 +1671,6 @@ select.text-input option { background: var(--surface-3); color: var(--text); }
 .comfort-swatch.is-active .comfort-chip { box-shadow: inset 0 0 0 1px var(--hairline-strong), 0 0 0 3px var(--accent-dim); }
 .comfort-label { font-size: 11px; font-weight: 500; letter-spacing: 0.01em; }
 .comfort-hint { font-size: 9.5px; color: var(--text-faint); margin-top: -4px; }
-.comfort-note {
-  padding: 10px 20px 0;
-  font-size: 11.5px;
-  line-height: 1.45;
-  color: var(--text-faint);
-}
 
 /* ── Orientation-aware layout ───────────────────────────────────────
    Desktop (fine pointer — mouse/trackpad) always gets the landscape
