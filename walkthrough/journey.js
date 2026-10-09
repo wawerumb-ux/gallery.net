@@ -6,8 +6,10 @@
    machine a click walks forward through.
 
    It runs on the landing only, and it is a sibling of walkthrough.js
-   rather than part of it: that runtime still owns every step page, the
-   first-visit gate and the link handling, all of which the landing keeps.
+   rather than part of it: that runtime owns the ambient layer, the
+   first-visit gate and the link handling, all of which the landing
+   keeps. Reaching the last card announces itself — one event, so the
+   sibling runtime can record the visit without reaching in here.
 
    The video is the content, so it is the one thing here that is never
    conditional. The state machine owns which card is lit; the
@@ -303,6 +305,16 @@
     if (next === prev) return;
     busy = true;
     state = next;
+    // Every path that moves the journey — click, arrow, wheel, the
+    // footage free-running — lands here, so this is the one place that
+    // knows the journey has been walked through: the last card lit.
+    // Announced rather than recorded, because the first-visit record
+    // belongs to the sibling runtime, not to the journey.
+    if (next === N - 1) {
+      try {
+        document.dispatchEvent(new CustomEvent('walkthrough:journey-end'));
+      } catch (e) {}
+    }
     swap(prev, next, cards[next], opts);
     // The outgoing card's cleanup timer inside swap() releases busy.
   }

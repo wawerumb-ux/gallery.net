@@ -14,14 +14,10 @@ just this repo.
 
 ## The walkthrough
 
-`/walkthrough/` is a guided, seven-step tour of the build — site survey to
-final reveal — with real URLs (`/walkthrough/cabling/` etc., one static page
-per step, so deep links are shareable). Visitors reach it from the ⋮ menu →
-**Project walkthrough**. Step content lives in `walkthrough/steps.js` (slug,
-label, title, one-sentence copy, hero + gallery photos pointing at the existing
-`images/` assets); the runtime (`walkthrough/walkthrough.js`) renders each
-page from that array, so adding a step means adding one object plus one static
-folder — the progress ramp, the rail and navigation recompute themselves.
+`/walkthrough/` is the site's front door: the gallery sends a first-time
+visitor there and the page's only job is to tell them what this is and
+offer the way in. Visitors reach it from the ⋮ menu → **Project walkthrough**
+and from the archive button in the app bar.
 
 **The landing is the request journey.** It plays `video/` full-bleed behind
 seven cards, one per stage of a web request's trip — CLIENT → CAT6A → PATCH
@@ -36,58 +32,19 @@ The stages live in `walkthrough/stages.js`, and each one's card position is
 *measured*: its frame was sampled into a 4×3 grid and scored `lum + 2 × cyan`,
 so a card sits in the darkest cell holding least of the footage's own cyan
 light. `cell` records which, so the choice is auditable rather than eyeballed.
-The journey runtime (`walkthrough/journey.js`) is a sibling of `walkthrough.js`
-rather than part of it: the deck's transitions and the journey's cards are
-different concerns, and this way a step page loads one runtime and not the
-other.
+The journey runtime (`walkthrough/journey.js`) is a sibling of
+`walkthrough.js` rather than part of it: the cards, connectors and parallax
+belong to the journey, while `walkthrough.js` keeps the ambient node-and-link
+field, the way into the archive and the first-visit record the gallery's gate
+reads (`walkthrough.seen` — `completed` when the journey reaches its last card,
+`skipped` when the visitor takes the exit link, which is offered for exactly
+that reason so the gate can never trap anyone).
 
-Earlier landings led with a generative tree — a vendored ThreeUI canvas, the
-project's one React island, and the only build step the site ever had. Both it
-and the build are gone; nothing on the site is a module any more.
-
-**The deck.** It is built to read like a presentation: a 16:9 slide floating
-on a lit backdrop, a numbered thumbnail rail doubling as the progress
-indicator, and the copy in a panel beside it — rail | slide | panel on a
-desktop, stacked with dots on touch. This is PowerPoint for the Web and
-Microsoft's Fluent 2 elevation model: each surface carries a sharp **key**
-shadow that defines its edge plus a soft **ambient** shadow that implies
-distance, light from above, low-opacity because the deck is dark, over a
-backdrop of two accent light sources and a vignette. The backdrop is a deep
-near-black rather than the gallery's pure `#000`, so the deck sits *in* a
-space; the existing deterministic node-and-link field still floats over it and
-recedes with progress. Colour, radii (Fluent's 4/8/12), type and motion all
-still resolve to the site's own tokens and the One UI `D` scale — the deck
-invents no palette, no curve and no duration.
-
-**The walk is a colour journey.** Each step declares an `accent` hue in
-`steps.js`, and the runtime writes it to `--wt-h`; the backdrop wash and the
-mono eyebrow both derive from that one value, so survey is cool slate, pulling
-warms to amber and the reveal lands warm gold. The call to action deliberately
-does *not* take the hue — it stays the gallery's One UI blue, so the walkthrough
-never stops feeling like part of the same site.
-
-Slides move the way PowerPoint's transition gallery does. Each step declares
-the transition that *arrives* at it (`transition` in `steps.js`), matched to
-what the step is about — `wipe-up` for the plan sheet unrolling, `push-left`
-for routes laid forward, `wipe-down` for bundles pulled down, `zoom-in` for
-arrival on one panel, `fade` for the verification beat, `zoom-out` to pull
-back for the whole build, and `morph` for the same rack in a new shot. Because
-every step is its own document, the transition is split either side of the
-page load: the outgoing page records the destination's kind in `sessionStorage`
-and plays the mirror of it, the incoming page reads it back and plays the
-arrival, so the move reads as one continuous transition rather than a cut.
-Stepping backwards through the dots mirrors a push, like a deck does. Every
-kind moves only `transform`, `opacity` and `clip-path` over the same three
-D-derived durations and the one easing; reduced motion drops all of it and the
-step is simply there. `walkthrough/walkthrough.test.mjs` drives the real
-runtime in a `node:vm` sandbox and asserts the arrival order, the
-sessionStorage hand-off, the backwards push and the CSS contract — the suite
-exists because the transitions first shipped with every arrival dead. It also
-audits the deck itself: that the grid really resolves to rail | slide | panel,
-that the slide keeps its 16:9 and the landing cannot overflow, and that every
-local asset each static page references resolves to a real file — a wrong
-`../` silently 404'd `oneui.js` and `download-button.js`, so the per-step
-download control had never rendered at all.
+The landing was not always the journey. Under it sat a seven-step slide deck
+with real URLs, a numbered thumbnail rail and mirrored transitions — PowerPoint
+for the Web. That layer is gone, along with the generative tree before it (a
+vendored ThreeUI canvas, the project's one React island, and the only build
+step the site ever had). Nothing on the site is a module any more.
 
 ## The guided tour
 
@@ -246,6 +203,7 @@ click "Sign out" when you're done to clear it early.
   faster loads for very large batches, the next step up would be generating
   thumbnails at upload time — not included here to keep this simple.
 - No frameworks, no build step, no dependencies — static files. Fork away.
-- Tests: `node --test` runs all four suites (gallery logic, guided tour,
-  walkthrough deck, and the landing journey). Pass a glob or path to run one:
-  `node --test "tour/*.test.mjs"`. `npm test` runs all of them.
+- Tests: `node --test` runs both suites (gallery logic and the guided tour).
+  Pass a glob or path to run one: `node --test "tour/*.test.mjs"`. `npm test`
+  runs both. The landing journey has no suite of its own — the one that used
+  to cover it went with the slide deck beneath it.

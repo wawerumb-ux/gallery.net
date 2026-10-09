@@ -18,11 +18,12 @@
 <link rel="stylesheet" href="./journey.css">
 </head>
 <!-- The landing IS the walkthrough now: the request journey, played over
-     the footage, with seven cards naming each stop. The generative tree
-     that used to stand here is gone, along with the React island and the
-     Vite build that fed it — nothing on this page is a module any more.
-     The deck itself is unchanged: the seven step pages below are still
-     the photographic arc, reached from the control bar. -->
+     the footage, with seven cards naming each stop. The slide deck that
+     used to sit under this page is gone — no step pages, no rail, no
+     transitions — along with the generative tree before it, the React
+     island and the Vite build that fed it. Nothing on this page is a
+     module any more: walkthrough.js builds the ambient field and the
+     way in, journey.js plays the journey, and the video is the content. -->
 <body class="wt" data-depth="1" data-journey>
 <div class="wt-ambient" id="wtAmbient" aria-hidden="true"></div>
 <!-- Depth plane 1 of 3 — the least responsive to the pointer. The scrim
@@ -60,8 +61,9 @@
     <!-- The journey cards carry the copy, so the title block is retired
          rather than duplicated. The panel survives as the control bar:
          the gate sends first-time visitors here, so the landing must
-         still offer the way into the deck AND the quiet exit to the
-         archive, or it becomes a trap (see walkthrough.js markSeen). -->
+         still offer the way into the archive, or it becomes a trap (see
+         walkthrough.js markSeen). The counter, title, copy and dots went
+         with the deck that used to fill them. -->
     <span class="wt-counter" id="wtCounter" hidden></span>
     <h1 class="wt-title" id="wtTitle" hidden></h1>
     <p class="wt-copy" id="wtCopy" hidden></p>
@@ -70,7 +72,6 @@
   </section>
 </main>
 
-<script src="./steps.js"></script>
 <script src="./rough.js"></script>
 <script src="./walkthrough.js"></script>
 <script src="./stages.js"></script>

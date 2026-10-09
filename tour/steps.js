@@ -2,8 +2,9 @@
    tour/steps.js — the guided-tour step schema and the authored tour.
 
    The tour is a SEPARATE experience from the passive walkthrough
-   (walkthrough/steps.js, which this file deliberately does not
-   touch). Every step is action-gated: the next step does not exist
+   (the request journey in /walkthrough/, which this file
+   deliberately does not touch). Every step is action-gated: the next
+   step does not exist
    in the DOM until the current step's real action succeeds. There
    is no Continue button anywhere — the action is the only way
    forward, with muted escape hatches as the never-primary fallback.
