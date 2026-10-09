@@ -415,6 +415,53 @@ async function githubFetch(url, options = {}) {
    anything is a worse bug than a gate that opens once too often. */
 const WALKTHROUGH_SEEN_KEY = 'walkthrough.seen';
 
+/* ── Welcome back ─────────────────────────────────────────────────
+   The walkthrough records 'completed' when the journey reaches its
+   last card and 'skipped' when the visitor takes the exit link. Only a
+   completion earns this panel — someone who skipped the journey has not
+   seen the thing the panel is congratulating them on, and showing it
+   anyway would make the archive feel like it is talking to a stranger.
+
+   It shows once. Dismissal is remembered under its own key rather than
+   by rewriting walkthrough.seen, because that record is the gate's and
+   is read as 'did they finish it', not as 'what have they been shown'. */
+const WELCOME_KEY = 'gallery.welcome.dismissed';
+
+function walkthroughCompleted() {
+  try { return localStorage.getItem(WALKTHROUGH_SEEN_KEY) === 'completed'; }
+  catch (_) { return false; }            // cannot know — stay quiet
+}
+function welcomeDismissed() {
+  try { return localStorage.getItem(WELCOME_KEY) === '1'; }
+  catch (_) { return true; }             // cannot remember — do not pester
+}
+function closeWelcome() {
+  const panel = el('welcomePanel');
+  if (panel) panel.hidden = true;
+  try { localStorage.setItem(WELCOME_KEY, '1'); } catch (_) {}
+}
+function maybeShowWelcome() {
+  const panel = el('welcomePanel');
+  if (!panel || !walkthroughCompleted() || welcomeDismissed()) return;
+  const total = Object.values(state.folders || {}).reduce((a, f) => a + f.length, 0);
+  const count = el('welcomeCount');
+  if (count) {
+    count.textContent = total
+      ? `${total.toLocaleString()} photo${total === 1 ? '' : 's'}`
+      : 'every photo';
+  }
+  panel.hidden = false;
+}
+function wireWelcome() {
+  const panel = el('welcomePanel');
+  const card = el('welcomeCard');
+  if (!panel || !card) return;
+  // Click turns the card. It is a button, so Enter and Space do the same
+  // thing without any key handling of our own.
+  card.addEventListener('click', () => card.classList.toggle('is-flipped'));
+  el('welcomeDismiss').addEventListener('click', closeWelcome);
+}
+
 function shouldRequireWalkthrough(search) {
   const query = search !== undefined ? search
     : (typeof location !== 'undefined' ? location.search : '');
@@ -564,6 +611,7 @@ async function init() {
   updateAdminUI();
   wireStaticEvents();
   syncAppbar();
+  wireWelcome();
 
   // Add unload handler to cancel requests
   window.addEventListener('beforeunload', cancelRequests);
@@ -583,6 +631,10 @@ async function init() {
   await loadMetadata(false);
   loadProg.set(10);
   await loadTree(state.adminMode);
+  // After the tree, not before: the panel counts the photos, and a
+  // gallery with nothing loaded yet would greet the visitor with "every
+  // photo" and then correct itself.
+  maybeShowWelcome();
 }
 
 /* ── Reading the repo ─────────────────────────────────────────── */

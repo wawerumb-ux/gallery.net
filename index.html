@@ -75,6 +75,30 @@
       <p>No photos yet.</p>
       <p class="empty-sub">Add photos under <code id="emptyPath">images/</code> in the repo, grouped into one folder per phase.</p>
     </div>
+    <!-- Welcome back: only for someone whose walkthrough ran to its last
+         card. Hover slides it open, click turns the card over. -->
+    <div class="welcome" id="welcomePanel" hidden>
+      <button class="welcome-card" id="welcomeCard" type="button"
+              aria-label="You finished the project walkthrough. Activate to turn this card over.">
+        <span class="welcome-faces">
+          <span class="welcome-face welcome-front">
+            <span class="welcome-kicker">Walkthrough complete</span>
+            <span class="welcome-title">You reached the last card</span>
+            <span class="welcome-sub">CLIENT → DATA CENTER → CONNECTED. The archive is
+              yours now — <span id="welcomeCount">every photo</span> is one tap away.</span>
+            <span class="welcome-cue">Click to turn over</span>
+          </span>
+          <span class="welcome-face welcome-back" aria-hidden="true">
+            <span class="welcome-kicker">Start here</span>
+            <span class="welcome-title">Pictures, day by day</span>
+            <span class="welcome-sub">The wall is the whole install in order. Albums below
+              it hold one cover per phase.</span>
+            <span class="welcome-cue">Click to turn back</span>
+          </span>
+        </span>
+      </button>
+      <button class="welcome-dismiss" id="welcomeDismiss" type="button" aria-label="Dismiss">×</button>
+    </div>
     <div id="gallery">
       <section id="picturesView" aria-label="Pictures"></section>
       <section id="albumsView" aria-label="Albums" hidden></section>

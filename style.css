@@ -354,6 +354,108 @@ body.is-selecting .tabbar, body.is-selecting .fab { transform: translateY(110%);
   padding: 72px 32px;
   font-size: 14px;
 }
+
+/* ── Welcome back ────────────────────────────────────────────────
+   Shown once, to someone whose walkthrough reached its last card. It
+   sits centred over the wall and gets out of the way on the first
+   hover: the panel slides up from a resting strip, and the card turns
+   over on click. Both are transform-only — no layout, no paint, no
+   JavaScript per frame — which is the same discipline the photo viewer
+   slides on. Backface-visibility is what turns the card; without it
+   both faces would show at once. */
+.welcome {
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--tabbar-h) + 18px + env(safe-area-inset-bottom, 0px));
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: min(92vw, calc(var(--col) - 32px));
+  transform: translate(-50%, 0);
+  pointer-events: none;
+}
+.welcome-card {
+  /* Collapsed to a strip: the card only exists on hover, so it must not
+     sit over the wall eating taps the rest of the time. */
+  width: 100%;
+  max-height: 0;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  opacity: 0;
+  transform: translateY(14px);
+  pointer-events: auto;
+  perspective: 1000px;
+  transition: max-height var(--duration-normal) var(--ease-out),
+              transform var(--duration-normal) var(--ease-out),
+              opacity var(--duration-normal) var(--ease-out);
+}
+.welcome:hover .welcome-card,
+.welcome:focus-within .welcome-card {
+  max-height: 320px;
+  transform: none;
+  opacity: 1;
+}
+.welcome-dismiss {
+  flex: none;
+  pointer-events: auto;
+  height: 26px;
+  padding: 0 14px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-2);
+  border: 1px solid var(--hairline);
+  color: var(--text-dim);
+  font-size: 11.5px;
+  cursor: pointer;
+  transition: background var(--duration-fast) ease, color var(--duration-fast) ease;
+}
+.welcome-dismiss:hover { background: var(--plate); color: var(--text); }
+
+.welcome-faces {
+  position: relative;
+  display: block;
+  width: 100%;
+  min-height: 0;
+  transform-style: preserve-3d;
+  transition: transform 420ms var(--ease-spring);
+}
+.welcome-card.is-flipped .welcome-faces { transform: rotateY(180deg); }
+.welcome-face {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px 18px;
+  border-radius: var(--radius-cover);
+  background: var(--surface-2);
+  border: 1px solid var(--hairline);
+  backface-visibility: hidden;          /* the turn, and only the turn */
+  box-shadow: 0 12px 32px var(--shadow-soft);
+}
+.welcome-back { position: absolute; inset: 0; transform: rotateY(180deg); }
+.welcome-kicker {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--accent-text);
+}
+.welcome-title { font-size: 17px; font-weight: 600; letter-spacing: -0.01em; }
+.welcome-sub { font-size: 13px; line-height: 1.5; color: var(--text-dim); }
+.welcome-cue { margin-top: 4px; font-size: 11px; color: var(--text-faint); }
+
+/* The add-photo FAB is admin-only and sits on this same line, so lift the
+   panel clear of it when both are on screen. :has() keeps that in CSS —
+   the alternative is a body class toggled from the same place that shows
+   the FAB, which is a second thing to keep in sync for one offset. */
+.app:has(.fab:not([hidden])) .welcome {
+  bottom: calc(var(--tabbar-h) + 90px + env(safe-area-inset-bottom, 0px));
+}
 .empty svg { margin: 0 auto 14px; color: var(--text-faint); }
 .empty p { margin: 6px 0; }
 .empty-sub { color: var(--text-faint); font-size: 12.5px; }
@@ -1406,6 +1508,7 @@ select.text-input option { background: var(--surface-3); color: var(--text); }
 /* ── Reduced motion ──────────────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
   .card, .album-cover, .fab, .tab, .tab-ic, .appbar-hero, .appbar-mini,
+  .welcome-card, .welcome-faces,
   .viewer, .viewer-top, .viewer-bottom, .viewer-nav, .viewer-img, .viewer-slide,
   .sheet, .sheet-overlay, .modal, .toast, .selectbar, .tabbar,
   .card img, .card-pick, .appbar-icon, .viewer-icon, .viewer-action, .btn,
