@@ -15,6 +15,8 @@
   --surface-3: #26262b;      /* dialogs, toast */
   --hairline: rgba(255, 255, 255, 0.08);
   --hairline-strong: rgba(255, 255, 255, 0.14);
+  --chrome-bg: rgba(12, 12, 14, 0.94);  /* blurred tab bar plate */
+  --bg-image: none;          /* optional canvas wash set by an eye-comfort theme */
 
   /* Type */
   --text: #f5f5f7;
@@ -56,6 +58,7 @@ html {
 body {
   margin: 0;
   background: var(--bg);
+  background-image: var(--bg-image);
   color: var(--text);
   font-family: var(--font-sans);
   font-size: 14px;
@@ -82,6 +85,8 @@ code {
   min-height: 100dvh;
   margin: 0 auto;
   background: var(--bg);
+  background-image: var(--bg-image);
+  background-attachment: fixed;
   display: flex;
   flex-direction: column;
 }
@@ -533,7 +538,7 @@ body.is-selecting .tabbar, body.is-selecting .fab { transform: translateY(110%);
   align-items: stretch;
   height: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px));
   padding-bottom: env(safe-area-inset-bottom, 0px);
-  background: rgba(12, 12, 14, 0.94);
+  background: var(--chrome-bg);
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
   border-top: 1px solid var(--hairline);
@@ -892,6 +897,125 @@ select.text-input option { background: var(--surface-3); color: var(--text); }
   .modal { padding: 20px 16px 16px; }
 }
 
+/* ── Eye-comfort backgrounds ───────────────────────────────────────
+   Picked from the app bar toggle (comfortBtn) and written to
+   <html data-theme>. Every variant stays dark: the archive's ink is
+   white-on-black with white-alpha hairlines and hover plates baked
+   through the stylesheet, so a light canvas would leave dozens of
+   rules invisible. What varies is luminance and hue — dimmed, warm
+   and blue-light-free rather than pitch black. Pure black stays the
+   default, and --bg-image carries the soft wash each theme paints. */
+[data-theme='graphite'] {
+  --bg: #131316;
+  --surface: #1b1b1f;
+  --surface-2: #232329;
+  --surface-3: #2c2c33;
+  --chrome-bg: rgba(19, 19, 22, 0.94);
+  --text: #ececed;
+  --text-dim: rgba(236, 236, 237, 0.52);
+  --text-faint: rgba(236, 236, 237, 0.3);
+  --bg-image: radial-gradient(120% 70% at 50% 0%, #1e1e23 0%, #131316 58%, #0d0d10 100%);
+}
+[data-theme='dusk'] {
+  --bg: #0d1218;
+  --surface: #161d25;
+  --surface-2: #1d2530;
+  --surface-3: #262f3b;
+  --hairline: rgba(190, 214, 236, 0.1);
+  --hairline-strong: rgba(190, 214, 236, 0.17);
+  --chrome-bg: rgba(13, 18, 24, 0.94);
+  --accent: #2f6ea8;
+  --accent-text: #7fb3dd;
+  --accent-dim: rgba(47, 110, 168, 0.2);
+  --bg-image: radial-gradient(120% 70% at 50% 0%, #16222e 0%, #0d1218 58%, #080c10 100%);
+}
+[data-theme='sage'] {
+  --bg: #0e1512;
+  --surface: #161f1b;
+  --surface-2: #1d2823;
+  --surface-3: #26322c;
+  --hairline: rgba(198, 226, 210, 0.1);
+  --hairline-strong: rgba(198, 226, 210, 0.17);
+  --chrome-bg: rgba(14, 21, 18, 0.94);
+  --accent: #4c8a6b;
+  --accent-text: #85c6a3;
+  --accent-dim: rgba(76, 138, 107, 0.2);
+  --bg-image: radial-gradient(120% 70% at 50% 0%, #18241e 0%, #0e1512 58%, #090f0c 100%);
+}
+[data-theme='sepia'] {
+  --bg: #1a1510;
+  --surface: #241d16;
+  --surface-2: #2d251c;
+  --surface-3: #372e23;
+  --hairline: rgba(240, 222, 194, 0.11);
+  --hairline-strong: rgba(240, 222, 194, 0.18);
+  --chrome-bg: rgba(26, 21, 16, 0.94);
+  --text: #f0e6d6;
+  --text-dim: rgba(240, 230, 214, 0.55);
+  --text-faint: rgba(240, 230, 214, 0.32);
+  --accent: #8d5f28;
+  --accent-text: #d6a463;
+  --accent-dim: rgba(141, 95, 40, 0.2);
+  --bg-image: radial-gradient(120% 70% at 50% 0%, #2a2118 0%, #1a1510 58%, #120e0a 100%);
+}
+[data-theme='amber'] {
+  --bg: #150f06;
+  --surface: #1f170b;
+  --surface-2: #281e10;
+  --surface-3: #332716;
+  --hairline: rgba(255, 214, 150, 0.12);
+  --hairline-strong: rgba(255, 214, 150, 0.2);
+  --chrome-bg: rgba(21, 15, 6, 0.94);
+  --text: #f7e9d2;
+  --text-dim: rgba(247, 233, 210, 0.56);
+  --text-faint: rgba(247, 233, 210, 0.33);
+  --accent: #a8620f;
+  --accent-text: #f0ae52;
+  --accent-dim: rgba(168, 98, 15, 0.22);
+  --bg-image: radial-gradient(120% 70% at 50% 0%, #2b1d0d 0%, #150f06 58%, #0e0904 100%);
+}
+
+/* Picker — a swatch wall in the One UI bottom sheet. Each swatch previews
+   its own gradient, so the choice is visible before it is made. */
+.comfort-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  padding: 2px 12px 4px;
+}
+.comfort-swatch {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 6px 12px;
+  background: var(--surface-3);
+  border: 1px solid transparent;
+  border-radius: 18px;
+  color: var(--text);
+  cursor: pointer;
+  transition: border-color var(--duration-fast) ease, transform var(--duration-fast) var(--ease-spring);
+}
+.comfort-swatch:hover { transform: translateY(-2px); }
+.comfort-swatch:active { transform: scale(0.96); }
+.comfort-swatch.is-active { border-color: var(--accent-text); }
+.comfort-chip {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  box-shadow: inset 0 0 0 1px var(--hairline-strong), 0 2px 8px rgba(0, 0, 0, 0.45);
+}
+.comfort-chip-ink { color: var(--text); font-size: 15px; font-weight: 500; }
+.comfort-swatch.is-active .comfort-chip { box-shadow: inset 0 0 0 1px var(--hairline-strong), 0 0 0 3px var(--accent-dim); }
+.comfort-label { font-size: 11.5px; font-weight: 500; letter-spacing: 0.01em; }
+.comfort-hint { font-size: 10px; color: var(--text-faint); margin-top: -6px; }
+.comfort-note {
+  padding: 10px 20px 0;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--text-faint);
+}
+
 /* ── Orientation-aware layout ───────────────────────────────────────
    Desktop (fine pointer — mouse/trackpad) always gets the landscape
    layout: a wide column and a denser wall. Phones & tablets (touch)
@@ -925,7 +1049,8 @@ select.text-input option { background: var(--surface-3); color: var(--text); }
   .card, .album-cover, .fab, .tab, .tab-ic, .appbar-hero, .appbar-mini,
   .viewer, .viewer-top, .viewer-bottom, .viewer-nav, .viewer-img,
   .sheet, .sheet-overlay, .modal, .toast, .selectbar, .tabbar,
-  .card img, .card-pick, .appbar-icon, .viewer-icon, .viewer-action, .btn {
+  .card img, .card-pick, .appbar-icon, .viewer-icon, .viewer-action, .btn,
+  .comfort-swatch {
     transition: none !important;
     animation: none !important;
   }

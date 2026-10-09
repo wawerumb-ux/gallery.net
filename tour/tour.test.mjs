@@ -1481,11 +1481,12 @@ describe('T — the real TOUR_STEPS integration', () => {
 /* ── Coverage: the tour promises to reveal every button ────── */
 
 describe('U — every button is toured', () => {
-  // The two buttons no step targets, each with the reason it
+  // The buttons no step targets, each with the reason it
   // cannot be one. Anything else un-targeted fails the audit.
   const EXCLUDED = {
     tokenSubmit: 'signing in needs a real repo token — a visitor cannot perform it',
     toastClose: 'transient toast chrome, not functionality',
+    comfortBtn: 'display preference, not part of the archive flow — it opens a self-contained picker',
   };
 
   test('U1 — every static button is a tour step or an explicit exclusion', () => {

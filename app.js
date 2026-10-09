@@ -426,6 +426,106 @@ function shouldRequireWalkthrough(search) {
   }
 }
 
+/* ── Eye-comfort backgrounds ──────────────────────────────────────
+   Six canvases, all dark: pure black is the default and the other
+   five trade OLED contrast for lower luminance and less blue light
+   (dimmed blue, a green cast, and two warm reading tints). Dark-only
+   is a constraint, not a shortcut — the archive's ink is white on
+   black with white-alpha hairlines and hover plates throughout
+   style.css, so a light canvas would leave those rules invisible.
+
+   The choice lives on <html data-theme>, which is how style.css
+   re-points the whole token set. Storage that throws (private mode,
+   blocked cookies) must not break the archive, so reads and writes
+   are guarded and fall back to pure black — the same fail-open shape
+   the walkthrough gate uses at shouldRequireWalkthrough(). */
+const COMFORT_KEY = 'gallery.comfort';
+const COMFORT_THEMES = [
+  { id: 'oled',     label: 'Pure black', hint: 'OLED dark',     chip: '#000000',                     chrome: '#000000' },
+  { id: 'graphite', label: 'Graphite',   hint: 'Soft neutral',  chip: '#26262b',                     chrome: '#131316' },
+  { id: 'dusk',     label: 'Dusk blue',  hint: 'Dimmed, cool',  chip: '#1d2530',                     chrome: '#0d1218' },
+  { id: 'sage',     label: 'Sage',       hint: 'Green cast',    chip: '#1d2823',                     chrome: '#0e1512' },
+  { id: 'sepia',    label: 'Sepia',      hint: 'Warm reading',  chip: '#2d251c',                     chrome: '#1a1510' },
+  { id: 'amber',    label: 'Amber',      hint: 'No blue light', chip: '#332716',                     chrome: '#150f06' },
+];
+const COMFORT_DEFAULT = 'oled';
+const COMFORT_BY_ID = new Map(COMFORT_THEMES.map(t => [t.id, t]));
+let comfortTheme = COMFORT_DEFAULT;
+
+function storedComfortTheme() {
+  try {
+    const id = localStorage.getItem(COMFORT_KEY);
+    return COMFORT_BY_ID.has(id) ? id : COMFORT_DEFAULT;
+  } catch (_) {
+    return COMFORT_DEFAULT; // cannot remember — ship the default
+  }
+}
+
+function applyComfortTheme(id, persist) {
+  const theme = COMFORT_BY_ID.get(id) || COMFORT_BY_ID.get(COMFORT_DEFAULT);
+  comfortTheme = theme.id;
+  // Pure black is the stylesheet's own default, so it carries no
+  // attribute — that keeps the untouched archive byte-identical.
+  // The root element is optional: the headless test harnesses load
+  // this file against a partial document, and a display preference
+  // must never be the reason one of them throws.
+  const root = document.documentElement;
+  if (root) {
+    if (theme.id === COMFORT_DEFAULT) root.removeAttribute('data-theme');
+    else root.setAttribute('data-theme', theme.id);
+  }
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute('content', theme.chrome);
+  const btn = el('comfortBtn');
+  if (btn) {
+    const on = theme.id !== COMFORT_DEFAULT;
+    btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    btn.setAttribute('aria-label', on ? `Eye-comfort background — ${theme.label}` : 'Eye-comfort background');
+    btn.setAttribute('title', btn.getAttribute('aria-label'));
+  }
+  if (persist) {
+    try { localStorage.setItem(COMFORT_KEY, theme.id); } catch (_) {}
+  }
+  if (el('comfortGrid')) renderComfortGrid();
+  return theme;
+}
+
+function renderComfortGrid() {
+  const grid = el('comfortGrid');
+  if (!grid) return;
+  grid.innerHTML = '';
+  for (const theme of COMFORT_THEMES) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'comfort-swatch' + (theme.id === comfortTheme ? ' is-active' : '');
+    b.setAttribute('role', 'radio');
+    b.setAttribute('aria-checked', theme.id === comfortTheme ? 'true' : 'false');
+    b.dataset.comfort = theme.id;
+    b.innerHTML =
+      `<span class="comfort-chip" style="background:${theme.chip}"></span>` +
+      `<span class="comfort-label">${theme.label}</span>` +
+      `<span class="comfort-hint">${theme.hint}</span>`;
+    b.addEventListener('click', () => {
+      applyComfortTheme(theme.id, true);
+      showToast(`Background — ${theme.label}`);
+      closeComfortPicker();
+    });
+    grid.appendChild(b);
+  }
+}
+
+function openComfortPicker() {
+  renderComfortGrid();
+  overlayPush('comfortOverlay', closeComfortPicker);
+  el('comfortOverlay').hidden = false;
+}
+
+function closeComfortPicker() { el('comfortOverlay').hidden = true; }
+
+// Runs at parse time, before the first paint of the archive, so a
+// remembered background never flashes pure black on the way in.
+applyComfortTheme(storedComfortTheme(), false);
+
 document.addEventListener('DOMContentLoaded', init);
 
 async function init() {
@@ -1264,6 +1364,10 @@ function wireStaticEvents() {
   // ⋮ overflow → bottom sheet
   el('menuBtn').addEventListener('click', mainMenu);
   el('sheetOverlay').addEventListener('click', e => { if (e.target.id === 'sheetOverlay') overlayClose('sheetOverlay'); });
+
+  // Eye-comfort background picker (app bar toggle → bottom sheet)
+  el('comfortBtn').addEventListener('click', openComfortPicker);
+  el('comfortOverlay').addEventListener('click', e => { if (e.target.id === 'comfortOverlay') overlayClose('comfortOverlay'); });
 
   // Admin search (header pill)
   el('adminSearch').addEventListener('input', applyAdminFilter);
