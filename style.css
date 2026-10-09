@@ -545,6 +545,20 @@ body.is-selecting .tabbar, body.is-selecting .fab { transform: translateY(110%);
   padding: 16px 12px 8px;
 }
 .album { margin: 0; cursor: pointer; }
+
+/* On a phone the album grid goes full-bleed like the picture wall. The
+   desktop and tablet layouts keep their inset gutters — the covers are
+   16px-radius cards there and want the air — but on a 480px column
+   that padding was stealing the width and leaving the albums visibly
+   narrower than the photos above them. Only the horizontal side goes;
+   .album-meta already carries its own 4px inset, so the labels keep
+   their breathing room. */
+@media (max-width: 480px) {
+  .grid-albums {
+    padding: 14px 0 8px;
+    gap: 16px 4px;
+  }
+}
 .album-cover {
   position: relative;
   aspect-ratio: 1 / 1;
@@ -1051,6 +1065,10 @@ select.text-input option { background: var(--surface-3); color: var(--text); }
 /* ── Compact phones ──────────────────────────────────────────────── */
 @media (max-width: 380px) {
   .grid-pictures { grid-template-columns: repeat(3, 1fr); }
+  /* The album grid steps down in step with the wall, so a phone gets
+     the same density on both tabs. Names ellipsis rather than wrap —
+     .album-name is nowrap — so three across stays one line. */
+  .grid-albums { grid-template-columns: repeat(3, 1fr); }
   .appbar-title { font-size: 30px; }
   .modal-overlay { padding: 14px; }
   .modal { padding: 20px 16px 16px; }
