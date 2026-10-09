@@ -1053,6 +1053,75 @@ select.text-input option { background: var(--surface-3); color: var(--text); }
   .modal { padding: 20px 16px 16px; }
 }
 
+/* ── Typeface ────────────────────────────────────────────────────
+   Picked from the app bar toggle (fontBtn) and written to
+   <html data-font>. Samsung's S10 runs One UI on SamsungOne, which is
+   not something a website can ship: it is a system face, licensed to
+   the handset. So the honest way to get it is to ask the device for
+   what it already has — `system-ui` resolves to SamsungOne on a Galaxy
+   and to Segoe or San Francisco everywhere else, at no download cost.
+   The rest are the closest free stand-ins for its humanist-geometric
+   voice: Roboto (the stylesheet's own default, already loaded), Inter
+   and Noto Sans, plus a serif for anyone who reads captions rather than
+   scans them.
+
+   Roboto stays the default and carries no attribute, so an untouched
+   archive is byte-identical to before. --font-sans is the only token
+   here; the picker never touches the mono stack, because the code and
+   counts in this interface read as code in any of them. */
+[data-font='oneui'] {
+  --font-sans: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+[data-font='roboto'] {
+  --font-sans: 'Roboto', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+}
+[data-font='inter'] {
+  --font-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+[data-font='noto'] {
+  --font-sans: 'Noto Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+[data-font='editorial'] {
+  --font-sans: Georgia, 'Iowan Old Style', 'Palatino Linotype', 'Times New Roman', serif;
+}
+
+/* The "ff" mark. It inherits the page face on purpose: the icon is
+   itself a sample of whatever is currently set. */
+.font-btn {
+  font-size: 17px;
+  font-weight: 500;
+  letter-spacing: -0.06em;
+  text-indent: -0.06em;    /* optical centring: the pair leans left */
+  line-height: 1;
+  user-select: none;
+}
+
+.font-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 2px 8px 4px;
+}
+.font-swatch {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 11px 14px;
+  border: 1px solid transparent;
+  border-radius: 14px;
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  text-align: left;
+  transition: background var(--duration-fast) ease, border-color var(--duration-fast) ease;
+}
+.font-swatch:hover { background: var(--plate); }
+.font-swatch.is-active { border-color: var(--accent-text); background: var(--accent-dim); }
+.font-sample { font-size: 17px; font-weight: 500; letter-spacing: -0.01em; }
+.font-meta { flex: none; font-size: 11px; color: var(--text-faint); font-family: var(--font-mono); }
+
 /* ── Eye-comfort backgrounds ───────────────────────────────────────
    Picked from the app bar toggle (comfortBtn) and written to
    <html data-theme>. Eleven canvases: pure black, then seven dark casts

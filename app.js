@@ -588,6 +588,133 @@ function openComfortPicker() {
 
 function closeComfortPicker() { el('comfortOverlay').hidden = true; }
 
+/* ── Typeface ──────────────────────────────────────────────────────
+   Samsung's S10 runs One UI on SamsungOne. That face cannot be shipped
+   — it is a system font licensed to the handset — so the way to get it
+   is to ask the device for the one it already has: `system-ui` resolves
+   to SamsungOne on a Galaxy and to Segoe or San Francisco elsewhere, at
+   zero download. The other four are the closest free stand-ins for its
+   humanist-geometric voice, plus a serif for reading captions.
+
+   Inter and Noto Sans are the only two that cost anything, and they are
+   not paid for up front: the Google Fonts stylesheet is appended to the
+   document the first time one of them is chosen, so the default archive
+   loads exactly what it loaded before. A webfont that arrives after
+   first paint swaps the text without a reflow of the page around it —
+   font-size-adjust and the metric overrides on the sample keep the
+   layout from jumping while it lands.
+
+   The choice lives on <html data-font>, same as the background's
+   <html data-theme>, and storage that throws falls back to the
+   stylesheet's own Roboto — the same fail-open shape the walkthrough
+   gate and the background both use. */
+const FONT_KEY = 'gallery.font';
+const FONTS = [
+  { id: 'roboto', label: 'Roboto', note: 'the default',
+    stack: "'Roboto', system-ui, -apple-system, 'Segoe UI', Arial, sans-serif" },
+  { id: 'oneui', label: 'One UI Sans', note: 'SamsungOne on Galaxy',
+    stack: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" },
+  { id: 'inter', label: 'Inter', note: 'downloaded',
+    stack: "'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif", webfont: 'Inter' },
+  { id: 'noto', label: 'Noto Sans', note: 'downloaded',
+    stack: "'Noto Sans', system-ui, -apple-system, 'Segoe UI', sans-serif", webfont: 'Noto Sans' },
+  { id: 'editorial', label: 'Editorial', note: 'serif',
+    stack: "Georgia, 'Iowan Old Style', 'Palatino Linotype', 'Times New Roman', serif" },
+];
+const FONT_DEFAULT = 'roboto';
+const FONT_BY_ID = new Map(FONTS.map(f => [f.id, f]));
+let fontChoice = FONT_DEFAULT;
+
+/* Bring a webfont in only once it is actually wanted, and once per
+   family rather than once per session — a visitor who tries Inter and
+   then Noto needs both links, and a single flag would have quietly
+   left the second face falling back to the system stack forever. The
+   archive ships a render-blocking Google Fonts stylesheet for Roboto
+   and IBM Plex Mono; this appends to it so nothing waits on a face the
+   visitor may never choose. */
+const webfontsInjected = new Set();
+function ensureWebfont(family) {
+  if (!family || webfontsInjected.has(family)) return;
+  webfontsInjected.add(family);
+  const href = family === 'Inter'
+    ? 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap'
+    : 'https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&display=swap';
+  const link = document.createElement('link');
+  link.rel = 'stylesheet';
+  link.href = href;
+  link.dataset.font = family;
+  document.head.appendChild(link);
+}
+
+function storedFont() {
+  try {
+    const id = localStorage.getItem(FONT_KEY);
+    return FONT_BY_ID.has(id) ? id : FONT_DEFAULT;
+  } catch (_) {
+    return FONT_DEFAULT; // cannot remember — ship the default
+  }
+}
+function applyFont(id, persist) {
+  const font = FONT_BY_ID.get(id) || FONT_BY_ID.get(FONT_DEFAULT);
+  fontChoice = font.id;
+  if (font.webfont) ensureWebfont(font.webfont);
+  // Roboto is the stylesheet's own default, so it carries no attribute —
+  // the same trick the background uses to stay byte-identical at rest.
+  const root = document.documentElement;
+  if (root) {
+    if (font.id === FONT_DEFAULT) root.removeAttribute('data-font');
+    else root.setAttribute('data-font', font.id);
+  }
+  const btn = el('fontBtn');
+  if (btn) {
+    const on = font.id !== FONT_DEFAULT;
+    btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+    btn.setAttribute('aria-label', on ? `Typeface — ${font.label}` : 'Typeface');
+    btn.setAttribute('title', btn.getAttribute('aria-label'));
+  }
+  if (persist) {
+    try { localStorage.setItem(FONT_KEY, font.id); } catch (_) {}
+  }
+  if (el('fontGrid')) renderFontGrid();
+  return font;
+}
+
+function renderFontGrid() {
+  const grid = el('fontGrid');
+  if (!grid) return;
+  grid.innerHTML = '';
+  for (const font of FONTS) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'font-swatch' + (font.id === fontChoice ? ' is-active' : '');
+    b.setAttribute('role', 'radio');
+    b.setAttribute('aria-checked', font.id === fontChoice ? 'true' : 'false');
+    b.dataset.font = font.id;
+    // The sample is set in the face itself, so the choice is visible
+    // before it is made — the swatch is a preview, not a label.
+    b.innerHTML =
+      `<span class="font-sample" style="font-family:${font.stack}">Structured Cabling</span>` +
+      `<span class="font-meta">${font.note}</span>`;
+    b.addEventListener('click', () => {
+      applyFont(font.id, true);
+      showToast(`Typeface — ${font.label}`);
+      closeFontPicker();
+    });
+    grid.appendChild(b);
+  }
+}
+
+function openFontPicker() {
+  renderFontGrid();
+  overlayPush('fontOverlay', closeFontPicker);
+  el('fontOverlay').hidden = false;
+}
+function closeFontPicker() { el('fontOverlay').hidden = true; }
+
+// Runs at parse time, beside the background's, so a remembered typeface
+// is already in place for the first paint rather than swapping under it.
+applyFont(storedFont(), false);
+
 // Runs at parse time, before the first paint of the archive, so a
 // remembered background never flashes pure black on the way in.
 applyComfortTheme(storedComfortTheme(), false);
@@ -1438,6 +1565,7 @@ function wireStaticEvents() {
 
   // Eye-comfort background picker (app bar toggle → bottom sheet)
   el('comfortBtn').addEventListener('click', openComfortPicker);
+  el('fontBtn').addEventListener('click', openFontPicker);
   el('comfortOverlay').addEventListener('click', e => { if (e.target.id === 'comfortOverlay') overlayClose('comfortOverlay'); });
 
   // Admin search (header pill)

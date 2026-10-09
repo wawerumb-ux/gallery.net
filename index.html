@@ -24,6 +24,7 @@
       <span class="appbar-mini" id="appbarMini">Gallery</span>
       <span class="demo-badge" id="demoBadge" hidden>demo data — repo not set</span>
       <div class="appbar-actions">
+        <button class="appbar-icon font-btn" id="fontBtn" aria-label="Typeface" aria-haspopup="dialog" title="Typeface" aria-pressed="false"><span aria-hidden="true">ff</span></button>
         <button class="appbar-icon" id="comfortBtn" aria-label="Eye-comfort background" aria-haspopup="dialog" title="Eye-comfort background" aria-pressed="false">
           <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true"><path d="M12 5c-5 0-9 4.5-9 7s4 7 9 7 9-4.5 9-7-4-7-9-7zm0 12c-3.9 0-7-2.7-7-5s3.1-5 7-5 7 2.7 7 5-3.1 5-7 5zm0-8.5A3.5 3.5 0 1 0 12 15.5 3.5 3.5 0 0 0 12 8.5z"/></svg>
         </button>
@@ -139,6 +140,16 @@
     <div class="sheet-title" id="comfortTitle">Eye comfort</div>
     <div class="comfort-grid" id="comfortGrid"></div>
     <p class="comfort-note">Each background carries its own palette — canvas, surfaces, text and every plate — so the whole page changes with it. Dark casts lower brightness and shift the screen colour away from blue; light ones cut glare in a bright room. Your choice is remembered on this device.</p>
+  </div>
+</div>
+
+<!-- Typeface picker -->
+<div class="sheet-overlay" id="fontOverlay" hidden>
+  <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="fontTitle">
+    <div class="sheet-handle" aria-hidden="true"></div>
+    <div class="sheet-title" id="fontTitle">Typeface</div>
+    <div class="font-grid" id="fontGrid" role="radiogroup" aria-labelledby="fontTitle"></div>
+    <p class="comfort-note">One UI Sans is the Galaxy's own face — on a Samsung device this picks it up with nothing to download. Your choice is remembered on this device.</p>
   </div>
 </div>
 
