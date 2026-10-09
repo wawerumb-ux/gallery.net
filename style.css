@@ -102,6 +102,9 @@ html {
   -webkit-text-size-adjust: 100%;
   overflow-x: clip;
   scroll-behavior: smooth;
+  /* setView() restores each tab's scroll position and any anchor or
+     scrollIntoView lands above the fixed bar rather than under it */
+  scroll-padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px));
 }
 body {
   margin: 0;
@@ -126,11 +129,20 @@ code {
 }
 
 /* ── The phone column ────────────────────────────────────────────── */
+/* The tab bar is position:fixed, so it floats over the last row of the
+   wall. Every piece of chrome already offsets itself by
+   calc(var(--tabbar-h) + safe-area) — the FAB, the toast, the welcome
+   panel, both pickers — but the content did not, so the bottom row of
+   photos sat underneath the bar and could not be scrolled clear. It
+   lives on .app rather than on either view because setView() swaps
+   #picturesView and #albumsView wholesale: one rule here covers both
+   tabs, and covers whatever is rendered into them later. */
 .app {
   position: relative;
   max-width: var(--col);
   min-height: 100vh;
   min-height: 100dvh;
+  padding-bottom: calc(var(--tabbar-h) + env(safe-area-inset-bottom, 0px));
   margin: 0 auto;
   background: var(--bg);
   background-image: var(--bg-image);
