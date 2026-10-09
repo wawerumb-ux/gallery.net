@@ -1075,15 +1075,16 @@ select.text-input option { background: var(--surface-3); color: var(--text); }
 [data-font='roboto'] {
   --font-sans: 'Roboto', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
 }
-[data-font='inter'] {
-  --font-sans: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-}
-[data-font='noto'] {
-  --font-sans: 'Noto Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-}
-[data-font='editorial'] {
-  --font-sans: Georgia, 'Iowan Old Style', 'Palatino Linotype', 'Times New Roman', serif;
-}
+[data-font='archivo']    { --font-sans: 'Archivo', system-ui, sans-serif; }
+[data-font='lora']       { --font-sans: 'Lora', Georgia, serif; }
+[data-font='playfair']   { --font-sans: 'Playfair Display', Georgia, serif; }
+[data-font='dancing']    { --font-sans: 'Dancing Script', cursive; }
+[data-font='spacemono']  { --font-sans: 'Space Mono', ui-monospace, Menlo, monospace; }
+[data-font='alegreyasc'] { --font-sans: 'Alegreya Sans SC', system-ui, sans-serif; }
+[data-font='unifraktur'] { --font-sans: 'UnifrakturMaguntia', 'Old English Text MT', serif; }
+[data-font='pirata']     { --font-sans: 'Pirata One', 'Old English Text MT', serif; }
+[data-font='josefin']    { --font-sans: 'Josefin Sans', system-ui, sans-serif; }
+[data-font='outfit']     { --font-sans: 'Outfit', system-ui, sans-serif; }
 
 /* The "ff" mark. It inherits the page face on purpose: the icon is
    itself a sample of whatever is currently set. */
@@ -1103,10 +1104,12 @@ select.text-input option { background: var(--surface-3); color: var(--text); }
   padding: 2px 8px 4px;
 }
 .font-swatch {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-areas: "sample note" "style style";
   align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
+  column-gap: 12px;
+  row-gap: 2px;
   width: 100%;
   padding: 11px 14px;
   border: 1px solid transparent;
@@ -1117,9 +1120,17 @@ select.text-input option { background: var(--surface-3); color: var(--text); }
   text-align: left;
   transition: background var(--duration-fast) ease, border-color var(--duration-fast) ease;
 }
+.font-swatch .font-sample { grid-area: sample; }
+.font-swatch .font-style { grid-area: style; }
+.font-swatch .font-meta { grid-area: note; }
 .font-swatch:hover { background: var(--plate); }
 .font-swatch.is-active { border-color: var(--accent-text); background: var(--accent-dim); }
-.font-sample { font-size: 17px; font-weight: 500; letter-spacing: -0.01em; }
+.font-sample { font-size: 17px; font-weight: 400; letter-spacing: -0.01em; }
+.font-style {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-faint);
+}
 .font-meta { flex: none; font-size: 11px; color: var(--text-faint); font-family: var(--font-mono); }
 
 /* ── Eye-comfort backgrounds ───────────────────────────────────────

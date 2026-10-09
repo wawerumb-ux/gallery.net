@@ -589,60 +589,105 @@ function openComfortPicker() {
 function closeComfortPicker() { el('comfortOverlay').hidden = true; }
 
 /* ── Typeface ──────────────────────────────────────────────────────
-   Samsung's S10 runs One UI on SamsungOne. That face cannot be shipped
-   — it is a system font licensed to the handset — so the way to get it
-   is to ask the device for the one it already has: `system-ui` resolves
-   to SamsungOne on a Galaxy and to Segoe or San Francisco elsewhere, at
-   zero download. The other four are the closest free stand-ins for its
-   humanist-geometric voice, plus a serif for reading captions.
+   Samsung's S10 runs One UI on SamsungOne, which cannot be shipped — it
+   is a system font licensed to the handset — so the way to get the
+   Galaxy's own typography is to ask the device for the one it already
+   has: system-ui resolves to SamsungOne on a Galaxy and to Segoe or San
+   Francisco everywhere else, at no download. That is the option the
+   picker leads with, and it is the reason it is worth offering at all.
 
-   Inter and Noto Sans are the only two that cost anything, and they are
-   not paid for up front: the Google Fonts stylesheet is appended to the
-   document the first time one of them is chosen, so the default archive
-   loads exactly what it loaded before. A webfont that arrives after
-   first paint swaps the text without a reflow of the page around it —
-   font-size-adjust and the metric overrides on the sample keep the
-   layout from jumping while it lands.
+   The style names come from LingoJam's text-style generator, which is
+   where the vocabulary was sourced — bold, italic, bold italic, cursive,
+   monospace, small caps, gothic/fraktur, old English, double-struck,
+   circled. The faces behind those names do not: LingoJam publishes no
+   font files at all. Its "fonts" are Unicode symbol mappings (the
+   Mathematical Bold Italic and neighbouring blocks), which only render
+   as styled text on a device that happens to cover those ranges and
+   show as tofu squares where it does not. So every name here is backed
+   by a real, properly-licensed face from Google Fonts, which is where
+   this archive already gets Roboto and IBM Plex Mono from.
 
-   The choice lives on <html data-font>, same as the background's
-   <html data-theme>, and storage that throws falls back to the
-   stylesheet's own Roboto — the same fail-open shape the walkthrough
-   gate and the background both use. */
+   Only --font-sans is touched. The mono stack is not offered — the
+   filenames, counts and load bars in this interface read as code in any
+   of them, and a script set over them would be unreadable.
+
+   Nothing loads up front. The archive ships a render-blocking Google
+   Fonts stylesheet for Roboto and IBM Plex Mono; every face below is
+   appended at the moment it is first wanted, so a visitor who never
+   opens the picker pays nothing for any of it. */
 const FONT_KEY = 'gallery.font';
+
+/* `spec` is the Google Fonts css2 axis/weight query for the family.
+   Without it the browser is told to synthesise the weights this
+   interface uses at 500 and 700, which is how a webfont ends up looking
+   smeared. The two blackletter faces ship a single weight, so they get
+   no spec and are labelled display: the bold on those is the browser
+   faking it, and pretending otherwise would be a lie. */
 const FONTS = [
-  { id: 'roboto', label: 'Roboto', note: 'the default',
+  { id: 'roboto', label: 'Roboto', note: 'the default', style: 'regular',
     stack: "'Roboto', system-ui, -apple-system, 'Segoe UI', Arial, sans-serif" },
-  { id: 'oneui', label: 'One UI Sans', note: 'SamsungOne on Galaxy',
+  { id: 'oneui', label: 'One UI Sans', note: 'SamsungOne on Galaxy', style: 'regular',
     stack: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif" },
-  { id: 'inter', label: 'Inter', note: 'downloaded',
-    stack: "'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif", webfont: 'Inter' },
-  { id: 'noto', label: 'Noto Sans', note: 'downloaded',
-    stack: "'Noto Sans', system-ui, -apple-system, 'Segoe UI', sans-serif", webfont: 'Noto Sans' },
-  { id: 'editorial', label: 'Editorial', note: 'serif',
-    stack: "Georgia, 'Iowan Old Style', 'Palatino Linotype', 'Times New Roman', serif" },
+  { id: 'archivo', label: 'Archivo', note: 'bold', style: 'bold',
+    stack: "'Archivo', system-ui, sans-serif", webfont: 'Archivo', spec: 'wght@400;500;700' },
+  { id: 'lora', label: 'Lora', note: 'italic', style: 'italic',
+    stack: "'Lora', Georgia, serif", webfont: 'Lora', spec: 'ital,wght@0,400;0,500;0,700;1,400;1,500;1,700' },
+  { id: 'playfair', label: 'Playfair Display', note: 'bold italic', style: 'bold italic',
+    stack: "'Playfair Display', Georgia, serif", webfont: 'Playfair Display', spec: 'ital,wght@0,500;0,700;1,500;1,700' },
+  { id: 'dancing', label: 'Dancing Script', note: 'cursive', style: 'cursive',
+    stack: "'Dancing Script', cursive", webfont: 'Dancing Script', spec: 'wght@400;500;700' },
+  { id: 'spacemono', label: 'Space Mono', note: 'monospace', style: 'monospace',
+    stack: "'Space Mono', ui-monospace, Menlo, monospace", webfont: 'Space Mono', spec: 'wght@400;700' },
+  { id: 'alegreyasc', label: 'Alegreya Sans SC', note: 'small caps', style: 'small caps',
+    stack: "'Alegreya Sans SC', system-ui, sans-serif", webfont: 'Alegreya Sans SC', spec: 'wght@400;500;700' },
+  { id: 'unifraktur', label: 'UnifrakturMaguntia', note: 'gothic · display', style: 'gothic / fraktur',
+    stack: "'UnifrakturMaguntia', 'Old English Text MT', serif", webfont: 'UnifrakturMaguntia' },
+  { id: 'pirata', label: 'Pirata One', note: 'old English · display', style: 'old English',
+    stack: "'Pirata One', 'Old English Text MT', serif", webfont: 'Pirata One' },
+  { id: 'josefin', label: 'Josefin Sans', note: 'double-struck', style: 'double-struck',
+    stack: "'Josefin Sans', system-ui, sans-serif", webfont: 'Josefin Sans', spec: 'wght@400;500;700' },
+  { id: 'outfit', label: 'Outfit', note: 'circled', style: 'circled',
+    stack: "'Outfit', system-ui, sans-serif", webfont: 'Outfit', spec: 'wght@400;500;700' },
 ];
 const FONT_DEFAULT = 'roboto';
 const FONT_BY_ID = new Map(FONTS.map(f => [f.id, f]));
 let fontChoice = FONT_DEFAULT;
 
-/* Bring a webfont in only once it is actually wanted, and once per
-   family rather than once per session — a visitor who tries Inter and
-   then Noto needs both links, and a single flag would have quietly
-   left the second face falling back to the system stack forever. The
-   archive ships a render-blocking Google Fonts stylesheet for Roboto
-   and IBM Plex Mono; this appends to it so nothing waits on a face the
-   visitor may never choose. */
+const GOOGLE_CSS = 'https://fonts.googleapis.com/css2?';
 const webfontsInjected = new Set();
-function ensureWebfont(family) {
-  if (!family || webfontsInjected.has(family)) return;
-  webfontsInjected.add(family);
-  const href = family === 'Inter'
-    ? 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap'
-    : 'https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&display=swap';
+
+/* One family, once. A visitor who tries Archivo and then Outfit needs
+   both, and a single flag would leave the second face falling back to
+   the system stack forever — which is exactly the kind of quiet failure
+   a display preference should not have. */
+function ensureWebfont(font) {
+  if (!font.webfont || webfontsInjected.has(font.id)) return;
+  webfontsInjected.add(font.id);
+  const family = font.webfont.replace(/ /g, '+');
+  const href = GOOGLE_CSS + 'family=' + family + (font.spec ? ':' + font.spec : '') + '&display=swap';
   const link = document.createElement('link');
   link.rel = 'stylesheet';
   link.href = href;
-  link.dataset.font = family;
+  link.dataset.font = font.id;
+  document.head.appendChild(link);
+}
+
+/* Opening the picker is the one moment every swatch has to be legible,
+   so that is when the whole set is asked for — in a single request, at
+   regular weight, because a preview is a preview. Choosing a face then
+   loads that face's real weight range on its own. */
+let previewsInjected = false;
+function ensureFontPreviews() {
+  if (previewsInjected) return;
+  previewsInjected = true;
+  const families = FONTS.filter(f => f.webfont)
+    .map(f => 'family=' + f.webfont.replace(/ /g, '+'))
+    .join('&');
+  if (!families) return;
+  const link = document.createElement('link');
+  link.rel = 'stylesheet';
+  link.href = GOOGLE_CSS + families + '&display=swap';
+  link.dataset.font = 'previews';
   document.head.appendChild(link);
 }
 
@@ -657,7 +702,7 @@ function storedFont() {
 function applyFont(id, persist) {
   const font = FONT_BY_ID.get(id) || FONT_BY_ID.get(FONT_DEFAULT);
   fontChoice = font.id;
-  if (font.webfont) ensureWebfont(font.webfont);
+  if (font.webfont) ensureWebfont(font);
   // Roboto is the stylesheet's own default, so it carries no attribute —
   // the same trick the background uses to stay byte-identical at rest.
   const root = document.documentElement;
@@ -691,9 +736,12 @@ function renderFontGrid() {
     b.setAttribute('aria-checked', font.id === fontChoice ? 'true' : 'false');
     b.dataset.font = font.id;
     // The sample is set in the face itself, so the choice is visible
-    // before it is made — the swatch is a preview, not a label.
+    // before it is made — the swatch is a preview, not a label. The
+    // LingoJam style it answers is named underneath, because that is
+    // where the vocabulary was sourced.
     b.innerHTML =
       `<span class="font-sample" style="font-family:${font.stack}">Structured Cabling</span>` +
+      `<span class="font-style">${font.style}</span>` +
       `<span class="font-meta">${font.note}</span>`;
     b.addEventListener('click', () => {
       applyFont(font.id, true);
@@ -705,6 +753,7 @@ function renderFontGrid() {
 }
 
 function openFontPicker() {
+  ensureFontPreviews();   // every swatch has to be legible to be chosen
   renderFontGrid();
   overlayPush('fontOverlay', closeFontPicker);
   el('fontOverlay').hidden = false;

@@ -18,6 +18,44 @@ just this repo.
 visitor there and the page's only job is to tell them what this is and
 offer the way in. Visitors reach it from the ⋮ menu → **Project walkthrough**.
 
+## Typeface
+
+The app bar's `ff` toggle offers twelve faces. **One UI Sans** is the one
+that matters for a Samsung device: the S10 runs One UI on SamsungOne,
+which cannot be shipped on a website because it is a system font
+licensed to the handset — but `system-ui` *resolves* to it on a Galaxy,
+and to Segoe or San Francisco everywhere else, at no download. On a
+desktop that option looks like your OS font, not the S10's; that is the
+honest ceiling.
+
+**Roboto** stays the default so an untouched archive is byte-identical.
+The remaining ten are the closest free stand-ins for a humanist-geometric
+UI voice, plus a script, two blackletters and a serif for anyone reading
+captions rather than scanning.
+
+The style names under each swatch — *bold, italic, bold italic, cursive,
+monospace, small caps, gothic/fraktur, old English, double-struck,
+circled* — are sourced from [LingoJam](https://lingojam.org)'s text-style
+generator. **The faces behind those names are not.** LingoJam publishes no
+font files at all: its "fonts" are Unicode symbol mappings from the
+Mathematical Alphanumeric Symbols blocks, which render as styled text
+only where the device covers those ranges and as tofu squares where it
+does not. Each name here is therefore backed by a real, properly
+licensed face from Google Fonts, which is where this archive already
+gets Roboto and IBM Plex Mono.
+
+Nothing loads up front. Every face is appended the moment it is first
+wanted — opening the picker asks for the whole set in one request at
+regular weight so the previews are legible, and choosing one then loads
+that face's real weight range on its own. The two blackletter faces ship
+a single weight and are labelled *display*: the bold on those is the
+browser synthesising it. `--font-sans` is the only token the picker
+touches — filenames, counts and load bars stay in the mono stack, where
+they read as code in any face.
+
+The choice is stored under `gallery.font` and read back into
+`<html data-font>`.
+
 ## Eye comfort
 
 The app bar's eye-comfort button (☾) offers eleven backgrounds. Each one
