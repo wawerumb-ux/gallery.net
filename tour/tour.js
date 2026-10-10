@@ -426,6 +426,11 @@ function createGuidedTour(config) {
       }, dur(D.base));
     };
 
+    // A step whose target lives behind a disclosure says so here. Runs
+    // before the target is resolved, otherwise the selector matches an
+    // element that is not rendered and the step skips itself.
+    if (step.beforeShow) { try { step.beforeShow(); } catch (_) {} }
+
     target = resolveTarget(step);
     if (target && isRendered(target)) { appear(); return; }
     // The target may not be rendered yet (async gallery data).

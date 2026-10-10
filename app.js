@@ -1726,6 +1726,60 @@ window.addEventListener('popstate', (e) => {
   if (id) return overlayHide(id);
 });
 
+/* ── Confirming a destructive action ────────────────────────────────
+   One dialog for all of them. The native confirm() it replaces cannot
+   carry the scope of what is about to happen, styles itself to match
+   nothing, labels its own buttons "OK", and blocks the main thread while
+   it is up. This one states the scope, puts the destructive verb on the
+   button, and hands focus to Cancel so a stray Enter does the safe thing.
+
+   `body` is HTML on purpose: the scope line needs <strong> for the album
+   name and a count that can stand out. Every caller passes text it has
+   already escaped. */
+let confirmPending = null;   // the settle function of the open dialog
+let confirmConfirm = null;   // what the Confirm button does right now
+
+function askConfirm({ title, body, okLabel = 'Delete', danger = true }) {
+  const overlay = el('confirmOverlay');
+  if (!overlay) return Promise.resolve(window.confirm(`${title}\n\n${body}`));
+  // One at a time. A second request cancels the first rather than
+  // stacking two dialogs the user then has to answer twice.
+  if (confirmPending) confirmPending(false);
+
+  el('confirmTitle').textContent = title;
+  el('confirmBody').innerHTML = body;
+  const ok = el('confirmOk');
+  ok.textContent = okLabel;
+  ok.className = 'btn ' + (danger ? 'btn-danger' : 'btn-ghost');
+
+  return new Promise(resolve => {
+    const settle = (value) => {
+      if (confirmPending !== settle) return;
+      confirmPending = null;
+      confirmConfirm = null;
+      resolve(value);
+    };
+    confirmPending = settle;
+    // The close routine is what actually hides the dialog — overlayClose
+    // runs it before it pops the stack. Confirming therefore settles true
+    // FIRST and then closes, so that close routine's settle(false) finds
+    // nothing left to settle and leaves the answer alone.
+    confirmConfirm = () => { settle(true); overlayClose('confirmOverlay'); };
+    overlayPush('confirmOverlay', () => {
+      overlay.hidden = true;
+      settle(false);
+    });
+    overlay.hidden = false;
+    el('confirmCancel').focus();
+  });
+}
+
+/* Wired once: askConfirm re-registers these on every call otherwise. */
+function initConfirm() {
+  el('confirmOk').addEventListener('click', () => confirmConfirm && confirmConfirm());
+  el('confirmCancel').addEventListener('click', () => overlayClose('confirmOverlay'));
+}
+
 /* Overlay close routines (shared by the X/Esc/outside handlers and the
    back-button popstate path, so both run identical cleanup). */
 function closeUploadModal() { el('uploadModalOverlay').hidden = true; state.pendingUploads = null; }
@@ -1802,6 +1856,7 @@ function wireStaticEvents() {
   el('settingsRemoveBtn').addEventListener('click', removePhase);
   el('settingsUndoBtn').addEventListener('click', undoLastChange);
   el('settingsRevertBtn').addEventListener('click', revertAllChanges);
+  initConfirm();
 
   // Upload confirm modal
   el('uploadCancel').addEventListener('click', () => overlayClose('uploadModalOverlay'));
@@ -2340,7 +2395,14 @@ function exitBatchSelect() {
 async function batchDeleteSelected() {
   const paths = [...state.batchSelected];
   if (!paths.length) return;
-  if (!confirm(`Delete ${paths.length} photo${paths.length === 1 ? '' : 's'}? This can't be undone from here.`)) return;
+  const ok = await askConfirm({
+    title: paths.length === 1 ? 'Delete 1 photo?' : `Delete ${paths.length} photos?`,
+    body: paths.length === 1
+      ? `<strong>${escapeHtml(prettyName(paths[0].split('/').pop()))}</strong> will be removed from the archive. You can undo this from the message that follows.`
+      : `All <span class="confirm-count">${paths.length} photos</span> you selected will be removed from the archive. You can undo this from the message that follows.`,
+    okLabel: paths.length === 1 ? 'Delete photo' : `Delete ${paths.length} photos`
+  });
+  if (!ok) return;
 
   // One card per path, resolved before the flight so each clone leaves the
   // tile it belongs to and a failure can put that same tile back.
@@ -2387,7 +2449,8 @@ async function batchDeleteSelected() {
   await bin;                       // let the bin finish before the summary
   showToast(failed
     ? `Deleted ${done - failed} photo${done - failed === 1 ? '' : 's'}${failureSuffix(failedNames)}.`
-    : `Deleted ${done} photo${done === 1 ? '' : 's'}.`);
+    : `Deleted ${done} photo${done === 1 ? '' : 's'}.`,
+    { undo: failed ? null : undoLastChange });
   await loadTree(true);
 }
 
@@ -2564,7 +2627,13 @@ async function removePhase() {
   if (!folder) return showToast('Pick a phase first.');
   const photos = (state.folders[folder] || []).length;
   if (!photos) return showToast(`"${folder}" is empty — nothing to remove.`);
-  if (!confirm(`Remove phase "${folder}" and delete all ${photos} photo${photos === 1 ? '' : 's'} inside it? This can't be undone from here.`)) return;
+  const ok = await askConfirm({
+    title: `Remove "${folder}"?`,
+    body: `The album <strong>${escapeHtml(folder)}</strong> and all `
+      + `<span class="confirm-count">${photos} photo${photos === 1 ? '' : 's'}</span> inside it will be removed from the archive. You can undo this from the message that follows.`,
+    okLabel: 'Remove album'
+  });
+  if (!ok) return;
 
   // The bin takes the album card — the object being removed, not the word
   // on the button — before the modal gets out of the way. The card is
@@ -2609,7 +2678,8 @@ async function removePhase() {
   } catch (err) {
     showToast(`Photos removed, but metadata not saved: ${err.message}`);
   }
-  showToast(failed ? `Removed phase "${folder}" (${failed} files failed).` : `Removed phase "${folder}".`);
+  showToast(failed ? `Removed "${folder}" (${failed} files failed).` : `Removed "${folder}".`,
+    { undo: failed ? null : undoLastChange });
   await loadTree(true);
 }
 
@@ -2717,10 +2787,10 @@ async function applyRestore(plan, label) {
 }
 
 async function undoLastChange() {
-  if (DEMO_MODE) return showToast('Undo steps back a real commit — it only works on the live gallery.');
+  if (DEMO_MODE) return showToast('Undo puts the archive back — it only works on the live gallery.');
   try {
     const head = await headCommit();
-    if (!isAdminCommit(head)) return showToast('The last change was not made from the gallery — nothing to undo.');
+    if (!isAdminCommit(head)) return showToast('The last change was not made from the gallery, so there is nothing to undo here.');
     const parent = head.parents && head.parents[0];
     if (!parent) return showToast('There is no earlier commit to undo to.');
     const cur = await treePathMap(head.sha);
@@ -2732,7 +2802,7 @@ async function undoLastChange() {
 }
 
 async function revertAllChanges() {
-  if (DEMO_MODE) return showToast('Revert all restores the real repo — it only works on the live gallery.');
+  if (DEMO_MODE) return showToast('Reverting puts the archive back — it only works on the live gallery.');
   try {
     const log = await commitLog();
     let oldestAdmin = -1;
@@ -2740,10 +2810,16 @@ async function revertAllChanges() {
     if (oldestAdmin === -1) return showToast('Nothing was changed from the gallery yet — nothing to revert.');
     const baseline = log[oldestAdmin].parents && log[oldestAdmin].parents[0];
     if (!baseline) return showToast('Could not find the original gallery state.');
-    if (!confirm(
-      `Return every photo and phase to the original gallery state (commit ${baseline.sha.slice(0, 8)})?\n` +
-      'All admin sorts, renames and removals are undone in one step.'
-    )) return;
+    const adminChanges = log.filter(c => isAdminCommit(c)).length;
+    const ok = await askConfirm({
+      title: 'Revert every change?',
+      body: `This puts the gallery back to how it started, undoing `
+        + `<span class="confirm-count">${adminChanges} change${adminChanges === 1 ? '' : 's'}</span> `
+        + `made from the gallery since it began — every photo added, removed, renamed or moved. `
+        + `Photos added outside the gallery are left alone.`,
+      okLabel: 'Revert everything'
+    });
+    if (!ok) return;
     const cur = await treePathMap(log[0].sha);
     const tgt = await treePathMap(baseline.sha);
     await applyRestore(planRestore(cur, tgt), 'Revert all');
@@ -2973,7 +3049,12 @@ function eatRestore(nodes) {
 }
 
 async function deleteImage(path, sha, prettyLabel, opts = {}) {
-  if (!confirm(`Delete "${prettyLabel}"? This can't be undone from here.`)) return;
+  const ok = await askConfirm({
+    title: `Delete "${prettyLabel}"?`,
+    body: `<strong>${escapeHtml(prettyLabel)}</strong> will be removed from the archive. You can undo this from the message that follows.`,
+    okLabel: 'Delete photo'
+  });
+  if (!ok) return;
   // The bin performs while the request goes out. Waiting for the animation
   // before touching the network is what made a delete feel slow — the photo
   // was on its way into the can and then just sat there while the API
@@ -2988,7 +3069,8 @@ async function deleteImage(path, sha, prettyLabel, opts = {}) {
     await request;
     applyImageDelete(path);
     render();
-    showToast(DEMO_MODE ? `Deleted ${prettyLabel} (demo).` : `Deleted ${prettyLabel}.`);
+    showToast(DEMO_MODE ? `Deleted ${prettyLabel} (demo).` : `Deleted ${prettyLabel}.`,
+      { undo: DEMO_MODE ? null : undoLastChange });
   } catch (err) {
     showToast(err.message);
     if (opts.restore) opts.restore();
@@ -3420,7 +3502,19 @@ function escapeHtml(s) { return s.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '
 function escapeAttr(s) { return escapeHtml(s).replace(/"/g, '&quot;'); }
 
 let toastTimer;
-function showToast(msg, sticky = false) {
+/* A message, optionally carrying the Undo for what it is reporting. The
+   window is longer when there is something to undo — 6s to read and act
+   against 3.2s for a message you only have to notice — and every caller
+   still passes through showToast, so no toast grows its own timer.
+
+   `opts.undo` steps back the change that produced this message. Note what
+   that means in practice: undo always reverses the most recent change made
+   from the gallery, so making a second change inside the window means Undo
+   takes back that one instead. That is the same guarantee the standalone
+   Undo button gives, just closer to the thing it undoes. */
+function showToast(msg, opts = {}) {
+  const sticky = opts === true ? true : !!opts.sticky;
+  const undo = (opts && typeof opts === 'object') ? opts.undo : null;
   const t = el('toast');
   let span = document.getElementById('toastMessage');
   if (!span) {
@@ -3437,13 +3531,28 @@ function showToast(msg, sticky = false) {
       close.setAttribute('aria-label', 'Dismiss');
       close.textContent = '×';
       close.addEventListener('click', () => { t.hidden = true; });
-      t.appendChild(close);
+      t.insertBefore(close, null);
     }
+  }
+  // Undo sits between the message and the dismiss glyph, so it is appended
+  // before the glyph rather than after it.
+  let undoBtn = document.getElementById('toastUndo');
+  if (undo && !undoBtn) {
+    undoBtn = document.createElement('button');
+    undoBtn.type = 'button';
+    undoBtn.id = 'toastUndo';
+    undoBtn.className = 'toast-undo';
+    t.insertBefore(undoBtn, document.getElementById('toastClose'));
+  }
+  if (undoBtn) {
+    undoBtn.hidden = !undo;
+    undoBtn.textContent = 'Undo';
+    undoBtn.onclick = undo ? () => { t.hidden = true; undo(); } : null;
   }
   span.textContent = msg;
   t.hidden = false;
   clearTimeout(toastTimer);
-  if (!sticky) toastTimer = setTimeout(() => { t.hidden = true; }, 3200);
+  if (!sticky) toastTimer = setTimeout(() => { t.hidden = true; }, undo ? 6000 : 3200);
 }
 
 // Failure detail is collected through a batch and surfaced once at the end,

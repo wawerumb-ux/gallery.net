@@ -277,6 +277,20 @@
   </div>
 </div>
 
+<!-- Confirm a destructive action. Every one of them comes through here: the
+     verb is on the button, the exact scope is spelled out in the body, and
+     focus lands on Cancel so a stray Enter does the safe thing. -->
+<div class="modal-overlay" id="confirmOverlay" hidden>
+  <div class="modal modal-confirm" role="alertdialog" aria-modal="true" aria-labelledby="confirmTitle" aria-describedby="confirmBody">
+    <h2 id="confirmTitle">Are you sure?</h2>
+    <p class="modal-copy" id="confirmBody"></p>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" id="confirmCancel">Cancel</button>
+      <button class="btn btn-danger" id="confirmOk">Delete</button>
+    </div>
+  </div>
+</div>
+
 <!-- Album settings -->
 <div class="modal-overlay" id="settingsModalOverlay" hidden>
   <div class="modal modal-wide" role="dialog" aria-modal="true" aria-labelledby="settingsModalTitle">
@@ -287,20 +301,29 @@
     <label class="tag-field" for="settingsPhaseRename">Rename to</label>
     <input type="text" id="settingsPhaseRename" class="text-input" placeholder="new-album-name" autocomplete="off">
     <div class="modal-actions">
-      <button class="btn btn-ghost" id="settingsRenameBtn" data-tour-target="settings-rename">Rename</button>
+      <button class="btn btn-ghost" id="settingsRenameBtn" data-tour-target="settings-rename">Rename album</button>
+      <button class="btn btn-ghost" id="settingsCancel" data-tour-target="album-settings-cancel">Cancel</button>
+    </div>
+    <!-- Destructive sits on its own below a divider, away from the two
+         safe actions above it. -->
+    <hr class="modal-divider">
+    <div class="modal-actions">
       <button class="btn btn-danger trash-btn" id="settingsRemoveBtn" data-tour-target="settings-remove" aria-label="Remove album">
         <svg class="trash" viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true" focusable="false"><path class="trash-body" d="M5.7 7.7h12.6l-.95 11.9a1.8 1.8 0 0 1-1.8 1.6H8.45a1.8 1.8 0 0 1-1.8-1.6z"/><g class="trash-lid"><path d="M3.5 4.6h17v2.8h-17z"/><path d="M9.2 4.5V3.3a1 1 0 0 1 1-1h3.6a1 1 0 0 1 1 1v1.2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></g></svg>
         <span>Remove album</span>
       </button>
-      <button class="btn btn-ghost" id="settingsCancel" data-tour-target="album-settings-cancel">Cancel</button>
     </div>
-    <hr class="modal-divider">
-    <p class="modal-note">Every admin action is recorded as a commit. Undo steps back the last one; Revert all returns every photo and album to how the gallery started.</p>
-    <div class="modal-actions">
-      <button class="btn btn-ghost" id="settingsUndoBtn" data-tour-target="settings-undo">Undo last change</button>
-      <button class="btn btn-ghost" id="settingsRevertBtn" data-tour-target="settings-revert">Revert all</button>
-    </div>
-    <p class="modal-note">Removing an album deletes it and all of its photos from the repo.</p>
+    <!-- History is a second surface rather than part of the everyday dialog:
+         the common case is the Undo that follows a change, not a button. -->
+    <details class="history" id="historyPanel">
+      <summary class="history-summary">Change history</summary>
+      <p class="modal-note">Every change made from the gallery is saved. Most can be undone straight from the message that follows them — this is for stepping back further.</p>
+      <div class="modal-actions">
+        <button class="btn btn-ghost" id="settingsUndoBtn" data-tour-target="settings-undo">Undo the last change</button>
+        <button class="btn btn-danger" id="settingsRevertBtn" data-tour-target="settings-revert">Revert every change</button>
+      </div>
+    </details>
+    <p class="modal-note">Removing an album deletes it and all of its photos from the archive.</p>
   </div>
 </div>
 
