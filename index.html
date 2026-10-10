@@ -77,7 +77,9 @@
     </button>
     <span class="select-count" id="selectCount">0 selected</span>
     <div class="select-actions">
-      <button class="select-action" id="selectDelete" disabled data-tour-target="select-delete">Delete</button>
+      <button class="select-action" id="selectDelete" disabled data-tour-target="select-delete" aria-label="Delete selected photos" title="Delete selected photos">
+        <svg class="trash" viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true" focusable="false"><path class="trash-body" d="M5.7 7.7h12.6l-.95 11.9a1.8 1.8 0 0 1-1.8 1.6H8.45a1.8 1.8 0 0 1-1.8-1.6z"/><g class="trash-lid"><path d="M3.5 4.6h17v2.8h-17z"/><path d="M9.3 4.5V3.3a1 1 0 0 1 1-1h3.4a1 1 0 0 1 1 1v1.2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></g></svg>
+      </button>
       <button class="select-action select-action-primary" id="selectMove" disabled data-tour-target="select-move">Move</button>
     </div>
   </div>
@@ -209,8 +211,8 @@
       <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true"><path d="M17.63 5.84C17.27 5.33 16.67 5 16 5L5 5.01C3.9 5.01 3 5.9 3 7v10c0 1.1.9 1.99 2 1.99L16 19c.67 0 1.27-.33 1.63-.84L22 12l-4.37-6.16z"/></svg>
       <span>Classify</span>
     </button>
-    <button class="viewer-action" id="lightboxDelete" type="button" hidden data-tour-target="viewer-delete">
-      <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true"><path d="M16 9v10H8V9h8m-1.5-6h-5l-1 1H5v2h14V4h-3.5l-1-1z"/></svg>
+    <button class="viewer-action" id="lightboxDelete" type="button" hidden data-tour-target="viewer-delete" aria-label="Delete photo" title="Delete photo">
+      <svg class="trash" viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true" focusable="false"><path class="trash-body" d="M5.7 7.7h12.6l-.95 11.9a1.8 1.8 0 0 1-1.8 1.6H8.45a1.8 1.8 0 0 1-1.8-1.6z"/><g class="trash-lid"><path d="M3.5 4.6h17v2.8h-17z"/><path d="M9.3 4.5V3.3a1 1 0 0 1 1-1h3.4a1 1 0 0 1 1 1v1.2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></g></svg>
       <span>Delete</span>
     </button>
   </div>

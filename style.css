@@ -368,8 +368,45 @@ code {
 }
 .select-action:hover { background: var(--accent-dim); }
 .select-action:disabled { color: var(--text-faint); cursor: default; background: none; }
-#selectDelete { color: var(--danger); }
+#selectDelete { color: var(--danger); display: inline-flex; align-items: center; justify-content: center; min-height: 44px; padding: 8px 14px; }
 #selectDelete:hover { background: var(--danger-dim); }
+
+/* ── The photo-eating trash ─────────────────────────────────────────
+   The bin is the affordance, the photo is what goes in it: the lid
+   hinges up on .is-eating, a temporary clone of the thumbnail flies
+   from where the photo actually sits into the mouth (app.js,
+   playTrashEat), and .is-eaten fades the real node out underneath.
+
+   .is-eaten is opacity only — the tile keeps its box, so nothing
+   reflows, and dropping the class brings the photo straight back
+   when the delete fails. */
+.trash { display: block; overflow: visible; }
+.trash-lid {
+  transform-box: fill-box;
+  transform-origin: 0% 100%;          /* the lid hinges on its own left end */
+  transform: rotate(0deg);
+  transition: transform 240ms var(--ease-spring);
+}
+.is-eating .trash-lid { transform: rotate(-26deg); }
+.is-eating .trash { animation: trashKick 380ms var(--ease-spring); }
+@keyframes trashKick { 0%, 100% { transform: none; } 42% { transform: translateY(-2px); } }
+
+.eat-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 140;                       /* over the viewer (95) and modals (130) */
+  pointer-events: none;               /* never intercepts the tap that follows */
+  overflow: hidden;
+}
+.eat-clone {
+  position: absolute;
+  margin: 0;
+  padding: 0;
+  object-fit: cover;                  /* the tile's own crop, never a stretch */
+  will-change: transform, opacity;
+}
+.card img.is-eaten,
+#lightboxImg.is-eaten { opacity: 0; transition: opacity 200ms ease; }
 body.is-selecting .tabbar, body.is-selecting .fab { transform: translateY(110%); }
 
 /* ── Main scroll region ──────────────────────────────────────────── */
@@ -1851,7 +1888,8 @@ select.text-input option { background: var(--surface-3); color: var(--text); }
   .viewer, .viewer-top, .viewer-bottom, .viewer-nav, .viewer-img, .viewer-slide,
   .sheet, .sheet-overlay, .modal, .toast, .selectbar, .tabbar,
   .card img, .card-pick, .appbar-icon, .viewer-icon, .viewer-action, .btn,
-  .comfort-swatch {
+  .comfort-swatch, .trash, .trash-lid, .is-eating .trash,
+  .card img.is-eaten, #lightboxImg.is-eaten {
     transition: none !important;
     animation: none !important;
   }
