@@ -279,9 +279,16 @@
 
 <!-- Confirm a destructive action. Every one of them comes through here: the
      verb is on the button, the exact scope is spelled out in the body, and
-     focus lands on Cancel so a stray Enter does the safe thing. -->
+     focus lands on Cancel so a stray Enter does the safe thing.
+
+     The bin is the anchor of the whole interaction: it pops up with the
+     dialog, and on accept the photo is swallowed into this one rather
+     than off at the edge of the screen. -->
 <div class="modal-overlay" id="confirmOverlay" hidden>
   <div class="modal modal-confirm" role="alertdialog" aria-modal="true" aria-labelledby="confirmTitle" aria-describedby="confirmBody">
+    <span class="confirm-bin" id="confirmBin" aria-hidden="true">
+      <svg class="trash" viewBox="0 0 24 24" width="56" height="56" fill="currentColor" focusable="false"><path class="trash-body" d="M5.7 7.7h12.6l-.95 11.9a1.8 1.8 0 0 1-1.8 1.6H8.45a1.8 1.8 0 0 1-1.8-1.6z"/><g class="trash-lid"><path d="M3.5 4.6h17v2.8h-17z"/><path d="M9.3 4.5V3.3a1 1 0 0 1 1-1h3.6a1 1 0 0 1 1 1v1.2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></g></svg>
+    </span>
     <h2 id="confirmTitle">Are you sure?</h2>
     <p class="modal-copy" id="confirmBody"></p>
     <div class="modal-actions">

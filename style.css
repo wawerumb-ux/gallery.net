@@ -386,14 +386,14 @@ code {
   transform-box: fill-box;
   transform-origin: 0% 100%;          /* the lid hinges on its own left end */
   transform: rotate(0deg);
-  transition: transform 110ms var(--ease-out);
+  transition: transform 180ms var(--ease-out);
 }
 .is-eating .trash-lid { transform: rotate(-26deg); }
-.is-eating .trash { animation: trashKick 220ms var(--ease-out); }
-@keyframes trashKick { 0%, 100% { transform: none; } 42% { transform: translateY(-2px); } }
+.is-eating .trash { animation: trashKick 300ms var(--ease-out); }
+@keyframes trashKick { 0%, 100% { transform: none; } 42% { transform: translateY(-3px); } }
 /* The gulp: the bin takes the weight of the photo the instant it lands. */
-.is-gulp .trash { animation: trashGulp 180ms var(--ease-spring); }
-@keyframes trashGulp { 0%, 100% { transform: none; } 45% { transform: scale(1.22, 0.88); } }
+.is-gulp .trash { animation: trashGulp 260ms var(--ease-spring); }
+@keyframes trashGulp { 0%, 100% { transform: none; } 45% { transform: scale(1.22, 0.86); } }
 
 .eat-layer {
   position: fixed;
@@ -1130,6 +1130,28 @@ body.is-selecting .tabbar, body.is-selecting .fab { transform: translateY(110%);
 #confirmBody strong { color: var(--text); font-weight: 600; }
 #confirmBody .confirm-count { color: var(--danger); font-weight: 600; }
 .modal-confirm .modal-actions { margin-top: 20px; }
+
+/* The bin pops up with the dialog and stays put — it is the thing the
+   photo is swallowed into, so it has to be where the eye already is.
+   Overshooting the scale on the way in is the whole point: it reads as
+   an arrival, where a fade would read as the dialog being built. */
+.confirm-bin {
+  display: flex;
+  justify-content: center;
+  margin: 0 auto 14px;
+  color: var(--danger);
+}
+/* The pop lives on the wrapper, not the icon: the icon carries the lid,
+   the kick and the gulp, and an animation there would be overwritten the
+   moment the swallow started — cancelling the pop mid-flight and snapping
+   the can from 0.2 to full size. askConfirm re-adds .is-in on every open,
+   which is what makes it replay. */
+.confirm-bin.is-in { animation: binPop 420ms var(--ease-spring) both; }
+@keyframes binPop {
+  0%   { transform: scale(0.2) translateY(14px); opacity: 0; }
+  62%  { transform: scale(1.14) translateY(0); opacity: 1; }
+  100% { transform: scale(1) translateY(0); opacity: 1; }
+}
 
 /* Undo rides along on the message it belongs to, so a change is reversible
    from where it happened rather than from a dialog the user has to find. */
@@ -1966,6 +1988,7 @@ select.text-input option { background: var(--surface-3); color: var(--text); }
   .sheet, .sheet-overlay, .modal, .toast, .selectbar, .tabbar,
   .card img, .card-pick, .appbar-icon, .viewer-icon, .viewer-action, .btn,
   .comfort-swatch, .trash, .trash-lid, .is-eating .trash, .is-gulp .trash,
+  .confirm-bin, .confirm-bin.is-in,
   .card img.is-eaten, .album.is-eaten, #lightboxImg.is-eaten {
     transition: none !important;
     animation: none !important;

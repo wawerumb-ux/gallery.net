@@ -1790,11 +1790,17 @@ window.addEventListener('popstate', (e) => {
 
    `body` is HTML on purpose: the scope line needs <strong> for the album
    name and a count that can stand out. Every caller passes text it has
-   already escaped. */
+   already escaped.
+
+   `onAccept` is the swallow. It runs while the dialog is still up, so the
+   photo is eaten by the bin sitting right there in front of you rather
+   than somewhere off at the edge of the screen, and the dialog closes
+   only once it has finished. Cancelling never runs it. */
 let confirmPending = null;   // the settle function of the open dialog
 let confirmConfirm = null;   // what the Confirm button does right now
+let confirmBusy = false;     // guards a second press while onAccept runs
 
-function askConfirm({ title, body, okLabel = 'Delete', danger = true }) {
+function askConfirm({ title, body, okLabel = 'Delete', danger = true, onAccept = null }) {
   const overlay = el('confirmOverlay');
   if (!overlay) return Promise.resolve(window.confirm(`${title}\n\n${body}`));
   // One at a time. A second request cancels the first rather than
@@ -1807,19 +1813,41 @@ function askConfirm({ title, body, okLabel = 'Delete', danger = true }) {
   ok.textContent = okLabel;
   ok.className = 'btn ' + (danger ? 'btn-danger' : 'btn-ghost');
 
+  // The bin's arrival has to play on every open, not only the first, so
+  // the class is dropped and re-added around a forced reflow.
+  const bin = el('confirmBin');
+  if (bin) {
+    bin.classList.remove('is-in');
+    void bin.offsetWidth;
+    bin.classList.add('is-in');
+  }
+
   return new Promise(resolve => {
     const settle = (value) => {
       if (confirmPending !== settle) return;
       confirmPending = null;
       confirmConfirm = null;
+      confirmBusy = false;
       resolve(value);
     };
     confirmPending = settle;
+    confirmConfirm = async () => {
+      if (confirmBusy) return;
+      confirmBusy = true;
+      ok.disabled = true;
+      try {
+        if (onAccept) await onAccept();
+      } catch (err) {
+        console.warn('Confirmation animation failed; continuing anyway.', err);
+      }
+      ok.disabled = false;
+      settle(true);
+      overlayClose('confirmOverlay');
+    };
     // The close routine is what actually hides the dialog — overlayClose
     // runs it before it pops the stack. Confirming therefore settles true
     // FIRST and then closes, so that close routine's settle(false) finds
     // nothing left to settle and leaves the answer alone.
-    confirmConfirm = () => { settle(true); overlayClose('confirmOverlay'); };
     overlayPush('confirmOverlay', () => {
       overlay.hidden = true;
       settle(false);
@@ -2462,19 +2490,27 @@ function exitBatchSelect() {
 async function batchDeleteSelected() {
   const paths = [...state.batchSelected];
   if (!paths.length) return;
+  // One card per path, resolved before the confirmation opens so the flight
+  // has its tiles to clone from — the dialog sits there while you read it,
+  // and the grid underneath can be scrolled or re-rendered in that time —
+  // and so a failure can put that same tile back.
+  const cards = paths.map(p => document.querySelector(
+    `#picturesView .card[data-path="${CSS.escape(p)}"], #albumDetailView .card[data-path="${CSS.escape(p)}"]`));
+
   const ok = await askConfirm({
     title: paths.length === 1 ? 'Delete 1 photo?' : `Delete ${paths.length} photos?`,
     body: paths.length === 1
       ? `<strong>${escapeHtml(prettyName(paths[0].split('/').pop()))}</strong> will be removed from the archive. You can undo this from the message that follows.`
       : `All <span class="confirm-count">${paths.length} photos</span> you selected will be removed from the archive. You can undo this from the message that follows.`,
-    okLabel: paths.length === 1 ? 'Delete photo' : `Delete ${paths.length} photos`
+    okLabel: paths.length === 1 ? 'Delete photo' : `Delete ${paths.length} photos`,
+    // The selection is swallowed into the bin in the dialog while the
+    // dialog is still up; the loop below starts once it has closed.
+    // The tile's own <img> is what flies: it is the already-decoded
+    // thumbnail, and it is what .is-eaten fades, so the tile keeps its box.
+    onAccept: () => playTrashEat(el('confirmBin'),
+      cards.filter(Boolean).map(c => ({ node: c.querySelector('.card-img') || c })))
   });
   if (!ok) return;
-
-  // One card per path, resolved before the flight so each clone leaves the
-  // tile it belongs to and a failure can put that same tile back.
-  const cards = paths.map(p => document.querySelector(
-    `#picturesView .card[data-path="${CSS.escape(p)}"], #albumDetailView .card[data-path="${CSS.escape(p)}"]`));
 
   if (DEMO_MODE) {
     for (const folder of state.order) {
@@ -2486,13 +2522,8 @@ async function batchDeleteSelected() {
     return;
   }
 
-  // The bin performs on the selection while the delete loop runs — the
-  // loop is not held back by it, and the bin is not held back by it.
-  // The tile's own <img> is what flies: it is the already-decoded
-  // thumbnail, and it is what .is-eaten fades, so the tile keeps its box.
-  const bin = playTrashEat(el('selectDelete'),
-    cards.filter(Boolean).map(c => ({ node: c.querySelector('.card-img') || c })));
-
+  // The bin performed on the selection inside the confirmation, while the
+  // dialog was up. The loop below runs once it has closed.
   let done = 0, failed = 0;
   const failedNames = [];
   showToast(`Deleting 0/${paths.length}…`, true);
@@ -2513,7 +2544,6 @@ async function batchDeleteSelected() {
     showToast(`Deleting ${done}/${paths.length}…`, true);
   }
   exitBatchSelect();
-  await bin;                       // let the bin finish before the summary
   showToast(failed
     ? `Deleted ${done - failed} photo${done - failed === 1 ? '' : 's'}${failureSuffix(failedNames)}.`
     : `Deleted ${done} photo${done === 1 ? '' : 's'}.`,
@@ -2698,19 +2728,22 @@ async function removePhase() {
     title: `Remove "${folder}"?`,
     body: `The album <strong>${escapeHtml(folder)}</strong> and all `
       + `<span class="confirm-count">${photos} photo${photos === 1 ? '' : 's'}</span> inside it will be removed from the archive. You can undo this from the message that follows.`,
-    okLabel: 'Remove album'
+    okLabel: 'Remove album',
+    // The bin takes the album card — the object being removed, not the word
+    // on the button — while this dialog is still up. The card is looked up
+    // here rather than before the dialog opened, because the settings modal
+    // is still on screen underneath and the Albums tab can change while the
+    // question is being read. It flies as a clone rather than lifted, because
+    // it has to keep its place in the grid until the album is really gone.
+    // If the tab is not on screen there is nothing to fly and the album is
+    // simply removed, same as any off-screen photo.
+    onAccept: () => {
+      const albumCard = document.querySelector(
+        `#albumsView .album[data-folder="${CSS.escape(folder)}"]`);
+      return playTrashEat(el('confirmBin'), albumCard ? [{ node: albumCard }] : []);
+    }
   });
   if (!ok) return;
-
-  // The bin takes the album card — the object being removed, not the word
-  // on the button — before the modal gets out of the way. The card is
-  // cloned rather than flown live because it sits under this modal: the
-  // flight layer is above the overlay, a live transform would not be. If
-  // the Albums tab is not on screen there is nothing to fly and the album
-  // is simply removed, same as any off-screen photo.
-  const albumCard = document.querySelector(
-    `#albumsView .album[data-folder="${CSS.escape(folder)}"]`);
-  await playTrashEat(el('settingsRemoveBtn'), albumCard ? [{ node: albumCard }] : []);
   overlayClose('settingsModalOverlay');
 
   const prefix = `${CONFIG.imagesPath}/${folder}/`;
@@ -2908,9 +2941,9 @@ async function revertAllChanges() {
    fails, which puts the photo back untouched. */
 const EAT_MAX_CLONES = 60;   // a whole selection is eaten, not the first dozen
 const EAT_ANIM_ID = 'gallery-eat';   // lets updateLightbox cancel only our flight
-const EAT_FLIGHT = 230;      // lid open 110 + flight 230 + lid shut ~110
-const EAT_STAGGER = 40;      // max gap between two photos entering
-const EAT_SPREAD = 170;      // …but the whole batch lands inside this window
+const EAT_FLIGHT = 520;      // slow enough to actually watch: the whole point
+const EAT_STAGGER = 60;      // max gap between two photos entering
+const EAT_SPREAD = 220;      // …but the whole batch lands inside this window
 let eatRunning = false;
 let eatAnims = [];          // live, so a restore can cancel a filled flight
 
@@ -2943,6 +2976,13 @@ function eatClone(node, rect) {
     el.decoding = 'async';
     el.alt = '';
     el.className = 'eat-clone eat-clone-img';
+    // Copy the crop rather than assume it. A tile is object-fit: cover, but
+    // the viewer shows a full photo as contain — cloning that one into the
+    // default cover would crop the photo at the very moment it starts flying,
+    // so the thing you watched shrink was not the thing on screen.
+    const fit = getComputedStyle(node);
+    if (fit.objectFit) el.style.objectFit = fit.objectFit;
+    if (fit.objectPosition) el.style.objectPosition = fit.objectPosition;
   } else {
     el = node.cloneNode(true);
     el.classList.add('eat-clone');
@@ -2971,26 +3011,75 @@ function eatSettle(anim, ms) {
   return Promise.race([anim.finished.catch(() => {}), eatPause(ms)]);
 }
 
+/* Lift a node out of its layout and into the flight layer, which sits above
+   the modals — without re-decoding it.
+
+   The bin lives in the confirmation dialog, which is a z-above-modal surface,
+   while the photo being eaten is usually under it: a viewer photo at 95, a
+   grid tile at almost nothing. Animating a node in place therefore flies it
+   straight *behind* the dialog, which reads as the photo simply vanishing
+   rather than going in. Nothing inside a lower stacking context can be raised
+   past it, so the node has to move.
+
+   Moving it rather than cloning it is the point: the same element keeps its
+   decoded bitmap, so a full-screen photo is not rasterised a second time. A
+   placeholder stands in so the layout it came out of does not close the gap,
+   and the node goes back exactly where it was when the flight ends. */
+function eatFloat(node, layer, rect) {
+  const parent = node.parentNode;
+  const ghost = document.createElement('div');
+  ghost.className = node.className;           // same box, no image behind it
+  ghost.setAttribute('aria-hidden', 'true');
+  const css = node.style.cssText;
+  parent.insertBefore(ghost, node);
+
+  const fitted = getComputedStyle(node);
+  node.style.cssText = css + ';position:absolute;margin:0;transition:none;'
+    + `left:${rect.left}px;top:${rect.top}px;`
+    + `width:${rect.width}px;height:${rect.height}px;`
+    + `object-fit:${fitted.objectFit || 'cover'};`
+    + `object-position:${fitted.objectPosition || '50% 50%'};will-change:transform,opacity;`;
+  // The bin's mouth is inside a dialog, so the carrier has to paint above it.
+  node.style.zIndex = '1';
+  layer.appendChild(node);
+
+  return {
+    node,
+    drop() {
+      node.style.cssText = css;
+      if (parent.isConnected) parent.insertBefore(node, ghost);
+      ghost.remove();
+    },
+  };
+}
+
 /* sources: [{ node }] — the nodes whose photos are being eaten.
-   opts.live animates the nodes themselves instead of cloning them. The
-   viewer uses that: #lightboxImg is already decoded, already painted and
-   already a compositing layer, so flying it costs no second image and no
-   re-raster of a full-screen bitmap. Cards cannot do this — they have to
-   stay in the grid — so they get a staged clone in the overlay instead. */
-async function playTrashEat(btn, sources, opts = {}) {
+   opts.live flies the node itself, lifted into the flight layer, instead of a
+   clone: the viewer uses it, because #lightboxImg is already decoded and
+   re-rasterising a full-screen bitmap mid-delete is exactly the frame this
+   must not drop. Cards cannot — they have to stay in the grid — so they fly
+   as a clone. Either way the carrier ends up over the dialog, which is where
+   the bin is. */
+async function playTrashEat(host, sources, opts = {}) {
   const nodes = (sources || []).map(s => s.node).filter(n => n && n.isConnected);
-  if (!btn || !nodes.length || eatRunning) return;
+  if (!host || !nodes.length || eatRunning) return;
   const live = !!opts.live;
   eatRunning = true;
-  const wasDisabled = btn.disabled;
-  btn.disabled = true;                       // no second flight, no double submit
-  btn.dataset.running = 'true';
+  // `host` is whatever holds the bin — a button, or the confirmation
+  // dialog's #confirmBin. It carries the lid and gulp states, and the
+  // mouth. Disabling only makes sense when it is actually a button; askConfirm
+  // disables its own Confirm while the swallow plays.
+  const isButton = host.tagName === 'BUTTON';
+  const wasDisabled = isButton && host.disabled;
+  if (isButton) host.disabled = true;        // no second flight, no double submit
+  host.dataset.running = 'true';
   const layer = eatLayer();
+  const drops = [];          // the lifted nodes' way home; read by `finally`
   try {
     // Measure everything up front — boxes, mouths and radii — so the
     // flight below is pure writes and never re-reads layout mid-animation.
     const rects = nodes.map(n => n.getBoundingClientRect());
-    const mouth = eatMouth(btn);
+    const mouth = eatMouth(host);
 
     if (reduceMotion()) {
       // No lid, no flight: the photo's own fade is the whole effect.
@@ -3009,27 +3098,30 @@ async function playTrashEat(btn, sources, opts = {}) {
         && r.width > 0 && r.height > 0;
     }).slice(0, EAT_MAX_CLONES);
 
-    // Stage the clones first, invisible and un-animated, so the browser has
-    // them decoded before anything moves — otherwise the decode lands on the
-    // flight's first frame. The lid's 240 ms opening is dead time to hide it.
+    // Stage the carriers first, invisible and un-animated, so the browser has
+    // them ready before anything moves — otherwise the decode lands on the
+    // flight's first frame. A card cannot leave the grid, so it flies as a
+    // clone; a photo that can be lifted comes along itself, decoded bitmap
+    // and all. Either way it ends up in the flight layer, over the dialog.
     const carriers = flying.map(i => {
-      if (live) return nodes[i];
+      if (live) {
+        const carrier = eatFloat(nodes[i], layer, rects[i]);
+        drops.push(carrier);
+        return carrier.node;
+      }
       const clone = eatClone(nodes[i], rects[i]);
       clone.style.opacity = '0';
       layer.appendChild(clone);
       return clone;
     });
 
-    // The lid starts opening and the flight starts with it — the lid is
-    // up in 110 ms and the photo needs 230 ms to arrive, so waiting for
-    // the hinge before launching only adds dead time to the tap.
-    btn.classList.add('is-eating');
-    if (!live) {
-      await Promise.race([
-        Promise.all(carriers.map(c => c.decode ? c.decode().catch(() => {}) : Promise.resolve())),
-        eatPause(500)
-      ]);
-    }
+    // The lid starts opening and the flight starts with it. Waiting for the
+    // hinge before launching would only add dead time to the tap.
+    host.classList.add('is-eating');
+    await Promise.race([
+      Promise.all(carriers.map(c => c.decode ? c.decode().catch(() => {}) : Promise.resolve())),
+      eatPause(500)
+    ]);
 
     const anims = [];
     // Stagger, but bounded: a 40-photo selection still finishes together
@@ -3059,6 +3151,8 @@ async function playTrashEat(btn, sources, opts = {}) {
       eatAnims.push(anim);
       carrier.__eatAnim = anim;      // eatRestore cancels only this photo
       anims.push(eatSettle(anim, EAT_FLIGHT + 400 + i * step));
+      // A clone owns itself and goes when the flight ends. A lifted node does
+      // not: it is the real photo, and eatDrop is what puts it back.
       if (!live) anim.finished.then(() => carrier.remove(), () => carrier.remove());
     });
 
@@ -3068,9 +3162,13 @@ async function playTrashEat(btn, sources, opts = {}) {
     // rather than a beat afterwards.
     await Promise.all(anims);
     nodes.forEach(n => n.classList.add('is-eaten'));
-    btn.classList.add('is-gulp');
-    btn.classList.remove('is-eating');   // the lid shuts on its own from here
-    btn.classList.remove('is-gulp');
+    // The bin closes around the photo: the lid shuts and the gulp fires
+    // together, and the gulp is held for its own length — it is the last
+    // thing on screen before the dialog goes, so it has to be seen.
+    host.classList.remove('is-eating');
+    host.classList.add('is-gulp');
+    await eatPause(280);
+    host.classList.remove('is-gulp');
   } catch (err) {
     // A presentation fault must never stop a deletion the user asked for.
     console.warn('Trash animation failed; deleting anyway.', err);
@@ -3080,9 +3178,12 @@ async function playTrashEat(btn, sources, opts = {}) {
     eatAnims.forEach(a => { try { a.cancel(); } catch (e) { /* already gone */ } });
     eatAnims = [];
     eatRunning = false;
-    delete btn.dataset.running;
-    btn.classList.remove('is-eating', 'is-gulp');
-    btn.disabled = wasDisabled;
+    delete host.dataset.running;
+    host.classList.remove('is-eating', 'is-gulp');
+    if (isButton) host.disabled = wasDisabled;
+    // Lifted nodes go home before the layer is swept, or the sweep would take
+    // the real photo with the clones and leave a hole where it used to be.
+    drops.forEach(d => d.drop());
     layer.textContent = '';
   }
 }
@@ -3116,22 +3217,27 @@ function eatRestore(nodes) {
 }
 
 async function deleteImage(path, sha, prettyLabel, opts = {}) {
+  let request = null;
   const ok = await askConfirm({
     title: `Delete "${prettyLabel}"?`,
     body: `<strong>${escapeHtml(prettyLabel)}</strong> will be removed from the archive. You can undo this from the message that follows.`,
-    okLabel: 'Delete photo'
+    okLabel: 'Delete photo',
+    // The swallow plays here, while the dialog is still up, so the photo is
+    // eaten by the bin sitting right in front of you. The request goes out
+    // alongside it — nothing waits on the animation to reach the network —
+    // but only the animation is awaited: holding the dialog open for a slow
+    // API round-trip would be a worse wait than the one it replaced. The
+    // result is picked up below, and cancelling never runs either.
+    onAccept: async () => {
+      request = deleteImageRequest(path, sha, prettyLabel);
+      request.catch(() => {});
+      if (opts.presenter) await opts.presenter();
+    },
   });
-  if (!ok) return;
-  // The bin performs while the request goes out. Waiting for the animation
-  // before touching the network is what made a delete feel slow — the photo
-  // was on its way into the can and then just sat there while the API
-  // answered.
-  //
-  // The local state change is the other way round: it waits for the bin.
-  // Re-rendering mid-swallow would pull the photo out of the can before it
-  // arrived, which is exactly the effect this is here to avoid.
-  const request = deleteImageRequest(path, sha, prettyLabel);
-  if (opts.presenter) await Promise.all([opts.presenter(), request.catch(() => {})]);
+  if (!ok || !request) return;
+  // The local state change is last: re-rendering mid-swallow pulls the
+  // photo out of the bin before it arrives, which is the one thing this
+  // effect must not do.
   try {
     await request;
     applyImageDelete(path);
@@ -3404,7 +3510,9 @@ async function viewerDelete() {
   if (!img) return;
   const node = el('lightboxImg');
   await deleteImage(img.path, img.sha, prettyName(img.name), {
-    presenter: () => playTrashEat(el('lightboxDelete'), node ? [{ node }] : [], { live: true }),
+    // The bin in the confirmation, not the one on the viewer button: the
+    // photo is swallowed by the can the visitor is already looking at.
+    presenter: () => playTrashEat(el('confirmBin'), node ? [{ node }] : [], { live: true }),
     restore: () => eatRestore([node])
   });
   // deleteImage re-renders; updateLightbox (via render) clamps or closes.
