@@ -55,12 +55,26 @@ const JOURNEY = [
 ];
 
 // Physical folders the gallery manages → their place in the journey.
+// Every real album needs a row here. A folder with no row is not an error
+// — the photo still shows — but it can never be classified: uploads into
+// it write no metadata, and existing photos in it stay on "Needs review"
+// forever. Six of the ten albums in the repo were missing, which left 233
+// of 335 photos unable to save a classification.
+//
+// "General" is deliberately absent and should stay that way. It is a
+// catch-all for photos that belong to no particular stage, so giving it
+// one would invent a classification for whatever lands in it.
 const FOLDER_STAGES = {
-  'site-survey':         1,
-  'cable-pull':          4,
-  'rack-build':          6,
-  'phase-1':             6, // WhatsApp batch — rack installation work (user-confirmed)
-  'termination-testing': 10,
+  'site-survey':                  1,  // Site Survey & Planning
+  'materials-and-equipments':     2,  // Materials & Equipment — same name
+  'cable-pull':                   4,  // Cable Installation
+  'trunking-installation':        5,  // Cable Routing & Management
+  'rack-build':                   6,  // Rack / Cabinet Installation
+  'phase-1':                      6,  // WhatsApp batch — rack installation work (user-confirmed)
+  'server-rack-build':            6,  // rack work, same stage as rack-build
+  'labelling-and-identification': 9,  // Labelling & Identification — same name
+  'termination-testing':         10,  // Testing & Certification
+  'site-survey-map':              1,  // the map that came out of the survey
 };
 
 // Optional activity hints from the file name. First match wins.
@@ -123,6 +137,30 @@ function suggestPhase(name) {
 
 function isConfigPhase(folder) {
   return folder in FOLDER_STAGES;
+}
+
+/* The label an album presents to a person.
+
+   A journey stage only names an album when it identifies one. Three
+   folders share "Rack / Cabinet Installation" and two share "Site Survey
+   & Planning"; two identically-titled albums in one grid is worse than
+   showing the folder name. Where a stage is shared, the folder name
+   wins — it is unique, and it is what rename, move and delete address
+   anyway, so the two never disagree.
+
+   The test runs against the live album set rather than a hand-kept list,
+   so a new album landing on an occupied stage cannot quietly reintroduce
+   the collision. Classification is unaffected either way: that reads
+   journeyFor() directly and keeps the shared stage name. */
+function albumStageName(folder) {
+  const j = journeyFor(folder);
+  if (!j) return folder;
+  for (const other of state.order) {
+    if (other === folder) continue;
+    const o = journeyFor(other);
+    if (o && o.stage === j.stage) return folder;
+  }
+  return j.stage;
 }
 
 /* A gallery item carries {path, sha, name} — the folder is derivable. */
@@ -1332,8 +1370,7 @@ function syncAppbar() {
     if (was !== collapsed) syncChromeH();
   }
   const folder = state.albumDetail;
-  const j = folder ? journeyFor(folder) : null;
-  const name = folder ? (j ? j.stage : folder) : 'Gallery';
+  const name = folder ? albumStageName(folder) : 'Gallery';
   if (name === lastAppbarName) return;
   lastAppbarName = name;
   const title = el('appbarTitle');
@@ -1437,7 +1474,7 @@ function albumCardMarkup(folder) {
   const items = state.folders[folder] || [];
   if (!items.length) return '';
   const j = journeyFor(folder);
-  const stageName = j ? j.stage : folder;
+  const stageName = albumStageName(folder);
   const needsReview = items.some(img => classifyPhoto(img).needsReview);
   const coverIdx = items.length - 1;
   const cover = items[coverIdx];
@@ -1548,7 +1585,7 @@ function renderAlbumDetail() {
   const items = state.folders[folder] || [];
   if (!items.length) { closeAlbumDetail(); return; }
   const j = journeyFor(folder);
-  const stageName = j ? j.stage : folder;
+  const stageName = albumStageName(folder);
   const keepY = window.scrollY;   // re-renders (rename/delete) keep place
   el('albumDetailView').innerHTML = `
     <div class="album-detail-head">
@@ -2101,9 +2138,8 @@ function mainMenu() {
 
 /* Album cover ⋮: quick actions scoped to that one album. */
 function albumMenu(folder) {
-  const j = journeyFor(folder);
   openSheet({
-    title: j ? j.stage : folder,
+    title: albumStageName(folder),
     items: [
       { icon: ICONS.photoAdd, label: 'Add photos', tourTarget: 'album-menu-add-photos', onTap: () => pickFiles(folder) },
       { icon: ICONS.gear, label: 'Album settings', tourTarget: 'album-menu-album-settings', onTap: () => openSettingsModal(folder) },
@@ -2168,6 +2204,11 @@ async function performUploads() {
   let total = Object.values(groups).reduce((a, g) => a + g.length, 0);
   let done = 0, skipped = 0, failed = 0;
   const failedNames = [];
+  // Why each failure happened, first occurrence per distinct reason. The
+  // names alone never said anything useful: a file that 422s, 409s or 403s
+  // all reported identically as "3 failed: a.jpg, b.jpg", so there was no
+  // way to tell a metadata problem from a permission one from a collision.
+  const failedReasons = [];
 
   // Paths already in the gallery → same-name uploads are skipped (a blind PUT
   // would 422 "sha wasn't supplied" and stall the whole batch). Cheap, no API
@@ -2217,6 +2258,8 @@ async function performUploads() {
       } catch (err) {
         failed++;
         failedNames.push(file.name);
+        const why = (err && err.message) ? err.message : 'unknown error';
+        if (!failedReasons.includes(why)) failedReasons.push(why);
       }
       done++;
       showToast(`Uploading ${done}/${total}…`, true);
@@ -2226,6 +2269,13 @@ async function performUploads() {
   showToast(skipped || failed
     ? `Added ${added} photo${added === 1 ? '' : 's'}${skipped ? ` (${skipped} skipped — already in the gallery)` : ''}${failureSuffix(failedNames)}.`
     : `Added ${total} photo${total === 1 ? '' : 's'}.`);
+  // The names said which files; this says why, which is the half that was
+  // missing. One line, first distinct reason — a toast is not a log.
+  if (failedReasons.length) {
+    showToast(failedReasons.length === 1
+      ? `Upload failed: ${failedReasons[0]}`
+      : `Upload failed (${failedReasons.length} different reasons) — first: ${failedReasons[0]}`);
+  }
   if (DEMO_MODE) { render(); return; }
   try {
     await persistMetadata();
@@ -3299,10 +3349,9 @@ function fillWindow(items, index) {
 /* Labels, counter and the download target for the photo now on screen. */
 function paintViewerChrome(img, items) {
   const folder = state.view === 'images' ? (img.folder || state.lightboxFolder) : state.lightboxFolder;
-  const j = journeyFor(folder);
   const iso = extractPhotoDate(img.name);
   el('lightboxName').textContent = prettyName(img.name);
-  el('lightboxMeta').textContent = `${iso ? fmtDay(iso, true) : 'Undated'} · ${j ? j.stage : folder}`;
+  el('lightboxMeta').textContent = `${iso ? fmtDay(iso, true) : 'Undated'} · ${albumStageName(folder)}`;
   el('lightboxCounter').textContent = `${state.lightboxIndex + 1} / ${items.length}`;
   el('lightboxTag').hidden = !state.adminMode;
   el('lightboxDelete').hidden = !state.adminMode;
