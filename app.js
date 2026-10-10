@@ -466,10 +466,27 @@ function shouldRequireWalkthrough(search) {
   const query = search !== undefined ? search
     : (typeof location !== 'undefined' ? location.search : '');
   if (/[?&]tour=1(&|$)/.test(query)) return false;
+  // ?stay=1 is the way back into the archive without being handed off —
+  // a deep link, or a reload that interrupted real work in the middle.
+  if (/[?&]stay=1(&|$)/.test(query)) return false;
+  let seen = true;
   try {
-    return !localStorage.getItem(WALKTHROUGH_SEEN_KEY);
+    seen = !!localStorage.getItem(WALKTHROUGH_SEEN_KEY);
   } catch (_) {
     return false; // cannot know — fail open
+  }
+  if (!seen) return true;
+  // A reload is a request to start again rather than to resume, so it
+  // hands off. Browsers do not tell the page which kind of reload it was:
+  // F5 and Ctrl/Cmd+Shift+R both arrive as navigation type "reload", so
+  // this catches hard refreshes and ordinary ones alike — there is no way
+  // to tell them apart from here.
+  try {
+    if (typeof performance === 'undefined' || !performance.getEntriesByType) return false;
+    const nav = performance.getEntriesByType('navigation')[0];
+    return !!(nav && nav.type === 'reload');
+  } catch (_) {
+    return false;
   }
 }
 
@@ -870,7 +887,8 @@ async function init() {
   // The walkthrough gate runs before anything else paints: a first-time
   // visitor should land on the build's story, not on the archive with a
   // tour banner they have to notice. Hand off and stop — the walkthrough
-  // writes the record, and the next load walks straight in.
+  // writes the record, and the next load walks straight in. A reload
+  // counts as starting again, so it hands off too; ?stay=1 opts out.
   if (shouldRequireWalkthrough()) {
     location.replace('walkthrough/');
     return;

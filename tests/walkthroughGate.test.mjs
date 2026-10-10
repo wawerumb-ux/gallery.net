@@ -22,7 +22,7 @@ const appSrc = fs.readFileSync(join(here, '..', 'app.js'), 'utf8');
 /* Cut the gate out verbatim, so this file cannot drift from the one
    that ships — if the function is renamed or removed, the slice is
    empty and every test below fails loudly. */
-function loadGate({ stored = null, throws = false } = {}) {
+function loadGate({ stored = null, throws = false, navType = null } = {}) {
   const m = /function shouldRequireWalkthrough\(search\) \{[\s\S]*?\n\}/.exec(appSrc);
   assert.ok(m, 'app.js declares shouldRequireWalkthrough');
 
@@ -40,6 +40,14 @@ function loadGate({ stored = null, throws = false } = {}) {
       setItem() {},
     },
   };
+  // Only present when a navigation type is asked for, so the default
+  // sandbox stays a world with no performance object at all — which is
+  // also the shape the fail-open branch has to survive.
+  if (navType) {
+    sandbox.performance = {
+      getEntriesByType: (kind) => kind === 'navigation' ? [{ type: navType }] : [],
+    };
+  }
   vm.createContext(sandbox);
   vm.runInContext('const WALKTHROUGH_SEEN_KEY = ' + JSON.stringify(key[1]) + ';\n' + m[0], sandbox);
   return { require: sandbox.shouldRequireWalkthrough, KEY: key[1] };
@@ -97,5 +105,39 @@ describe('G — the walkthrough gate', () => {
     const wt = fs.readFileSync(join(here, '..', 'walkthrough', 'walkthrough.js'), 'utf8');
     assert.ok(new RegExp("SEEN_KEY\\s*=\\s*'" + g.KEY + "'").test(wt),
       'walkthrough.js writes the same key the gate reads');
+  });
+
+  // A reload hands off, so refreshing the archive lands on the opening
+  // page again. Browsers report F5 and Ctrl/Cmd+Shift+R identically — both
+  // are navigation type "reload" — so the gate cannot honour one and not
+  // the other, and does not pretend to.
+  test('G8 — a reload starts the opening page again', () => {
+    const g = loadGate({ stored: 'completed', navType: 'reload' });
+    assert.equal(g.require(''), true, 'reload hands off');
+  });
+
+  test('G9 — a first-time navigation after the record walks straight in', () => {
+    const g = loadGate({ stored: 'completed', navType: 'navigate' });
+    assert.equal(g.require(''), false, 'arriving is not reloading');
+  });
+
+  test('G10 — going back is not reloading either', () => {
+    const g = loadGate({ stored: 'completed', navType: 'back_forward' });
+    assert.equal(g.require(''), false);
+  });
+
+  test('G11 — ?stay=1 is the way back in after a reload', () => {
+    const g = loadGate({ stored: 'completed', navType: 'reload' });
+    assert.equal(g.require('?stay=1'), false);
+    assert.equal(g.require('?tour=1&stay=1'), false);
+    // …and it is matched as a parameter, not a substring.
+    assert.equal(g.require('?stay=10'), true, '?stay=10 is not ?stay=1');
+  });
+
+  test('G12 — no performance object at all fails open', () => {
+    // A browser without the Navigation Timing entry point must not be
+    // locked out of their own archive.
+    const g = loadGate({ stored: 'completed' });
+    assert.equal(g.require(''), false);
   });
 });
