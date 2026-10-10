@@ -1294,6 +1294,14 @@ function setView(view) {
   syncAppbar();
 }
 
+/* The title the app bar last painted. The scroll listener calls
+   syncAppbar once per animation frame, but the name only changes
+   on a tab switch, an album open or a data event — scrolling the
+   wall never touches it. Rewriting both text nodes every frame
+   with the same string is a per-frame DOM write for nothing, so
+   the value is held and the nodes are written only when it moves. */
+let lastAppbarName = null;
+
 /* One UI hero header: the big "Gallery" title folds away on scroll and the
    compact title takes its place in the app bar. Inside an album both carry
    the album name instead. */
@@ -1308,6 +1316,8 @@ function syncAppbar() {
   const folder = state.albumDetail;
   const j = folder ? journeyFor(folder) : null;
   const name = folder ? (j ? j.stage : folder) : 'Gallery';
+  if (name === lastAppbarName) return;
+  lastAppbarName = name;
   const title = el('appbarTitle');
   if (title) title.textContent = name;
   el('appbarMini').textContent = name;
