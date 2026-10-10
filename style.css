@@ -381,15 +381,19 @@ code {
    reflows, and dropping the class brings the photo straight back
    when the delete fails. */
 .trash { display: block; overflow: visible; }
+.trash-btn { gap: 8px; }        /* .btn is already inline-flex */
 .trash-lid {
   transform-box: fill-box;
   transform-origin: 0% 100%;          /* the lid hinges on its own left end */
   transform: rotate(0deg);
-  transition: transform 240ms var(--ease-spring);
+  transition: transform 110ms var(--ease-out);
 }
 .is-eating .trash-lid { transform: rotate(-26deg); }
-.is-eating .trash { animation: trashKick 380ms var(--ease-spring); }
+.is-eating .trash { animation: trashKick 220ms var(--ease-out); }
 @keyframes trashKick { 0%, 100% { transform: none; } 42% { transform: translateY(-2px); } }
+/* The gulp: the bin takes the weight of the photo the instant it lands. */
+.is-gulp .trash { animation: trashGulp 180ms var(--ease-spring); }
+@keyframes trashGulp { 0%, 100% { transform: none; } 45% { transform: scale(1.22, 0.88); } }
 
 .eat-layer {
   position: fixed;
@@ -402,10 +406,11 @@ code {
   position: absolute;
   margin: 0;
   padding: 0;
-  object-fit: cover;                  /* the tile's own crop, never a stretch */
   will-change: transform, opacity;
 }
+.eat-clone-img { object-fit: cover; }   /* the tile's own crop, never a stretch */
 .card img.is-eaten,
+.album.is-eaten,
 #lightboxImg.is-eaten { opacity: 0; transition: opacity 200ms ease; }
 body.is-selecting .tabbar, body.is-selecting .fab { transform: translateY(110%); }
 
@@ -1888,8 +1893,8 @@ select.text-input option { background: var(--surface-3); color: var(--text); }
   .viewer, .viewer-top, .viewer-bottom, .viewer-nav, .viewer-img, .viewer-slide,
   .sheet, .sheet-overlay, .modal, .toast, .selectbar, .tabbar,
   .card img, .card-pick, .appbar-icon, .viewer-icon, .viewer-action, .btn,
-  .comfort-swatch, .trash, .trash-lid, .is-eating .trash,
-  .card img.is-eaten, #lightboxImg.is-eaten {
+  .comfort-swatch, .trash, .trash-lid, .is-eating .trash, .is-gulp .trash,
+  .card img.is-eaten, .album.is-eaten, #lightboxImg.is-eaten {
     transition: none !important;
     animation: none !important;
   }

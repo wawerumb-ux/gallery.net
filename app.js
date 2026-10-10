@@ -2357,10 +2357,11 @@ async function batchDeleteSelected() {
     return;
   }
 
-  // The bin performs on the selection, then the existing loop runs as before.
-  // The tile's own <img> is what flies — it is the already-decoded thumbnail,
-  // and it is what .is-eaten fades, so the tile keeps its box throughout.
-  await playTrashEat(el('selectDelete'),
+  // The bin performs on the selection while the delete loop runs — the
+  // loop is not held back by it, and the bin is not held back by it.
+  // The tile's own <img> is what flies: it is the already-decoded
+  // thumbnail, and it is what .is-eaten fades, so the tile keeps its box.
+  const bin = playTrashEat(el('selectDelete'),
     cards.filter(Boolean).map(c => ({ node: c.querySelector('.card-img') || c })));
 
   let done = 0, failed = 0;
@@ -2377,12 +2378,13 @@ async function batchDeleteSelected() {
     } catch (err) {
       failed++;
       failedNames.push(path.split('/').pop());
-        eatRestore([cards[i] && cards[i].querySelector('.card-img')]);
+      eatRestore([cards[i] && cards[i].querySelector('.card-img')]);
     }
     done++;
     showToast(`Deleting ${done}/${paths.length}…`, true);
   }
   exitBatchSelect();
+  await bin;                       // let the bin finish before the summary
   showToast(failed
     ? `Deleted ${done - failed} photo${done - failed === 1 ? '' : 's'}${failureSuffix(failedNames)}.`
     : `Deleted ${done} photo${done === 1 ? '' : 's'}.`);
@@ -2563,6 +2565,16 @@ async function removePhase() {
   const photos = (state.folders[folder] || []).length;
   if (!photos) return showToast(`"${folder}" is empty — nothing to remove.`);
   if (!confirm(`Remove phase "${folder}" and delete all ${photos} photo${photos === 1 ? '' : 's'} inside it? This can't be undone from here.`)) return;
+
+  // The bin takes the album card — the object being removed, not the word
+  // on the button — before the modal gets out of the way. The card is
+  // cloned rather than flown live because it sits under this modal: the
+  // flight layer is above the overlay, a live transform would not be. If
+  // the Albums tab is not on screen there is nothing to fly and the album
+  // is simply removed, same as any off-screen photo.
+  const albumCard = document.querySelector(
+    `#albumsView .album[data-folder="${CSS.escape(folder)}"]`);
+  await playTrashEat(el('settingsRemoveBtn'), albumCard ? [{ node: albumCard }] : []);
   overlayClose('settingsModalOverlay');
 
   const prefix = `${CONFIG.imagesPath}/${folder}/`;
@@ -2751,8 +2763,11 @@ async function revertAllChanges() {
    faded with .is-eaten (opacity only, so the tile keeps its box and
    nothing reflows) and the class is dropped again if the delete
    fails, which puts the photo back untouched. */
-const EAT_MAX_CLONES = 12;   // a 200-photo selection still costs 12 nodes
+const EAT_MAX_CLONES = 60;   // a whole selection is eaten, not the first dozen
 const EAT_ANIM_ID = 'gallery-eat';   // lets updateLightbox cancel only our flight
+const EAT_FLIGHT = 230;      // lid open 110 + flight 230 + lid shut ~110
+const EAT_STAGGER = 40;      // max gap between two photos entering
+const EAT_SPREAD = 170;      // …but the whole batch lands inside this window
 let eatRunning = false;
 let eatAnims = [];          // live, so a restore can cancel a filled flight
 
@@ -2766,27 +2781,44 @@ function eatMouth(btn) {
   return { x: r.left + r.width / 2, y: r.top + r.height * 0.34 };
 }
 
-/* A settled clone that matches the photo it stands for: same box, same
-   crop, same corner radius. The src is the thumbnail already decoded
-   for that card, so this costs no new bytes. */
+/* A settled stand-in for whatever is being eaten, matching the box it
+   occupies. Two shapes:
+     - an <img> (a photo) keeps the tile's crop and corner radius. Its src
+       is the thumbnail already decoded for that tile, so no new bytes.
+     - anything else (an album card) is deep-cloned whole, so it still reads
+       as the object it was, then made inert — a live copy carrying ids or
+       its own buttons would duplicate controls and screen-reader output. */
 function eatClone(node, rect) {
-  const img = document.createElement('img');
-  img.src = node.currentSrc || node.src;
-  img.alt = '';
-  // Async, deliberately: "sync" forces the decode onto the main thread
-  // at paint time, which showed up as a 230 ms frame at the start of
-  // the flight. The clone has 560 ms to land — there is no reason to
-  // block the thread for it.
-  img.decoding = 'async';
-  img.setAttribute('aria-hidden', 'true');
-  img.className = 'eat-clone';
+  const isImg = node.tagName === 'IMG';
+  let el;
+  if (isImg) {
+    el = document.createElement('img');
+    el.src = node.currentSrc || node.src;
+    // Async, deliberately: "sync" forces the decode onto the main thread
+    // at paint time, which showed up as a 230 ms frame at the start of
+    // the flight. There is no reason to block the thread for it.
+    el.decoding = 'async';
+    el.alt = '';
+    el.className = 'eat-clone eat-clone-img';
+  } else {
+    el = node.cloneNode(true);
+    el.classList.add('eat-clone');
+    el.removeAttribute('data-tour-target');
+    el.querySelectorAll('[id]').forEach(n => n.removeAttribute('id'));
+    el.querySelectorAll('button, a, input, select, textarea').forEach(n => {
+      n.setAttribute('tabindex', '-1');
+      if ('disabled' in n) n.disabled = true;
+      if (n.tagName === 'A') n.removeAttribute('href');
+    });
+  }
+  el.setAttribute('aria-hidden', 'true');
   const radius = getComputedStyle(node).borderRadius;
-  if (radius) img.style.borderRadius = radius;
-  img.style.left = rect.left + 'px';
-  img.style.top = rect.top + 'px';
-  img.style.width = rect.width + 'px';
-  img.style.height = rect.height + 'px';
-  return img;
+  if (radius) el.style.borderRadius = radius;
+  el.style.left = rect.left + 'px';
+  el.style.top = rect.top + 'px';
+  el.style.width = rect.width + 'px';
+  el.style.height = rect.height + 'px';
+  return el;
 }
 
 /* animation.finished is the real signal; the timeout is only there so a
@@ -2794,22 +2826,6 @@ function eatClone(node, rect) {
    cannot wedge the delete forever. */
 function eatSettle(anim, ms) {
   return Promise.race([anim.finished.catch(() => {}), eatPause(ms)]);
-}
-
-function eatWaitLid(lid) {
-  if (!lid) return Promise.resolve();
-  return new Promise(resolve => {
-    let done = false;
-    const finish = () => {
-      if (done) return;
-      done = true;
-      lid.removeEventListener('transitionend', onEnd);
-      resolve();
-    };
-    const onEnd = e => { if (e.propertyName === 'transform') finish(); };
-    lid.addEventListener('transitionend', onEnd);
-    setTimeout(finish, 420);
-  });
 }
 
 /* sources: [{ node }] — the nodes whose photos are being eaten.
@@ -2827,7 +2843,6 @@ async function playTrashEat(btn, sources, opts = {}) {
   btn.disabled = true;                       // no second flight, no double submit
   btn.dataset.running = 'true';
   const layer = eatLayer();
-  const lid = btn.querySelector('.trash-lid');
   try {
     // Measure everything up front — boxes, mouths and radii — so the
     // flight below is pure writes and never re-reads layout mid-animation.
@@ -2862,45 +2877,57 @@ async function playTrashEat(btn, sources, opts = {}) {
       return clone;
     });
 
+    // The lid starts opening and the flight starts with it — the lid is
+    // up in 110 ms and the photo needs 230 ms to arrive, so waiting for
+    // the hinge before launching only adds dead time to the tap.
     btn.classList.add('is-eating');
-    await Promise.all([
-      eatWaitLid(lid),
-      live ? Promise.resolve() : Promise.race([
+    if (!live) {
+      await Promise.race([
         Promise.all(carriers.map(c => c.decode ? c.decode().catch(() => {}) : Promise.resolve())),
         eatPause(500)
-      ])
-    ]);
+      ]);
+    }
 
     const anims = [];
+    // Stagger, but bounded: a 40-photo selection still finishes together
+    // instead of trickling in for two seconds. The tap has to feel instant.
+    const step = Math.min(EAT_STAGGER, EAT_SPREAD / Math.max(1, carriers.length - 1));
     carriers.forEach((carrier, i) => {
       if (carrier.style) carrier.style.opacity = '';
       const rect = rects[flying[i]];
       const dx = mouth.x - (rect.left + rect.width / 2);
       const dy = mouth.y - (rect.top + rect.height / 2);
-      const tilt = (i % 2 ? 1 : -1) * (6 + (i % 3) * 4);
+      const tilt = (i % 2 ? 1 : -1) * (5 + (i % 3) * 3);
+      // The photo stays whole and fully opaque the whole way down — it only
+      // fades once it is inside the mouth. Fading it while it was still in
+      // the open is what made this read as vanishing, not as being eaten.
       const anim = carrier.animate([
         { transform: 'translate(0px,0px) rotate(0deg) scale(1)', opacity: 1, offset: 0 },
-        { transform: `translate(${dx * 0.55}px,${dy * 0.3 - 22}px) rotate(${tilt * 0.5}deg) scale(0.46)`, opacity: 1, offset: 0.58 },
-        { transform: `translate(${dx}px,${dy}px) rotate(${tilt}deg) scale(0.08)`, opacity: 0, offset: 1 }
+        { transform: `translate(${dx * 0.5}px,${dy * 0.34 - 14}px) rotate(${tilt * 0.5}deg) scale(0.44)`, opacity: 1, offset: 0.55 },
+        { transform: `translate(${dx * 0.92}px,${dy * 0.88}px) rotate(${tilt * 0.85}deg) scale(0.16)`, opacity: 1, offset: 0.86 },
+        { transform: `translate(${dx}px,${dy}px) rotate(${tilt}deg) scale(0.05)`, opacity: 0, offset: 1 }
       ], {
         id: EAT_ANIM_ID,
-        duration: 560,
-        delay: i * 55,                        // staggered, so a batch reads as a queue
-        easing: 'cubic-bezier(.45,.02,.3,1)',
+        duration: EAT_FLIGHT,
+        delay: i * step,
+        easing: 'cubic-bezier(.32,.02,.28,1)',
         fill: 'forwards'
       });
       eatAnims.push(anim);
-      anims.push(eatSettle(anim, 900 + i * 55));
+      carrier.__eatAnim = anim;      // eatRestore cancels only this photo
+      anims.push(eatSettle(anim, EAT_FLIGHT + 400 + i * step));
       if (!live) anim.finished.then(() => carrier.remove(), () => carrier.remove());
     });
 
     // The photo is in the bin; fade the node it came from, but only
-    // once it has actually landed.
+    // once it has actually landed. The gulp and the lid shutting happen
+    // together — the bin takes the weight of the photo as it swallows it
+    // rather than a beat afterwards.
     await Promise.all(anims);
     nodes.forEach(n => n.classList.add('is-eaten'));
-
-    btn.classList.remove('is-eating');
-    await eatWaitLid(lid);
+    btn.classList.add('is-gulp');
+    btn.classList.remove('is-eating');   // the lid shuts on its own from here
+    btn.classList.remove('is-gulp');
   } catch (err) {
     // A presentation fault must never stop a deletion the user asked for.
     console.warn('Trash animation failed; deleting anyway.', err);
@@ -2911,7 +2938,7 @@ async function playTrashEat(btn, sources, opts = {}) {
     eatAnims = [];
     eatRunning = false;
     delete btn.dataset.running;
-    btn.classList.remove('is-eating');
+    btn.classList.remove('is-eating', 'is-gulp');
     btn.disabled = wasDisabled;
     layer.textContent = '';
   }
@@ -2929,37 +2956,57 @@ function eatLayer() {
   return layer;
 }
 
-/* Put a photo back after a delete that did not land. Cancelling the
-   flight matters as much as dropping .is-eaten: the animation holds a
-   forwards fill, so without this the photo would come back shrunk. */
+/* Put a photo back after a delete that did not land. Cancelling matters
+   as much as dropping .is-eaten: the flight holds a forwards fill, so
+   without it the photo would come back shrunk. Scoped to these nodes
+   only — one failure inside a running batch must not cancel the rest of
+   the batch's flight. */
 function eatRestore(nodes) {
-  eatAnims.forEach(a => { try { a.cancel(); } catch (e) { /* already gone */ } });
-  eatAnims = [];
-  (nodes || []).forEach(n => n && n.classList && n.classList.remove('is-eaten'));
+  for (const n of nodes || []) {
+    if (!n) continue;
+    if (n.__eatAnim) {
+      try { n.__eatAnim.cancel(); } catch (e) { /* already gone */ }
+      delete n.__eatAnim;
+    }
+    if (n.classList) n.classList.remove('is-eaten');
+  }
 }
 
 async function deleteImage(path, sha, prettyLabel, opts = {}) {
   if (!confirm(`Delete "${prettyLabel}"? This can't be undone from here.`)) return;
-  // The bin performs, then the existing workflow runs exactly as before.
-  if (opts.presenter) await opts.presenter();
-  if (DEMO_MODE) {
-    for (const folder of state.order) {
-      state.folders[folder] = state.folders[folder].filter(f => f.path !== path);
-    }
-    render();
-    showToast(`Deleted ${prettyLabel} (demo).`);
-    return;
-  }
+  // The bin performs while the request goes out. Waiting for the animation
+  // before touching the network is what made a delete feel slow — the photo
+  // was on its way into the can and then just sat there while the API
+  // answered.
+  //
+  // The local state change is the other way round: it waits for the bin.
+  // Re-rendering mid-swallow would pull the photo out of the can before it
+  // arrived, which is exactly the effect this is here to avoid.
+  const request = deleteImageRequest(path, sha, prettyLabel);
+  if (opts.presenter) await Promise.all([opts.presenter(), request.catch(() => {})]);
   try {
-    await githubDelete(path, sha, `Remove ${prettyLabel} via gallery admin`);
-    for (const folder of state.order) {
-      state.folders[folder] = state.folders[folder].filter(f => f.path !== path);
-    }
+    await request;
+    applyImageDelete(path);
     render();
-    showToast(`Deleted ${prettyLabel}.`);
+    showToast(DEMO_MODE ? `Deleted ${prettyLabel} (demo).` : `Deleted ${prettyLabel}.`);
   } catch (err) {
     showToast(err.message);
     if (opts.restore) opts.restore();
+  }
+}
+
+/* The part that talks to the repo. Everything that decides whether the
+   photo actually goes still lives here and in applyImageDelete below —
+   demo mode, the GitHub call, the local state update, the re-render and
+   both toasts are unchanged from when this ran as one inline function. */
+function deleteImageRequest(path, sha, prettyLabel) {
+  if (DEMO_MODE) return Promise.resolve();
+  return githubDelete(path, sha, `Remove ${prettyLabel} via gallery admin`);
+}
+
+function applyImageDelete(path) {
+  for (const folder of state.order) {
+    state.folders[folder] = state.folders[folder].filter(f => f.path !== path);
   }
 }
 

@@ -288,7 +288,10 @@
     <input type="text" id="settingsPhaseRename" class="text-input" placeholder="new-album-name" autocomplete="off">
     <div class="modal-actions">
       <button class="btn btn-ghost" id="settingsRenameBtn" data-tour-target="settings-rename">Rename</button>
-      <button class="btn btn-danger" id="settingsRemoveBtn" data-tour-target="settings-remove">Remove album</button>
+      <button class="btn btn-danger trash-btn" id="settingsRemoveBtn" data-tour-target="settings-remove" aria-label="Remove album">
+        <svg class="trash" viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true" focusable="false"><path class="trash-body" d="M5.7 7.7h12.6l-.95 11.9a1.8 1.8 0 0 1-1.8 1.6H8.45a1.8 1.8 0 0 1-1.8-1.6z"/><g class="trash-lid"><path d="M3.5 4.6h17v2.8h-17z"/><path d="M9.2 4.5V3.3a1 1 0 0 1 1-1h3.6a1 1 0 0 1 1 1v1.2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></g></svg>
+        <span>Remove album</span>
+      </button>
       <button class="btn btn-ghost" id="settingsCancel" data-tour-target="album-settings-cancel">Cancel</button>
     </div>
     <hr class="modal-divider">
