@@ -1081,9 +1081,16 @@ body.is-selecting .tabbar, body.is-selecting .fab { transform: translateY(110%);
 /* ── One UI dialogs ──────────────────────────────────────────────── */
 .modal-overlay {
   position: fixed; inset: 0;
-  background: var(--scrim-strong);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
+  /* Light enough that the footage keeps playing behind the gap around a
+     dialog. The scrim here is not carrying legibility — .modal is opaque
+     (--surface-3) — it only sets focus and keeps the archive visible as
+     context, so it is knocked back from the sheet's --scrim-strong and
+     derived from whatever that theme's own value is. Blur drops to 2px:
+     at 6px the footage smears rather than reads. */
+  background: var(--scrim-strong);   /* engines without color-mix keep today's scrim */
+  background: color-mix(in srgb, var(--scrim-strong) 55%, transparent);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
   z-index: 120;
   display: flex; align-items: flex-start; justify-content: center;
   padding: 24px;
