@@ -1324,6 +1324,31 @@ function syncChromeH() {
   document.documentElement.style.setProperty('--chrome-h', h + 'px');
 }
 
+/* --chrome-h is what the album-detail header sticks below, so it has to
+   track the app bar through every change — including an orientation change,
+   which syncAppbar alone did not cover: it only calls syncChromeH when the
+   collapsed state flips, so a rotate that kept the same state left the
+   offset at the old height (measured 77px carried over into a 142px bar).
+
+   Measuring is not enough on its own. The bar's height is animated, not
+   stepped: the hero folds on a grid-template-rows transition, and the
+   ≤520px media query folds it on the same one. A measurement taken in the
+   same tick as the class change or the rotate reads a height mid-flight —
+   124px for a bar that lands on 59px — which pins the album-detail header
+   below where the bar actually is. So re-measure when the transition
+   finishes rather than guessing its duration: one listener, on the element
+   that animates. */
+let chromeHTransitionHooked = false;
+function watchChromeH() {
+  if (chromeHTransitionHooked) return;
+  const bar = el('appbar');
+  if (!bar) return;
+  chromeHTransitionHooked = true;
+  bar.addEventListener('transitionend', (e) => {
+    if (e.target === bar || e.propertyName === 'grid-template-rows') syncChromeH();
+  });
+}
+
 /* Admin quick-find: hide cards/albums that don't match the query, and fold
    away day groups left empty by the filter. */
 function applyAdminFilter() {
@@ -1848,7 +1873,11 @@ function wireStaticEvents() {
     appbarQueued = true;
     requestAnimationFrame(() => { appbarQueued = false; syncAppbar(); });
   }, { passive: true });
-  window.addEventListener('resize', syncAppbar);
+  // syncAppbar first, so the collapsed class has already moved before
+  // anything measures. watchChromeH then re-measures once the fold this
+  // triggers has finished animating.
+  watchChromeH();
+  window.addEventListener('resize', () => { syncAppbar(); syncChromeH(); });
 }
 
 async function trySignIn() {

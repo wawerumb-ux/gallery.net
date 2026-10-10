@@ -227,7 +227,7 @@ code {
   align-items: center;
   gap: 10px;
   height: 54px;
-  padding: 0 8px 0 20px;
+  padding: 0 6px 0 20px;
 }
 .appbar-mini {
   font-size: 17px;
@@ -239,8 +239,11 @@ code {
 }
 .appbar.is-collapsed .appbar-mini { opacity: 1; transform: none; }
 .appbar-actions { margin-left: auto; display: flex; align-items: center; gap: 4px; }
+/* 44px, not 42: these three are the only controls in the app bar, and 42 is
+   under the 44px touch target a thumb needs on a phone. The icon stays 22px
+   inside it, so the button reads the same size and the target grows. */
 .appbar-icon {
-  width: 42px; height: 42px;
+  width: 44px; height: 44px;
   display: inline-flex; align-items: center; justify-content: center;
   background: transparent; border: none; border-radius: 50%;
   color: var(--text); cursor: pointer;
@@ -261,6 +264,19 @@ code {
   padding: 4px 20px 18px;
 }
 .appbar.is-collapsed .appbar-hero { grid-template-rows: 0fr; opacity: 0; pointer-events: none; }
+
+/* Short viewports — a phone held sideways, or any window under about 520px
+   tall. The hero is 87px on top of the 54px row, which is 36% of a 390px
+   frame and 39% of a 360px one: barely one row of the wall visible before
+   the tab bar. The hero folds the same way it does on scroll, and the
+   compact title takes its place, so the identity of the page survives and
+   the content budget goes back to 278px / 248px. Scrolling does not undo
+   this — the collapsed state here is the resting state at this height. */
+@media (max-height: 520px) {
+  .appbar-hero { grid-template-rows: 0fr; opacity: 0; pointer-events: none; }
+  .appbar-mini { opacity: 1; transform: none; }
+  .appbar-hero-inner { padding-bottom: 0; }
+}
 .appbar-title {
   margin: 0;
   font-size: 34px;
@@ -613,6 +629,12 @@ body.is-selecting .tabbar, body.is-selecting .fab { transform: translateY(110%);
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 18px 14px;
   padding: 16px 12px 8px;
+  /* The labels size off the grid's own width, not the viewport's. A 768px
+     tablet holds the same 480px phone column a 390px phone does, and a
+     viewport media query cannot see that — the album name was set at 13.5px
+     in a 93px track and ellipsised, on a screen narrower in the column than
+     the phone it was tuned for. */
+  container-type: inline-size;
 }
 .album { margin: 0; min-width: 0; cursor: pointer; }
 
@@ -628,13 +650,6 @@ body.is-selecting .tabbar, body.is-selecting .fab { transform: translateY(110%);
     padding: 14px 0 8px;
     gap: 16px 4px;
   }
-  /* Four across leaves a cover around 96px, so the labels drop to the
-     size the wall's own captions use. Without this the name ellipsises
-     to two or three characters and the count stops being readable at
-     all. */
-  .album-name { font-size: 11.5px; }
-  .album-count { font-size: 10.5px; }
-  .album-meta { padding: 6px 2px 0; }
 }
 .album-cover {
   position: relative;
@@ -686,11 +701,41 @@ body.is-selecting .tabbar, body.is-selecting .fab { transform: translateY(110%);
 }
 .album-count { display: block; font-size: 12px; color: var(--text-faint); margin-top: 1px; }
 
+/* Phone-width columns: the labels. A four-across grid in a 480px column
+   leaves a cover around 92–102px, and a nowrap name in that track ellipsised
+   nine of the ten albums to "Rack / Cabi…" — the label carried less
+   information than the folder it came from. So the name wraps to two clamped
+   lines at the wall's own caption size, and the count stays on one. Both are
+   needed: the 11.5px step-down only holds once the wrap does, because the
+   ellipsis was the reason the size had to be dropped in the first place.
+
+   Keyed to the grid's inline size, not the viewport: this block used to sit
+   in the ≤480px viewport media query above, where it lost to the base
+   .album-name on source order and so never applied at all — the labels were
+   13.5px in an 85px track on every phone. A container query also covers the
+   768px tablet, which holds the same 480px column but has a wider viewport
+   and so was missed twice over. */
+@container (max-width: 480px) {
+  .album-meta { padding: 6px 2px 0; }
+  .album-name {
+    font-size: 11.5px; line-height: 1.3;
+    white-space: normal;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow-wrap: anywhere;
+  }
+  .album-count { font-size: 10.5px; }
+}
+
 /* ── Album detail: one phase's photos, inline grid ───────
    The header (back + name + count) sticks right under the top
    chrome; the grid reuses the Pictures wall tiles. */
 .album-detail-head {
   position: sticky;
+  /* --chrome-h is re-measured on resize (see syncChromeH's callers in
+     app.js); the fallback covers the first paint before it is written. */
   top: var(--chrome-h, 54px);
   z-index: 5;
   display: flex;
@@ -700,7 +745,9 @@ body.is-selecting .tabbar, body.is-selecting .fab { transform: translateY(110%);
   background: linear-gradient(to bottom, var(--bg) 72%, transparent);
 }
 .album-back {
-  width: 40px; height: 40px;
+  /* 44px target, same plate and same chevron — 40px is under what a thumb
+     needs, and this is the only way out of an album. */
+  width: 44px; height: 44px;
   flex: none;
   display: flex; align-items: center; justify-content: center;
   border: none; border-radius: 50%;
@@ -850,8 +897,10 @@ body.is-selecting .tabbar, body.is-selecting .fab { transform: translateY(110%);
   z-index: 95;
   transition: opacity var(--duration-fast) ease, transform var(--duration-fast) ease;
 }
+/* 44px for the same reason as .appbar-icon: the Back control in the viewer
+   is the way out of a fullscreen photo, and 42px is under the target. */
 .viewer-icon {
-  width: 42px; height: 42px; flex-shrink: 0;
+  width: 44px; height: 44px; flex-shrink: 0;
   display: inline-flex; align-items: center; justify-content: center;
   background: transparent; border: none; border-radius: 50%;
   color: var(--media-ink); cursor: pointer;
@@ -878,7 +927,11 @@ body.is-selecting .tabbar, body.is-selecting .fab { transform: translateY(110%);
 .viewer-stage {
   position: relative;
   display: flex; align-items: center; justify-content: center;
-  max-width: 96vw; max-height: 100vh;
+  /* dvh, not vh: the viewer is position:fixed and fills the frame, and vh is
+     the tall viewport on a phone — a photo sized to it runs under the browser
+     chrome and its own top/bottom bars. vh stays as the fallback. */
+  max-width: 96vw; max-width: 96dvw;
+  max-height: 100vh; max-height: 100dvh;
   width: 100%; height: 100%;
   /* Isolate the slider: its repaints can never escape into the chrome. */
   contain: layout paint;
@@ -903,7 +956,10 @@ body.is-selecting .tabbar, body.is-selecting .fab { transform: translateY(110%);
   flex: 0 0 100%;
   width: 100%; height: 100%;
   min-width: 0;
-  max-width: 100vw; max-height: 100vh;
+  /* dvw/dvh for the same reason as .viewer-stage — the slot must never be
+     sized by the viewport the browser chrome no longer occupies. */
+  max-width: 100vw; max-width: 100dvw;
+  max-height: 100vh; max-height: 100dvh;
   object-fit: contain;
   /* Only the current photo is painted with anything expensive. The
      neighbours carry the ~25 KB webp tier, so their blur-up is cheap;
@@ -993,6 +1049,15 @@ body.is-selecting .tabbar, body.is-selecting .fab { transform: translateY(110%);
   padding: 24px 22px 20px;
   max-width: 400px;
   width: 100%;
+  /* The settings dialog is 473px tall. On a landscape phone — 390px, then
+     360px of frame — it ran past the bottom edge, and while the overlay
+     scrolls so its footer was reachable, a dialog you have to scroll to
+     find the buttons in is a dialog that reads as broken. Capping the box
+     and letting the overlay scroll keeps every control inside the frame,
+     with the 44px buttons above as the minimum tap size. */
+  max-height: calc(100vh - 48px);
+  max-height: calc(100dvh - 48px);
+  overflow-y: auto;
   box-shadow: 0 24px 64px var(--shadow);
   animation: modalPopIn var(--duration-normal) var(--ease-spring);
 }
@@ -1046,12 +1111,18 @@ select.text-input option { background: var(--surface-3); color: var(--text); }
   gap: 4px;
   margin-top: 16px;
 }
+/* 9px of vertical padding put every dialog button at 34px tall, under the
+   44px a thumb needs — and these are the only way out of all seven modals.
+   min-height grows the target without touching the type, so the button
+   still reads as the same pill. */
 .btn {
   border: none;
   border-radius: var(--radius-pill);
   background: transparent;
   font-size: 14px; font-weight: 500;
   padding: 9px 16px;
+  min-height: 44px;
+  display: inline-flex; align-items: center; justify-content: center;
   cursor: pointer;
   transition: background var(--duration-fast) ease, transform var(--duration-fast) var(--ease-spring);
 }
@@ -1063,11 +1134,13 @@ select.text-input option { background: var(--surface-3); color: var(--text); }
 .btn-ghost:hover { background: var(--plate); color: var(--text); }
 .btn-danger { color: var(--danger); }
 .btn-danger:hover { background: var(--danger-dim); }
-.btn-sm { padding: 6px 12px; font-size: 12.5px; }
+.btn-sm { padding: 6px 12px; font-size: 12.5px; min-height: 36px; }
 
 /* Pick lists (upload confirm, move) */
 .pick-list {
-  max-height: 44vh;
+  /* dvh for the same reason as the viewer: 44vh on a phone with the URL bar
+     showing is taller than the frame the dialog has to live inside. */
+  max-height: 44vh; max-height: 44dvh;
   overflow-y: auto;
   border: 1px solid var(--hairline);
   border-radius: 14px;
@@ -1109,7 +1182,7 @@ select.text-input option { background: var(--surface-3); color: var(--text); }
   background: var(--toast-bg);
   border: 1px solid var(--hairline);
   color: var(--toast-ink);
-  padding: 11px 40px 11px 18px;
+  padding: 11px 44px 11px 18px;
   border-radius: var(--radius-pill);
   font-size: 13px;
   box-shadow: 0 12px 32px var(--shadow);
@@ -1120,9 +1193,15 @@ select.text-input option { background: var(--surface-3); color: var(--text); }
   from { opacity: 0; transform: translate(-50%, 12px); }
   to { opacity: 1; transform: translate(-50%, 0); }
 }
+/* The glyph is 9x17 — a thumb cannot land on that. The button is given a
+   44px square centred on the same glyph, and the toast's right padding
+   widens by exactly 4px to hold it, so the mark sits where it did and only
+   the target grows. */
 .toast-close {
-  position: absolute; top: 50%; right: 12px;
+  position: absolute; top: 50%; right: 0;
   transform: translateY(-50%);
+  width: 44px; height: 44px;
+  display: flex; align-items: center; justify-content: center;
   background: none; border: none;
   color: var(--toast-ink-dim);
   font-size: 17px; line-height: 1;
@@ -1145,10 +1224,16 @@ select.text-input option { background: var(--surface-3); color: var(--text); }
 @media (max-width: 380px) {
   .grid-pictures { grid-template-columns: repeat(3, 1fr); }
   /* The album grid steps down in step with the wall, so a phone gets
-     the same density on both tabs. Names ellipsis rather than wrap —
-     .album-name is nowrap — so three across stays one line. */
+     the same density on both tabs. The name now wraps to two clamped
+     lines below 480px rather than ellipsising, so three across costs
+     no more height than it used to. */
   .grid-albums { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .appbar-title { font-size: 30px; }
+  /* At 320px the 13px subtitle wrapped onto a second line, which pushed
+     the whole app bar from 137px to 157px — 28% of the viewport before a
+     single photo. 12px holds it to one line in the 280px the hero leaves
+     after its own padding. */
+  .appbar-sub { font-size: 12px; }
   .modal-overlay { padding: 14px; }
   .modal { padding: 20px 16px 16px; }
 }
