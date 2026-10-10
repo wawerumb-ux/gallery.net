@@ -16,7 +16,12 @@ just this repo.
 
 `/walkthrough/` is the site's front door: the gallery sends a first-time
 visitor there and the page's only job is to tell them what this is and
-offer the way in. Visitors reach it from the ⋮ menu → **Project walkthrough**.
+offer the way in. Visitors reach it from the ⋮ menu → **Start here**.
+
+Nothing in the UI calls it a walkthrough any more — the page is just the
+page you start on. The name survives only in code: the folder, the
+`walkthrough.seen` / `walkthrough.tourState` keys, `shouldRequireWalkthrough()`
+and the `walkthrough:journey-end` event.
 
 ## Typeface
 

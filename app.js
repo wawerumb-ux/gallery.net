@@ -2067,7 +2067,7 @@ function closeSheet() { el('sheetOverlay').hidden = true; }
    the admin gets the full tool set. */
 function mainMenu() {
   const items = [
-    { icon: ICONS.route, label: 'Project walkthrough', onTap: () => { window.location.href = 'walkthrough/'; } },
+    { icon: ICONS.route, label: 'Start here', onTap: () => { window.location.href = 'walkthrough/'; } },
     { icon: ICONS.play, label: 'Guided tour', onTap: () => { window.location.href = 'tour/'; } },
     ...(state.adminMode ? [
       { icon: ICONS.photoAdd, label: 'Add photos', tourTarget: 'menu-add-photos', onTap: () => pickFiles(null) },
