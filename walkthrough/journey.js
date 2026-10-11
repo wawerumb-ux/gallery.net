@@ -400,6 +400,19 @@
       }
       if (draw) playDraw(lines[next]);
       else hideLine(lines[next]);
+      /* Reduced motion releases `busy` here, synchronously, because this
+         branch has already applied every class it is going to apply —
+         there is no transition to wait out and no timer above to do it
+         for us. Without this line `busy` is set true by stepTo and never
+         cleared, so step() drops every later press and the journey
+         freezes on its first card for the whole visit.
+
+         That was not merely a cosmetic fault while the landing still
+         carried a permanent "Browse the gallery" link: a visitor with
+         reduce-motion set simply could not walk the journey, but they
+         could still leave. With that link gone the same bug leaves them
+         no route into the archive at all. */
+      busy = false;
       return;
     }
 

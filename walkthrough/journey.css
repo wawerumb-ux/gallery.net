@@ -23,16 +23,41 @@
   --jr-muted: rgba(244, 247, 250, 0.65);
   --jr-faint: rgba(244, 247, 250, 0.34);
 
-  /* The video's own light is cyan, so the accent is the video's colour
-     rather than a second one competing with it. */
-  --jr-accent: #22d3ee;
-  --jr-accent-ink: #06333c;
+  /* ── Accent ──────────────────────────────────────────────────────
+     One chromatic colour on the whole landing: a warm amber, chosen
+     because it is the complement of the footage. The server-room and
+     office shots are cool blue-grey, so amber holds its contrast
+     against every frame while cyan — the old accent, chosen to match
+     the video's own light — disappeared into them.
+
+     Everything subordinate is --jr-mark instead: a neutral that carries
+     the card's accent bar, its step number, the diagram lines and the
+     per-stage figures. Those elements used to share the accent and so
+     competed with the button for the same chromatic attention; making
+     them neutral is what turns "the CTA is the loudest thing" from a
+     claim into a structural fact.
+
+     To put the accent back on the cards, point those four rules at
+     --jr-accent instead. One variable each way. */
+  --jr-accent: #ffb020;
+  --jr-accent-ink: #14100a;
+  --jr-mark: rgba(244, 247, 250, 0.34);
 
   --jr-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 18px 44px rgba(0, 0, 0, 0.44);
 
   --jr-radius: 16px;
   --jr-card-w: 320px;
   --jr-inset: 28px;
+
+  /* The CTA's typewriter. One monospace character and the label's
+     length in characters; the reveal edge and the caret are both
+     computed from them, which is why the label is set in the mono
+     face. In Roboto, 10ch is not the width of "Start here" and the
+     caret ends up floating in space past the text. Plex Mono's
+     advance is 0.6em. */
+  --jr-ch: 0.6em;
+  --jr-len: 10;
+  --jr-len-width: calc(var(--jr-ch) * var(--jr-len));
 
   --jr-font: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
   --jr-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -117,17 +142,33 @@ body.jr {
 }
 
 /* ── Cards ──────────────────────────────────────────────────────────
-   Absolute, one visible at a time. The stage number is the mono
-   eyebrow the deck uses elsewhere, so this page reads as the same
-   product rather than a different one. */
+   Full width of the frame, at every breakpoint. They used to be a
+   320px panel placed by a per-stage horizontal anchor, which left the
+   landing looking like a diagram with captions attached — and on a
+   narrow frame the width had to be clamped against the viewport,
+   which is the kind of arithmetic that goes wrong the moment the copy
+   grows.
+
+   The horizontal anchor is gone; the vertical one stays. --jr-y is
+   measured per stage from the footage, and keeping it is what stops
+   the cards from becoming seven identical captions stacked in one
+   place: each card still sits where the subject of its stage is, and
+   the leader line drawn into it still arrives from a different place
+   each time. Only the horizontal choreography is lost, which was the
+   part that pushed a card under the video's brightest face.
+
+   --jr-card-w is kept in the token block because the runtime still
+   reads it; see the note above it. */
 .jr-card {
   position: absolute;
-  /* The anchor comes from the runtime as a custom property, so the
-     breakpoint below can re-place every card without an inline style
-     outranking it. Defaults are stage 1's anchor. */
-  left: var(--jr-x, 50%);
+  /* The vertical anchor comes from the runtime as a custom property,
+     so the breakpoint below can re-place every card without an inline
+     style outranking it. Defaults are stage 1's anchor. */
+  left: var(--jr-inset);
+  right: var(--jr-inset);
   top: var(--jr-y, 67%);
-  width: min(var(--jr-card-w), calc(100vw - var(--jr-inset) * 2));
+  width: auto;
+  max-width: none;
   padding: 20px 24px;
   border-radius: var(--jr-radius);
   border: 1px solid var(--jr-edge);
@@ -148,22 +189,27 @@ body.jr {
 }
 /* The active card's accent, as a bar rather than a border change: a
    border would shift every line of text by 3px the moment the card
-   lit up, which is a jump in the middle of the swap. */
+   lit up, which is a jump in the middle of the swap.
+
+   It runs along the top edge at every width, not just on a phone. The
+   card is full-width everywhere now, so a left-edge bar would be a
+   3px tick at the far corner of a very long edge — it would read as an
+   artefact rather than as a marker. */
 .jr-card::before {
   content: '';
   position: absolute;
-  left: 0;
-  top: 14px;
-  bottom: 14px;
-  width: 3px;
-  border-radius: 0 2px 2px 0;
-  background: var(--jr-accent);
+  left: 18px;
+  right: 18px;
+  top: 0;
+  bottom: auto;
+  width: auto;
+  height: 2px;
+  border-radius: 0 0 2px 2px;
+  background: var(--jr-mark);
   opacity: 0;
   transition: opacity var(--jr-in) var(--jr-ease);
 }
 .jr-card.is-on::before { opacity: 1; }
-/* The accent is a left border on the wide cards and a top border on
-   the narrow ones, which is the same rule the deck uses for its CTA. */
 .jr-card.is-on { opacity: 1; }
 .jr-card.is-out { opacity: 0; transition-duration: var(--jr-out); }
 /* 200ms after the swap begins the incoming card has started to fade
@@ -171,6 +217,10 @@ body.jr {
    is what removes the blank frame between states. */
 .jr-card.is-held { opacity: 1; }
 
+/* The step number is the mono eyebrow the deck uses elsewhere. Neutral
+   now rather than accented — at 10.5px the amber was a bright speck
+   in the corner of every card, and a speck that bright pulls the eye
+   away from the button that is supposed to be holding it. */
 .jr-card-num {
   display: block;
   font-family: var(--jr-mono);
@@ -178,11 +228,15 @@ body.jr {
   font-weight: 500;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: var(--jr-accent);
+  color: var(--jr-mark);
 }
 .jr-card-title {
   margin: 6px 0 8px;
-  font-size: 22px;
+  /* 22px read as a caption while the card was a 320px panel. At full
+     width the same size reads as a headline, and it out-types the CTA —
+     which is exactly the inversion the CTA is meant to prevent. The
+     card steps down rather than the button stepping up. */
+  font-size: 16px;
   font-weight: 600;
   letter-spacing: -0.02em;
   line-height: 1.15;
@@ -192,281 +246,405 @@ body.jr {
   font-size: 14px;
   color: var(--jr-muted);
 }
+/* The card now spans the frame, so its text must not. Left to fill a
+   1400px row the note becomes a single unreadable line, which makes
+   the card look like a strip of tape rather than a card. Capped at a
+   readable measure; the rest of the row stays empty glass, which is
+   also what keeps the card subordinate to the CTA sitting over it. */
+.jr-card-title,
+.jr-card-copy,
+.jr-card-num { max-width: 72ch; }
 
-/* ── Start here ──────────────────────────────────────────────────────
-   The one way into the archive, revealed once the journey has been
-   walked and never taken back. It sits in the middle of the page because
-   by then the footage has finished and nothing else is asking for
-   attention — the journey cards stay, but this is the one that says go.
+/* ════════════════════════════════════════════════════════════════════
+   START HERE — the one way into the archive
 
-   The motion is the argument. A finished visitor should not have to read
-   the page to find out what happens next, so the button does three
-   things at once: it breathes (scale 1 ↔ 1.055), it glows in the site's
-   accent, and its halo runs outward. All three share one 2.4s period so
-   they read as one object rather than three effects arguing.
+   MOTION INVENTORY. Every animation in this block, and why it exists.
+   Nothing here is decorative.
 
-   Two of the three live on the wrapper and the button rather than on one
-   element, because the arrival and the breathing both want the transform
-   and CSS gives an element only one. The wrapper owns the arrival (which
-   has to carry its own centring translate), the button owns the
-   breathing.
+     jr-cta-type      8s loop · the label self-writes via width and
+                      steps(10). Types on over 1.6s, holds legible for
+                      5.2s, erases, begins again. The CTA's job is to be
+                      read as an invitation on arrival and re-read if
+                      it is ignored.
+     jr-cta-caret-move 8s loop, same keyframe stops as the type · pins
+                      the caret to the typing edge. Without it the
+                      caret sits at the full label width while the text
+                      is still arriving.
+     jr-cta-caret-blink 1.06s loop · the caret breathes on and off. It
+                      is a border, not the fill, so the button never
+                      reads as flashing.
+     jr-cta-halo      3.2s loop · box-shadow 0 0 0 0 → 0 0 0 26px with
+                      alpha falling to 0. The ring expands past the
+                      button and dissolves. The fill is never touched.
+     jr-cta-nudge     1.4s loop · the arrow travels 0 → 5px and
+                      returns. A one-way nudge would suggest travel;
+                      the return makes it a pulse of direction.
+     jr-cta-arrive    760ms once · the plate settles into place with a
+                      small overshoot. Once, not a loop: a CTA that
+                      re-announces itself forever is one nobody
+                      believes.
+     press            180ms transition · :active only. The tactile
+                      feedback, and the one piece of motion never
+                      removed at any reduced-motion setting.
 
-   Hover, focus and press cancel the breathing outright rather than
-   pausing it: a paused animation holds whatever value it happened to be
-   at, so a half-breath frozen mid-scale reads as a button that is stuck.
-   Cancelling and setting the scale outright is the only way to hold
-   still at a chosen size — which matters, because a button that keeps
-   pulsing under a thumb reads as though it is about to do something
-   else. */
+   Hover, focus and :active pause all five idle animations. Worth being
+   explicit about the one consequence, which is not free: a paused
+   typewriter freezes wherever it was, so a hover landing inside the
+   1.6s typing window leaves the label partly written until the pointer
+   leaves. That is the accepted cost of pausing rather than cancelling.
+   ════════════════════════════════════════════════════════════════════ */
+
 .jr-cta-centre {
-  /* The one easing shared by the breathing, the glow and the halo. A
-     symmetric ease-in-out reads as a metronome; starting the swell out
-     faster than it settles is what makes it feel like reaching. */
-  --jr-cta-swell: cubic-bezier(0.45, 0.00, 0.55, 1.00);
+  /* The easing the breathing, the glow and the halo share. A symmetric
+     ease-in-out reads as a metronome; a swell that leaves faster than
+     it settles is what makes it feel like reaching. */
+  --jr-swell: cubic-bezier(0.45, 0.00, 0.55, 1.00);
   position: fixed;
   z-index: 4;
   left: 50%;
   top: 50%;
   transform: translate(-50%, -50%);
   pointer-events: none;
-  animation: jr-cta-arrive 620ms var(--wt-ease) both;
+  animation: jr-cta-arrive 760ms var(--jr-ease-ui) backwards;
 }
 .jr-cta-centre[hidden] { display: none; }
 
+/* The plate. Frosted glass rather than a flat wash: the footage behind
+   is busy photographic texture, and a low-opacity panel over it kills
+   both the texture and the text on top of it. The blur collapses the
+   detail into tone, and the .72 fill keeps the luminance contrast the
+   label needs.
+
+   width: max-content is load-bearing. This is a display:flex anchor,
+   which as a block-level box would fill the whole viewport and turn the
+   button into a letterbox with empty glass either side — a banner, not
+   a button. Shrink-wrapping is what keeps the plate the smallest object
+   on the page and the button inside it the loudest. */
 .jr-cta-start {
   position: relative;
+  justify-self: center;
+  width: max-content;
+  max-width: calc(100vw - var(--jr-inset) * 2);
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
-  padding: 22px 40px 24px;
-  border-radius: 20px;
-  background: rgba(18, 18, 22, 0.86);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5), 0 24px 60px rgba(0, 0, 0, 0.55);
+  gap: 12px;
+  padding: 26px 22px 24px;
+  border-radius: 22px;
+  background: rgba(12, 16, 24, 0.72);
+  -webkit-backdrop-filter: blur(12px) saturate(1.25);
+  backdrop-filter: blur(12px) saturate(1.25);
+  /* The inset hairline is the top light edge; the outer pair is the
+     lift off the footage. */
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.12),
+    0 24px 60px -18px rgba(0, 0, 0, 0.72),
+    0 2px 10px -4px rgba(0, 0, 0, 0.55);
   color: #ffffff;
   font-family: inherit;
   text-decoration: none;
   text-align: center;
   cursor: pointer;
   pointer-events: auto;
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
-  /* The breathing. One period shared with the glow and the halo, so the
-     three effects swell and fade as one object rather than drifting
-     against each other. 620ms of delay lines it up with the arrival. */
-  animation: jr-cta-breathe 2.4s var(--jr-cta-swell) 620ms infinite;
-  transition: transform var(--wt-short) var(--wt-ease),
-              box-shadow var(--wt-short) var(--wt-ease);
+  transition: transform 180ms var(--jr-ease-ui);
+  will-change: transform;
 }
 
-/* The glow. A painted element rather than a box-shadow on the button
-   itself, for two reasons: a shadow that pulses repaints the button on
-   every frame, and the landing is already carrying a video behind it;
-   and a blurred inset is the only way to get a glow that spreads past
-   the edge rather than hugging it.
+/* ── The button face ───────────────────────────────────────────────
+   Solid amber, generous padding, layered shadow. Four layers, each
+   doing one job: the bevel that makes the top edge catch light, the
+   underside shade that gives the solid a bottom, a tight dark contact
+   shadow that pins the button to the plate instead of letting it float
+   unattached, and a wide amber ambient so the button lights its own
+   surroundings — the invitation becomes visible in the page rather
+   than only inside the shape of the button.
 
-   Negative z-index puts it behind the button's own text while still
-   inside the plate — the button's backdrop-filter makes it a stacking
-   context, so the shadow is contained but not clipped, and it spreads
-   outward over the footage. */
-.jr-cta-start::after {
+   Depth is the quietest of the three invitation levers and the only
+   one that survives reduced motion untouched, so it carries a lot
+   here. */
+.jr-cta-button {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 28px;
+  border-radius: 14px;
+  background: var(--jr-accent);
+  color: var(--jr-accent-ink);
+  font-family: var(--jr-mono);
+  font-size: 20px;
+  font-weight: 500;
+  letter-spacing: 0;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.36),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.18),
+    0 6px 14px -6px rgba(0, 0, 0, 0.70),
+    0 22px 52px -14px rgba(255, 176, 32, 0.46);
+  transition: background-color 180ms var(--jr-ease-ui),
+              box-shadow 180ms var(--jr-ease-ui),
+              transform 180ms var(--jr-ease-ui);
+  will-change: transform, box-shadow;
+}
+
+/* The halo ring. A transparent pseudo-element, so the ring can expand
+   past the button's edge without a wrapper box, and with no background
+   of its own, so it only ever contributes the shadow.
+
+   26px and 3.2s. Both do different work: a wider ring is visible from
+   further away and reads as a larger surface being activated, while
+   the longer period is what stops it reading as an alarm. A fast pulse
+   says hurry; a slow one says this is ready when you are, which is the
+   tone a gate is trying to set. */
+.jr-cta-button::after {
   content: '';
   position: absolute;
   inset: 0;
   border-radius: inherit;
-  box-shadow: 0 0 30px 2px rgba(0, 114, 239, 0.55),
-              0 0 64px 16px rgba(0, 114, 239, 0.28);
-  opacity: 0.5;
   pointer-events: none;
-  z-index: -1;
-  animation: jr-cta-glow 2.4s var(--jr-cta-swell) 620ms infinite;
-}
-
-/* The halo is a sibling of the button rather than an outline, because an
-   animated outline repaints on every frame and the landing is already
-   carrying a video behind it. A scaled pseudo-element is one composited
-   layer instead. */
-.jr-cta-start::before {
-  content: '';
-  position: absolute;
-  inset: -2px;
-  border-radius: 22px;
-  border: 2px solid var(--wt-accent);
-  opacity: 0;
-  pointer-events: none;
-  animation: jr-cta-halo 2.4s var(--jr-cta-swell) 620ms infinite;
+  background: transparent;
+  box-shadow: 0 0 0 0 rgba(255, 176, 32, 0.60);
+  animation: jr-cta-halo 3.2s var(--jr-swell) infinite;
+  will-change: box-shadow;
 }
 
 .jr-cta-eyebrow {
-  font-size: 12px;
-  letter-spacing: 0.08em;
+  font-family: var(--jr-mono);
+  font-size: 11px;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
   color: rgba(255, 255, 255, 0.62);
-  /* One line, always. Tracked-out small caps wrap at the narrowest
-     widths, and a two-line eyebrow above "Start here" reads as a
-     heading that ran out of room. */
   white-space: nowrap;
-}
-.jr-cta-label {
-  position: relative;
-  font-size: 28px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
-  line-height: 1.1;
-}
-.jr-cta-label::after {
-  content: ' →';
-  display: inline-block;
-  animation: jr-cta-nudge 1.9s var(--wt-ease) 1s infinite;
 }
 .jr-cta-hint {
-  font-size: 13px;
-  color: rgba(255, 255, 255, 0.55);
+  font-family: var(--jr-mono);
+  font-size: 12.5px;
+  color: rgba(255, 255, 255, 0.70);
   white-space: nowrap;
 }
 
-.jr-cta-start:hover,
-.jr-cta-start:focus-visible {
-  /* Cancel, do not pause: a paused animation is frozen at whatever value
-     it reached, so the button would stop somewhere between 1 and 1.055
-     and look stuck. Cancelling lets the scale below say where it holds. */
-  animation: none;
-  transform: scale(1.07);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5), 0 30px 74px rgba(0, 0, 0, 0.6);
+/* ── The typewriter ─────────────────────────────────────────────────
+   The label reserves its full width in the layout, so the button never
+   reflows as characters arrive; only the inner span's width animates.
+   steps(10) makes it ten discrete jumps rather than a slide, which is
+   the difference between typing and growing.
+
+   In the mono face, because --jr-ch has to be the real advance of one
+   character for the caret to land on the text's edge. */
+.jr-cta-label {
+  position: relative;
+  display: inline-block;
+  width: var(--jr-len-width);
+  height: 1.2em;
+  text-align: left;
+  vertical-align: middle;
 }
-/* The glow holds too, at its brighter end, so hovering feels like turning
-   the button up rather than like the button drifting under the cursor. */
-.jr-cta-start:hover::after,
-.jr-cta-start:focus-visible::after {
-  animation: none;
-  opacity: 1;
+.jr-cta-label-text {
+  display: block;
+  width: 0;
+  height: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  animation: jr-cta-type 8s steps(var(--jr-len), end) infinite;
+  will-change: width;
 }
-.jr-cta-start:hover::before,
-.jr-cta-start:hover .jr-cta-label::after,
-.jr-cta-start:focus-visible::before,
-.jr-cta-start:focus-visible .jr-cta-label::after,
-.jr-cta-start:active::before,
-.jr-cta-start:active .jr-cta-label::after,
-.jr-cta-start:active::after {
-  animation: none;
-}
-.jr-cta-start:focus-visible {
-  outline: 2px solid var(--wt-accent);
-  outline-offset: 4px;
-}
-.jr-cta-start:active {
-  animation: none;
-  transform: scale(0.99);
+.jr-cta-caret {
+  position: absolute;
+  left: 0;
+  top: 8%;
+  width: 2px;
+  height: 84%;
+  border-radius: 1px;
+  background: currentColor;
+  /* Two animations on one element because they drive different
+     properties; they cannot share a keyframe block. */
+  animation:
+    jr-cta-caret-move 8s steps(var(--jr-len), end) infinite,
+    jr-cta-caret-blink 1.06s steps(1, end) infinite;
 }
 
-@keyframes jr-cta-arrive {
-  from { opacity: 0; transform: translate(-50%, -50%) scale(0.94) translateY(10px); }
-  to   { opacity: 1; transform: translate(-50%, -50%) scale(1) translateY(0); }
+.jr-cta-arrow {
+  display: inline-flex;
+  transition: transform 180ms var(--jr-ease-ui);
 }
-/* The same arrival for the docked layout, which is positioned with right
-   rather than left and so must not carry the centring translate. Without
-   this the button would arrive offset by half its own width and stay
-   there — the arrival fills forwards, so nothing would correct it. */
-@keyframes jr-cta-arrive-docked {
-  from { opacity: 0; transform: scale(0.94) translateY(10px); }
-  to   { opacity: 1; transform: scale(1) translateY(0); }
+.jr-cta-arrow svg {
+  display: block;
+  animation: jr-cta-nudge 1.4s var(--jr-swell) infinite;
+  will-change: transform;
 }
-/* The enlargement and the shrinkage. Asymmetric — a longer swell out than
-   in — because a button should feel like it is reaching, then settling,
-   rather than ticking. */
-@keyframes jr-cta-breathe {
-  0%   { transform: scale(1); }
-  50%  { transform: scale(1.055); }
-  100% { transform: scale(1); }
+
+@keyframes jr-cta-type {
+  0%    { width: 0; }
+  20%   { width: var(--jr-len-width); }
+  85%   { width: var(--jr-len-width); }
+  100%  { width: 0; }
 }
-/* The glow swells with the same period, so brightness and size peak
-   together; the two running out of step would read as a flicker. */
-@keyframes jr-cta-glow {
-  0%   { opacity: 0.45; box-shadow: 0 0 24px 2px rgba(0, 114, 239, 0.45),
-                                   0 0 52px 12px rgba(0, 114, 239, 0.22); }
-  50%  { opacity: 1;    box-shadow: 0 0 38px 6px rgba(0, 114, 239, 0.65),
-                                   0 0 78px 22px rgba(0, 114, 239, 0.34); }
-  100% { opacity: 0.45; box-shadow: 0 0 24px 2px rgba(0, 114, 239, 0.45),
-                                   0 0 52px 12px rgba(0, 114, 239, 0.22); }
+@keyframes jr-cta-caret-move {
+  0%    { left: 0; }
+  20%   { left: var(--jr-len-width); }
+  85%   { left: var(--jr-len-width); }
+  100%  { left: 0; }
+}
+@keyframes jr-cta-caret-blink {
+  0%, 49%   { opacity: 1; }
+  50%, 100% { opacity: 0; }
 }
 @keyframes jr-cta-halo {
-  0%   { opacity: 0.55; transform: scale(1); }
-  70%  { opacity: 0;    transform: scale(1.07); }
-  100% { opacity: 0;    transform: scale(1.07); }
+  0%   { box-shadow: 0 0 0 0    rgba(255, 176, 32, 0.60); }
+  72%  { box-shadow: 0 0 0 26px  rgba(255, 176, 32, 0); }
+  100% { box-shadow: 0 0 0 26px  rgba(255, 176, 32, 0); }
 }
 @keyframes jr-cta-nudge {
   0%, 100% { transform: translateX(0); }
   50%      { transform: translateX(5px); }
 }
-
-/* Reduced motion: the button still arrives, and still reads as the next
-   thing to do, but nothing moves on its own. The breathing and the halo
-   are the page imposing movement on someone who asked it not to, so both
-   go entirely. The glow stays — a steady brightness is not motion, and
-   it is the one thing left saying "this is the button".
-
-   The scale-up on hover and focus also stays, because that is a response
-   to the visitor rather than movement the page imposes on them. */
-@media (prefers-reduced-motion: reduce) {
-  .jr-cta-centre { animation: none; }
-  .jr-cta-start { animation: none; }
-  .jr-cta-start::after {
-    animation: none;
-    opacity: 0.85;
-  }
-  .jr-cta-start::before {
-    animation: none;
-    opacity: 0.7;
-    transform: scale(1);
-  }
-  .jr-cta-label::after { animation: none; }
-  .jr-cta-start,
-  .jr-cta-start:hover,
-  .jr-cta-start:focus-visible,
-  .jr-cta-start:active { transition: none; }
+@keyframes jr-cta-arrive {
+  from { opacity: 0; transform: translate(-50%, -50%) scale(0.90) translateY(14px); }
+  60%  { opacity: 1; transform: translate(-50%, -50%) scale(1.035) translateY(0); }
+  to   { opacity: 1; transform: translate(-50%, -50%) scale(1) translateY(0); }
 }
 
-/* Phone: the middle of the page is where the thumb already is, but a
-   40px horizontal pad either side plus the label at 28px is wider than a
-   320px screen allows once the safe-area insets are counted. */
-@media (max-width: 420px) {
-  .jr-cta-start {
-    padding: 20px 24px 22px;
-    max-width: calc(100vw - 40px);
-  }
-  .jr-cta-label { font-size: 24px; }
-  .jr-cta-eyebrow { font-size: 11px; letter-spacing: 0.06em; }
-  .jr-cta-hint { font-size: 11.5px; }
+/* ── Press ─────────────────────────────────────────────────────────
+   The one piece of feedback that survives every setting below. */
+.jr-cta-start:active .jr-cta-button {
+  transform: scale(0.97);
+  background: #e89a0c;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.30),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.22),
+    0 3px 8px -4px rgba(0, 0, 0, 0.60);
+}
+.jr-cta-start:active .jr-cta-arrow { transform: translateX(3px); }
+
+/* ── Settle on contact ───────────────────────────────────────────── */
+.jr-cta-start:hover .jr-cta-label-text,
+.jr-cta-start:hover .jr-cta-caret,
+.jr-cta-start:hover .jr-cta-arrow svg,
+.jr-cta-start:hover .jr-cta-button::after,
+.jr-cta-start:focus-visible .jr-cta-label-text,
+.jr-cta-start:focus-visible .jr-cta-caret,
+.jr-cta-start:focus-visible .jr-cta-arrow svg,
+.jr-cta-start:focus-visible .jr-cta-button::after,
+.jr-cta-start:active .jr-cta-label-text,
+.jr-cta-start:active .jr-cta-caret,
+.jr-cta-start:active .jr-cta-arrow svg,
+.jr-cta-start:active .jr-cta-button::after {
+  animation-play-state: paused;
 }
 
-/* The journey's last card is pinned to the bottom and grows with its own
-   copy, so the exact height it takes is not knowable from here. On a
-   screen shorter than about 720px the two would meet in the middle, so
-   the way-in rides above centre instead — still the middle of what is
-   left once the card has taken its share. */
+/* Hover lifts the plate — a response to the visitor, not movement the
+   page imposes on them. */
+.jr-cta-start:hover { transform: translateY(-2px); }
+.jr-cta-start:hover .jr-cta-button {
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.5),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.18),
+    0 10px 22px -8px rgba(0, 0, 0, 0.66),
+    0 26px 56px -14px rgba(255, 176, 32, 0.54);
+}
+
+/* The focus ring in the accent, offset so it never touches the fill. */
+.jr-cta-start:focus-visible {
+  outline: 3px solid var(--jr-accent);
+  outline-offset: 5px;
+}
+
+/* Visually hidden, still announced: the accessible name is static and
+   complete no matter what state the animation is in, so a screen
+   reader is never handed a half-typed label or a mid-blink caret. */
+.jr-cta-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* ── Short viewports ───────────────────────────────────────────────
+   The journey's card is full width now and rides the lower half, so a
+   centred plate would land on top of it. Above centre instead: still
+   the middle of what is left once the card has taken its share. */
 @media (max-height: 720px) {
   .jr-cta-centre { top: 34%; }
 }
 
-/* Short and wide (a phone turned sideways) is the one place where the
-   middle of the page is not available: at 360px tall the journey's last
-   card goes full-width and occupies it, so a centred button lands on the
-   card's own copy. There is no honest centre left, so it docks to the
-   top-right corner over clear video instead — still prominent, still
-   animated, just not pretending the middle is free. */
+/* Short and wide — a phone turned sideways — is the one place the
+   middle is genuinely unavailable: at 360px tall the card owns it. There
+   is no honest centre left, so it docks to the top-right over clear
+   video instead. Still prominent, still animated, just not pretending
+   the middle is free.
+
+   It needs its own arrival: this one is positioned with right rather
+   than left, so it must not carry the centring translate. The standard
+   arrival fills forwards, so without this the plate would arrive offset
+   by half its own width and stay there. */
 @media (max-height: 420px) and (orientation: landscape) {
   .jr-cta-centre {
     left: auto;
     right: var(--jr-inset, 24px);
     top: calc(var(--jr-inset, 24px) + env(safe-area-inset-top, 0px));
+    /* Must cancel the base centring translate. The docked keyframes do
+       not carry it, and the arrival is filled `backwards`, so 760ms
+       after the plate appears the base rule resumes and shifts it half
+       its own width and height out of position. Cancelling here makes
+       the resting state and the animation's final keyframe agree. */
+    transform: none;
     animation-name: jr-cta-arrive-docked;
   }
-  .jr-cta-start { padding: 12px 22px 14px; gap: 2px; border-radius: 16px; }
-  .jr-cta-start::before { border-radius: 18px; }
-  .jr-cta-label { font-size: 20px; }
+  .jr-cta-start { padding: 18px 16px 16px; gap: 8px; border-radius: 18px; }
+  .jr-cta-button { gap: 8px; font-size: 16px; }
+  .jr-cta-label::after { content: none; }
   .jr-cta-hint { display: none; }
   .jr-cta-eyebrow { font-size: 10px; }
+}
+@keyframes jr-cta-arrive-docked {
+  from { opacity: 0; transform: scale(0.90) translateY(14px); }
+  60%  { opacity: 1; transform: scale(1.035) translateY(0); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+/* 360px is the narrowest this has to survive. The button's content is
+   6em of monospace plus the arrow plus 56px of padding; at the 17px
+   floor that is about 186px against roughly 284px available, so the
+   specified 14/28 costs nothing and the horizontal gap is where the
+   slack actually is. */
+@media (max-width: 380px) {
+  .jr-cta-start { padding: 20px 14px 18px; gap: 10px; }
+  .jr-cta-button { gap: 8px; font-size: 17px; }
+  .jr-cta-eyebrow { font-size: 10px; letter-spacing: 0.12em; }
+  .jr-cta-hint { font-size: 11.5px; }
+}
+
+/* ── Reduced motion ────────────────────────────────────────────────
+   Nothing moves on its own. The label is set fully rather than left to
+   be typed — a hidden label would be the worst outcome here, since the
+   CTA's entire job is to be readable.
+
+   What survives: the press feedback, the focus ring, and a static
+   glow. The glow is brightness, not movement, and it is the last thing
+   left saying "this is the button". */
+@media (prefers-reduced-motion: reduce) {
+  .jr-cta-centre { animation: none; }
+  .jr-cta-label-text {
+    width: var(--jr-len-width);
+    animation: none;
+  }
+  .jr-cta-caret {
+    left: var(--jr-len-width);
+    animation: none;
+    opacity: 1;
+  }
+  .jr-cta-arrow svg { animation: none; }
+  .jr-cta-button::after {
+    animation: none;
+    box-shadow: 0 0 0 5px rgba(255, 176, 32, 0.20), 0 0 22px 2px rgba(255, 176, 32, 0.16);
+  }
+  .jr-cta-start,
+  .jr-cta-start .jr-cta-button,
+  .jr-cta-arrow { transition: none; }
+  .jr-cta-start:hover { transform: none; }
 }
 
 /* ── Controls ─────────────────────────────────────────────────────── */
@@ -502,7 +680,7 @@ body.jr {
   cursor: pointer;
   transition: filter 100ms var(--jr-ease-ui), border-color 100ms var(--jr-ease-ui);
 }
-.jr-reset:hover { filter: brightness(1.15); border-color: var(--jr-accent); }
+.jr-reset:hover { filter: brightness(1.15); border-color: var(--jr-edge-strong); }
 .jr-reset:focus-visible { outline: 2px solid var(--jr-accent); outline-offset: 2px; }
 /* The live region for the stage name: announced, but never the thing
    the eye lands on, so it is the same element the card is. */
@@ -530,7 +708,7 @@ body.jr {
 .jr-lines .jr-line { opacity: 0; }
 .jr-lines .jr-line.is-on { opacity: 1; }
 .jr-lines .jr-line path {
-  stroke: var(--jr-accent);
+  stroke: var(--jr-mark);
   stroke-width: 2;
   stroke-linecap: round;
   stroke-linejoin: round;
@@ -559,7 +737,7 @@ body.jr {
 }
 .jr-card .jr-figure path {
   fill: none;
-  stroke: var(--jr-accent);
+  stroke: var(--jr-mark);
   stroke-width: 4;
   stroke-linecap: round;
   stroke-linejoin: round;
@@ -601,7 +779,7 @@ body.jr {
     display: flex;
     flex-direction: column;
     gap: 8px;
-    padding: 0 16px calc(16px + env(safe-area-inset-bottom, 0px));
+    padding: 0 var(--jr-inset) calc(16px + env(safe-area-inset-bottom, 0px));
     pointer-events: none;
   }
   .jr-cards {
@@ -619,10 +797,19 @@ body.jr {
      length that stage's note happens to be. The outgoing card is
      absolute throughout, which is also why the crossfade overlays
      instead of stacking. */
+  /* The inset is --jr-inset, not the 16px it used to be, and the reason
+     is the pointer parallax: journey.js translates this whole host by up
+     to DEPTH.cards (16px) toward the cursor. At a 16px inset the card's
+     edge could reach or cross the screen edge on a phone. 28px leaves
+     12px of daylight after the full parallax swing. */
+  /* left/right are 0, not --jr-inset: the inset already comes from
+     .jr-bottom's padding above, and declaring it in both places counted
+     it twice — 56px of inset on a 390px phone, which is most of the
+     screen. */
   .jr-card {
     position: absolute;
-    left: 16px;
-    right: 16px;
+    left: 0;
+    right: 0;
     top: auto;
     bottom: 0;
     width: auto;
@@ -644,15 +831,15 @@ body.jr {
   /* Full width on a phone, so the accent moves to the top edge — the
      same rule the deck uses for its own narrow surfaces. */
   .jr-card::before {
-    left: 14px;
-    right: 14px;
+    left: 18px;
+    right: 18px;
     top: 0;
     bottom: auto;
     width: auto;
     height: 3px;
     border-radius: 0 0 2px 2px;
   }
-  .jr-card-title { font-size: 19px; }
+  .jr-card-title { font-size: 15px; }
   .jr-card-copy { font-size: 13.5px; }
   .jr-lines { display: none; }
   .jr-controls { justify-content: flex-end; width: 100%; }

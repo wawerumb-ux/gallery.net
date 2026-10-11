@@ -74,9 +74,26 @@
      keyboard users, which is the same fault the removed link avoided. -->
 <div class="jr-cta-centre" id="jrCtaCentre" hidden aria-hidden="true">
   <a class="jr-cta-start" id="jrCtaStart" href="../index.html" tabindex="-1">
-    <span class="jr-cta-eyebrow">The archive is ready</span>
-    <span class="jr-cta-label">Start here</span>
-    <span class="jr-cta-hint">316 photos, eight albums</span>
+    <!-- The accessible name is here, not in the visible label. The
+         visible one is mid-type for a second and a half every eight
+         seconds, and the caret is mid-blink; a screen reader reading
+         that would announce a half-written word. Everything below is
+         aria-hidden for that reason. -->
+    <span class="jr-cta-sr">Start here — open the photo archive</span>
+    <span class="jr-cta-eyebrow" aria-hidden="true">The archive is ready</span>
+    <span class="jr-cta-button" aria-hidden="true">
+      <span class="jr-cta-label">
+        <span class="jr-cta-label-text">Start here</span>
+        <span class="jr-cta-caret"></span>
+      </span>
+      <span class="jr-cta-arrow">
+        <svg width="19" height="19" viewBox="0 0 20 20" fill="none" aria-hidden="true">
+          <path d="M3 10h13M11 5l5 5-5 5" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </span>
+    </span>
+    <span class="jr-cta-hint" aria-hidden="true">316 photos, eight albums</span>
   </a>
 </div>
 
