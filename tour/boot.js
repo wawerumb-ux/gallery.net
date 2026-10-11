@@ -2,10 +2,18 @@
    tour/boot.js — starts (or resumes) the guided tour on the real
    gallery page. Loaded after app.js.
 
-   The tour is a must, not an offer: it starts on every visit, and a
-   finished one starts again on the next. The only state that survives
-   is the step a walk stopped on, so an abandoned tour resumes where it
-   left off rather than sending the visitor back to the wall.
+   The tour runs once. The first time someone reaches the archive they
+   are walked through it; finishing — or leaving — records that, and the
+   record means it never appears again. It is deliberately not an
+   everytime-show: a guide that returns on every visit stops being a
+   guide and becomes something to dismiss, and the people dismissing it
+   fastest are the ones who came back to use the thing it was
+   introducing.
+
+   The state that survives is the finished flag and the step a walk
+   stopped on. A finished tour returns false below and never starts; a
+   tour abandoned part-way resumes where it left off rather than sending
+   the visitor back to the wall.
 
    ON TIMING — "as soon as the page is up" means DOMContentLoaded, and
    that is deliberately not the moment the wall appears. The archive
@@ -29,7 +37,14 @@
   let saved = null;
   try { saved = parseTourState(localStorage.getItem(TOUR_STORAGE_KEY)); } catch (_) {}
 
-  if (!shouldAutoStartTour(saved)) return;
+  // The query string is read here rather than inside the policy so that
+  // deciding what to do stays a pure function of (record, params), and
+  // so the one override it has — ?tour=1 — is visible at the call site
+  // where the tour is actually armed.
+  var params = null;
+  try { params = new URLSearchParams(window.location.search); } catch (_) {}
+
+  if (!shouldAutoStartTour(saved, params)) return;
 
   const begin = () => {
     const gallery = (typeof window !== 'undefined' && window.__gallery) || null;

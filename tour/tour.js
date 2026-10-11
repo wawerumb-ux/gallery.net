@@ -72,14 +72,42 @@ function parseTourState(raw) {
   }
 }
 
-/* Auto-start policy (boot): the tour is not opt-in. Every visit to the
-   archive starts it, and a finished tour starts again on the next one —
-   the walkthrough at /walkthrough/ is a separate story and this does not
-   touch it.
+/* Auto-start policy (boot): once, and then never again.
 
-   `saved` is read for resume only: a tour abandoned halfway picks up at
-   the step it stopped on rather than restarting from the wall. */
-function shouldAutoStartTour(saved) {
+   A visitor is shown the guided tour the first time they reach the
+   archive. Finishing it — or leaving it — records that, and the record is
+   the whole of the promise. From then on the archive is theirs: the tour
+   does not come back on the next visit, and it does not come back
+   halfway through the session either.
+
+   That is a deliberate reversal. It was unconditional for two releases —
+   every page load started it, finished or not — on the reasoning that a
+   tour nobody has finished is a tour nobody has seen. But a tour that
+   reappears on every visit stops being a guide and becomes furniture: it
+   is the thing a returning visitor clicks through fastest, and a tour
+   nobody bothers to finish is one that is actively costing the person
+   more than it gives. One walk, recorded, is worth more than a permanent
+   interruption.
+
+   `saved` carries the finished flag, which tour.js writes on both the
+   completion and the escape path. Note that ESCAPING counts: a visitor
+   who walks away has still been introduced to the archive, and making
+   them sit through it again because they did not finish would be
+   punishing them for the dismissal. A tour abandoned part-way is not
+   finished, so it resumes at the step it stopped on rather than
+   restarting from the wall.
+
+   `?tour=1` still wins over a finished record, and it is the one thing
+   that does. That override was dropped when the tour was made
+   unconditional and it was not missed at the time — unconditional did
+   not need it — but a once-only tour without one has no way to be shown
+   to somebody on purpose: not for a demo, not to look at something
+   after a change, not to walk someone new through it beside you. Typing
+   the URL is a person asking. The tour coming back by itself is not. */
+function shouldAutoStartTour(saved, params) {
+  if (saved && saved.finished) {
+    return !!(params && params.get && params.get('tour') === '1');
+  }
   return true;
 }
 

@@ -1039,40 +1039,107 @@ describe('P — persistence', () => {
     sameDeep(saved.completed, ['s1', 's2']); // in order, no duplicates
   });
 
-  test('P3 — the tour is a must: every visit starts it', () => {
-    // The policy used to be opt-in — a finished tour never restarted, and
-    // only ?tour=1 or an interrupted run would start one. It is now
-    // unconditional: finishing the walk does not buy you a quiet archive.
+  test('P3 — the tour runs once: a finished record never starts it again', () => {
+    // It was unconditional for two releases — every page load, finished
+    // or not. It is once-only again. The point these pin is that the
+    // finished flag alone is decisive, whatever else is in the record:
+    // a stale currentStepId must not resurrect a finished tour, and an
+    // unfinished or absent record must still start one.
     const h = setup();
-    assert.equal(h.X.shouldAutoStartTour({ finished: true }), true);
-    assert.equal(h.X.shouldAutoStartTour({ finished: true, currentStepId: 's1' }), true);
-    assert.equal(h.X.shouldAutoStartTour(null), true);
-    assert.equal(h.X.shouldAutoStartTour({ finished: false, currentStepId: 's2' }), true);
-    assert.equal(h.X.shouldAutoStartTour({}), true);
+    assert.equal(h.X.shouldAutoStartTour({ finished: true }), false);
+    assert.equal(h.X.shouldAutoStartTour({ finished: true, currentStepId: 's1' }), false,
+      'a finished tour does not start even with a stale step recorded');
+    assert.equal(h.X.shouldAutoStartTour(null), true, 'a first visit still runs it');
+    assert.equal(h.X.shouldAutoStartTour({}), true, 'an empty record is not a finished one');
+    assert.equal(h.X.shouldAutoStartTour({ finished: false, currentStepId: 's2' }), true,
+      'an abandoned tour is not finished, so it comes back');
+    assert.equal(h.X.shouldAutoStartTour({ escapedAt: '2026-01-01T00:00:00.000Z', finished: true }), false);
   });
 
-  test('P3b — a finished tour still starts from the top, not the tail', () => {
-    // Unconditional start must not resurrect the old completed list: the
-    // resume flag is what separates "pick up where I stopped" from
-    // "start again", and a finished run has nothing to pick up. This is
-    // boot.js's own expression of the rule, over real parsed state.
+  test('P3d — ?tour=1 is the one thing that overrides a finished record', () => {
+    // A once-only tour with no override cannot be shown to anyone on
+    // purpose — not for a demo, not to look at a change, not to walk
+    // someone through it beside you. Typing the URL is a person asking,
+    // which is a different thing from the tour returning on its own.
+    const h = setup();
+    const withTour = { get: (k) => (k === 'tour' ? '1' : null) };
+    const without   = { get: () => null };
+    const finished = { finished: true, currentStepId: null };
+    assert.equal(h.X.shouldAutoStartTour(finished, withTour), true, '?tour=1 forces it');
+    assert.equal(h.X.shouldAutoStartTour(finished, without), false, 'and nothing else does');
+    assert.equal(h.X.shouldAutoStartTour(finished, null), false, 'missing params are not an override');
+    // A second override must not exist: ?tour=2 is not a request.
+    const other = { get: (k) => (k === 'tour' ? '2' : null) };
+    assert.equal(h.X.shouldAutoStartTour(finished, other), false, 'only tour=1 counts');
+  });
+
+  test('P3b — both ways out record finished, so neither re-opens the tour', () => {
+    // This is the part that is easy to get wrong, and getting it wrong is
+    // invisible until someone complains. Once-only only works if every
+    // exit writes the flag. If walking away or clicking "End tour" left
+    // it false, the visitor would be shown the same tour on their next
+    // visit for having dismissed it — punishing them for the dismissal.
+    // Driven through the real UI, not by calling a save helper.
+    {
+      const h = setup();
+      const tour = h.X.createGuidedTour({ steps: tourOf(clickStep('s1', 1, 'tab-albums')) });
+      tour.start();
+      h.advance(h.X.D.base);
+      h.history.back();                       // Escape / browser back
+      const saved = h.X.parseTourState(h.store.get('walkthrough.tourState'));
+      assert.equal(saved.finished, true, 'escape records finished');
+      assert.equal(h.X.shouldAutoStartTour(saved), false,
+        'so an escaped tour does not come back');
+    }
+    {
+      const h = setup();
+      const tour = h.X.createGuidedTour({ steps: tourOf(clickStep('s1', 1, 'tab-albums')) });
+      tour.start();
+      h.advance(h.X.D.base);
+      h.document.querySelectorAll('.tour-card-escapes .tour-escape-link')[1]
+        .dispatch('click');                   // "End tour"
+      const saved = h.X.parseTourState(h.store.get('walkthrough.tourState'));
+      assert.equal(saved.finished, true, '"End tour" records finished');
+      assert.equal(h.X.shouldAutoStartTour(saved), false,
+        'so an ended tour does not come back');
+    }
+    {
+      // And the walk itself, all the way through.
+      const h = setup();
+      const tour = h.X.createGuidedTour({ steps: tourOf(
+        clickStep('s1', 1, 'tab-albums'),
+        clickStep('s2', 2, 'album-cover'),
+      ) });
+      completeClickStep(h, tour, h.tabAlbums);   // step 1 of 2
+      h.advance(h.X.D.base);
+      h.albumCover.dispatch('click');             // step 2 of 2
+      h.advance(h.X.D.base + h.X.D.short);
+      h.advance(h.X.D.base);
+      const saved = h.X.parseTourState(h.store.get('walkthrough.tourState'));
+      assert.equal(saved.finished, true, 'a completed walk records finished');
+      assert.equal(h.X.shouldAutoStartTour(saved), false,
+        'so a completed tour does not come back');
+    }
+  });
+
+  test('P3c — a resumed walk keeps the finished flag down until it finishes', () => {
+    // The mirror of P3: the record is only set at the end of a walk, so
+    // a tour in progress must still be startable. This is what stops the
+    // once-only rule from swallowing an abandoned tour's own resumption.
     const h = setup({ seedState: {
-      startedAt: '2026-01-01T00:00:00.000Z', currentStepId: null,
-      completed: ['s1', 's2'], skipped: ['s3'],
-      escapedAt: null, finished: true,
+      startedAt: '2026-01-01T00:00:00.000Z', currentStepId: 's2',
+      completed: ['s1'], skipped: [],
+      escapedAt: null, finished: false,
     } });
-    const savedBefore = h.X.parseTourState(h.store.get('walkthrough.tourState'));
-    const resume = !!(savedBefore && savedBefore.currentStepId && !savedBefore.finished);
+    const saved = h.X.parseTourState(h.store.get('walkthrough.tourState'));
+    assert.equal(h.X.shouldAutoStartTour(saved), true, 'an unfinished tour resumes');
+    assert.equal(!!(saved && saved.currentStepId && !saved.finished), true, 'and boot asks to resume');
     const tour = h.X.createGuidedTour({ steps: tourOf(
       clickStep('s1', 1, 'album-cover'),
       clickStep('s2', 2, 'album-photo'),
     ) });
-    tour.start({ resume });
-    assert.equal(tour.getCurrentStepId(), 's1', 'a finished tour starts from the top');
-    const saved = h.X.parseTourState(h.store.get('walkthrough.tourState'));
-    assert.equal(saved.finished, false);
-    sameDeep(saved.completed, []);
-    sameDeep(saved.skipped, []);
+    tour.start({ resume: !!(saved && saved.currentStepId && !saved.finished) });
+    assert.equal(tour.getCurrentStepId(), 's2', 'picks up at the step it stopped on');
   });
 
   test('P4 — a fresh start resets the persisted lists', () => {
