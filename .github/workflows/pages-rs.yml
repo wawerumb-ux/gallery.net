@@ -1,0 +1,93 @@
+name: Build the Wasm frontend
+
+# The Rust/Leptos frontend lives in wasm/ and builds to dist/ through Trunk.
+#
+# THIS WORKFLOW DOES NOT DEPLOY. It validates the build on every push —
+# format, lint, model tests, a release Trunk build — so the proof of concept
+# cannot rot, and so the numbers in its report can be re-measured.
+#
+# Publishing is deliberately not wired up. The live site is still the
+# JavaScript gallery at the repository root, and the Wasm build covers only
+# part of it (wall, albums, viewer) — no admin tools, no tour, no service
+# worker. Turning on deployment from here would replace a working archive with
+# an incomplete one. When the port is finished, add a `deploy` job gated on
+# workflow_dispatch and a confirmation of your own.
+#
+# The project is a GitHub PROJECT page, so it is served from the /gallery.net/
+# subpath and Trunk's public_url is set to match (see wasm/Trunk.toml).
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'wasm/**'
+      - '.github/workflows/pages-rs.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install the Rust toolchain
+        run: |
+          rustup toolchain install stable --profile minimal --no-self-update
+          rustup default stable
+          rustup target add wasm32-unknown-unknown
+          rustup component add rustfmt clippy
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            wasm/target
+          key: wasm-${{ hashFiles('wasm/Cargo.lock') }}
+
+      - name: Check formatting
+        working-directory: wasm
+        run: cargo fmt --check
+
+      - name: Lint
+        working-directory: wasm
+        run: cargo clippy --target=wasm32-unknown-unknown -- -D warnings
+
+      - name: Test the model
+        working-directory: wasm
+        run: cargo test
+
+      - uses: jetli/trunk-action@v0.5.0
+        with:
+          working-directory: wasm
+          command: build --release
+
+      # A build that emits no Wasm, or one that leans on an absolute path
+      # outside /gallery.net/, fails here rather than in a browser.
+      - name: Check the output
+        working-directory: wasm
+        run: |
+          set -euo pipefail
+          test -f dist/index.html
+          ls dist/*.wasm >/dev/null
+          # Every local asset must sit under the project subpath. Anything
+          # else 404s on the deployed site, which is a project page.
+          offsite=$(grep -oE '(src|href)="/[^"]*"' dist/index.html \
+                    | grep -v '/gallery\.net/' || true)
+          if [ -n "$offsite" ]; then
+            echo "::error::asset URL outside the /gallery.net/ subpath:"
+            echo "$offsite"
+            exit 1
+          fi
+          echo "dist/ is present and every asset URL is subpath-rooted"
+          du -sh dist
+
+      - name: Keep the artefact for inspection
+        uses: actions/upload-artifact@v4
+        with:
+          name: wasm-dist
+          path: wasm/dist
+          retention-days: 7

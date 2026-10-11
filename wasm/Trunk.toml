@@ -1,0 +1,13 @@
+# Trunk build config.
+#
+# The site is a GitHub PROJECT page served from the /gallery.net/ subpath,
+# not a root site, so every generated asset URL is rooted there:
+# https://wawerumb-ux.github.io/gallery.net/
+[build]
+target = "index.html"
+dist = "dist"
+public_url = "/gallery.net/"
+
+[serve]
+address = "127.0.0.1"
+port = 8080

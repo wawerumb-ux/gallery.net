@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Structured Cabling — Project Archive</title>
+    <meta name="description" content="Structured cabling archive, grouped by phase." />
+    <link rel="icon" type="image/png" href="/gallery.net/logo/favi.png" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+    <!-- The One UI stylesheet is the app's design system and is kept as-is:
+         the migration replaces the behaviour layer, not the visual identity. -->
+    <link rel="stylesheet" href="/gallery.net/style.css" />
+    <link rel="stylesheet" href="/gallery.net/download-button.css" />
+    <link rel="stylesheet" href="/gallery.net/hcg-toast.css" />
+    <link data-trunk rel="css" href="src/main.css" />
+  </head>
+  <body>
+    <!-- The shell exists in HTML so the archive has something to paint
+         before the Wasm module has finished downloading and booting. -->
+    <div id="app-shell" class="boot-shell">
+      <div class="loading-caption" id="boot-caption">Starting the archive…</div>
+    </div>
+    <!-- The entry point. `rel="rust"` on a link (not a script) is the form
+         Trunk 0.21 accepts: it compiles the crate to Wasm, emits the loader,
+         and replaces this element. Naming no href lets Trunk use the crate's
+         own default, src/main.rs. -->
+    <link data-trunk rel="rust" data-bin="gallery-rs" data-opt="z" />
+  </body>
+</html>

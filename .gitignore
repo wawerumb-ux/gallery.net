@@ -1,1 +1,7 @@
 node_modules/
+
+# Build artefacts. The Wasm output and the Cargo target tree are large and
+# reproducible; neither belongs in git. dist/ in particular is what the Pages
+# workflow uploads, and it is rebuilt on every run.
+wasm/target/
+wasm/dist/
