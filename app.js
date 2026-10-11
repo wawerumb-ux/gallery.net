@@ -1895,7 +1895,7 @@ function wireStaticEvents() {
   });
   el('adminSearchFilter').addEventListener('change', applyAdminFilter);
 
-  // FAB + new-album dialog
+  // Demo FAB + new-album dialog
   el('fabAdd').addEventListener('click', () => pickFiles(null));
   el('newFolderBtn').addEventListener('click', () => {
     const name = sanitizeFilename(el('newFolderName').value).toLowerCase();
@@ -2076,7 +2076,10 @@ function signOut() {
 }
 
 function updateAdminUI() {
-  el('fabAdd').hidden = !state.adminMode;
+  // The floating + is the demo-only shortcut. A real session adds through
+  // the header ⋮ and the album ⋮ menus, so the button stays out of the
+  // way of the wall on the live gallery.
+  el('fabAdd').hidden = !(state.adminMode && DEMO_MODE);
   el('searchWrap').hidden = !state.adminMode;
   syncChromeH(); // the search pill changes the app bar height
   if (!state.adminMode) {
