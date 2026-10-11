@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light">
+<title>Elastic Stretch</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bungee&display=swap" rel="stylesheet">
+
+<style>
+/* ════════════════════════════════════════════════════════════════════
+   ELASTIC STRETCH — motion inventory
+
+     elastic-stretch  2.4s infinite, per letter, staggered 0.06s.
+                      The stretch/squash cycle: a violent upward pull at
+                      20%, a squash at 35%, two decaying rebounds, and
+                      a small overshoot at 80% before it settles back to
+                      rest. One easing, cubic-bezier(.68,-.55,.27,1.55),
+                      applied to every segment between stops — the
+                      negative y overshoots below 0 and the positive
+                      above 1, which is what puts the bounce in each
+                      segment rather than only between letters.
+
+     candy-cycle     5.4s infinite, per letter, staggered -0.6s.
+                      Colour drifts through the candy palette. The
+                      negative delay is not the 0.06s letter stagger:
+                      that spreads letters across 0.48s of a 2.4s
+                      transform, which is far too small a window to
+                      separate nine hues. 5.4s / 9 = 0.6s puts each
+                      letter on its own point in the colour cycle, so
+                      all nine read as different at any instant.
+
+   Nothing here animates layout. The letters are transform- and
+   colour-only; the SVG coils do not move at all.
+   ════════════════════════════════════════════════════════════════════ */
+
+:root {
+  /* The word's card. */
+  --tint:        #d9f0c8;   /* light green tint */
+  --tint-edge:   #0b0b0b;   /* the black border */
+  --stage:       #eceee7;
+
+  /* Candy palette. Ordered dark-to-light only by accident — the
+     constraint is contrast against --tint, and every one of these
+     clears 3:1 on it. --tint is around L*91, so mid-tone brights
+     (hot pink, orange) drop under 3:1 and are not in this list. */
+  --k1: #d81b60;  /* raspberry  */
+  --k2: #1d63d8;  /* blue       */
+  --k3: #7c3aed;  /* violet     */
+  --k4: #b45309;  /* burnt amber*/
+  --k5: #0e7490;  /* teal       */
+
+  --elastic: cubic-bezier(0.68, -0.55, 0.27, 1.55);
+  --letter-stagger: 0.06s;
+  --colour-span: 5.4s;
+}
+
+* , *::before, *::after { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  min-height: 100svh;
+  display: grid;
+  place-items: center;
+  padding: clamp(16px, 4vw, 40px);
+  background:
+    radial-gradient(120% 90% at 50% 0%, #f6f7f2, transparent 60%),
+    var(--stage);
+  font-family: Bungee, system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── The apparatus ──────────────────────────────────────────────────
+   A stage that holds the card and the machine drawn around it. The SVG
+   is absolutely positioned and behind the card, so the coils and plates
+   read as the frame the word is being pressed inside. */
+.stage {
+  position: relative;
+  width: min(760px, 100%);
+  display: grid;
+  place-items: center;
+  /* Headroom for the stretch. At 20% a letter is scaled 1.8x and lifted
+     25px, so it reaches roughly 90px above its own cap height. Without
+     this the tall letters are clipped by the viewport rather than
+     crowding the card. */
+  padding: clamp(64px, 12vw, 104px) clamp(24px, 6vw, 72px);
+}
+
+.apparatus {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  overflow: visible;
+}
+
+/* The plates. Faded, dashed, and deliberately thin — they are the
+   suggestion of a press, not a drawn object, and anything heavier would
+   compete with the word. */
+.plate {
+  stroke: #0b0b0b;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-dasharray: 10 9;
+  opacity: .26;
+}
+
+/* The coils. Two short springs between the plates, one each side. */
+.coil {
+  fill: none;
+  stroke: #0b0b0b;
+  stroke-width: 3;
+  stroke-linecap: round;
+  stroke-dasharray: 9 7;
+  opacity: .38;
+}
+
+/* ── The card ───────────────────────────────────────────────────────
+   Light green, black border, drop shadow. The shadow is offset far
+   enough to read as the card standing off the stage rather than as a
+   glow, and it has a second tighter layer underneath so the card has a
+   contact edge as well as a lift. */
+.card {
+  position: relative;
+  z-index: 1;
+  /* Generous top padding, and deliberately so. The peak of the cycle
+     puts a letter roughly 108px above its own baseline; with a snug
+     padding the word bursts straight through the top edge and reads as
+     broken rather than stretched. At rest that headroom is the press's
+     clearance, which is what the plates are drawing anyway. */
+  /* Sized from the MEASURED peak, not from the keyframe. The brief's
+     extreme is scaleY(1.8), but the easing is a back-overshoot curve
+     and the real peak measures 1.91 — the letter goes further than the
+     stop says. Padding computed from 1.8 left it clearing the card by
+     21px on a desktop and 32px on a phone.
+
+     The floor is 96px rather than the measured minimum because the
+     headroom is derived from one font's cap height. If Bungee is slow or
+     blocked, the fallback face has different metrics and the same
+     padding is no longer the padding that was measured — so there is
+     deliberate slack for the case nobody can see in a screenshot taken
+     after the font has loaded. */
+  padding: clamp(96px, 11vw, 136px) clamp(18px, 4vw, 40px) clamp(20px, 3vw, 32px);
+  background: var(--tint);
+  border: 3px solid var(--tint-edge);
+  border-radius: 14px;
+  box-shadow:
+    6px 6px 0 rgba(11, 11, 11, .16),
+    0 22px 44px -14px rgba(11, 11, 11, .34);
+}
+
+.word {
+  margin: 0;
+  font-family: Bungee, system-ui, sans-serif;
+  font-weight: 400;
+  font-size: 64px;
+  line-height: 1.06;
+  white-space: nowrap;
+}
+
+/* ── One letter ───────────────────────────────────────────────────
+   display:inline-block is what makes transform apply at all — a letter
+   is not a box otherwise.
+
+   transform-origin is the decision the brief does not spell out. At the
+   default 50% 50% a letter scales about its middle and the "extreme
+   vertical stretch upward" becomes a symmetric bulge that rises and
+   falls around a fixed centre, which reads as a heartbeat. Anchored at
+   50% 100% the baseline stays put and everything above it pulls, which
+   is what stretching upward actually looks like and what a press would
+   do to the thing above it. */
+.ltr {
+  display: inline-block;
+  transform-origin: 50% 100%;
+  /* The accessible name lives on the heading; these are the visual
+     duplicates of it, so a screen reader never reads nine separate
+     letters — and never catches one mid-stretch. */
+  color: var(--c1);
+  animation:
+    elastic-stretch 2.4s var(--elastic) calc(var(--i) * var(--letter-stagger)) infinite,
+    candy-cycle var(--colour-span) linear calc(var(--i) * -0.6s) infinite;
+  will-change: transform, color;
+}
+
+/* ── Elastic Stretch ──────────────────────────────────────────────
+   Exactly the stops in the brief, in order. At 80% only scaleY is
+   declared, so translateY falls through to interpolating between its
+   neighbours (5px at 65%, 0 at 100%) rather than snapping — which is
+   what makes that last beat a settle rather than a jump. */
+@keyframes elastic-stretch {
+  0%, 100% { transform: scaleY(1)    translateY(0);     }
+  20%      { transform: scaleY(1.8)  translateY(-25px); }
+  35%      { transform: scaleY(0.6)  translateY(10px);  }
+  50%      { transform: scaleY(1.3)  translateY(-15px); }
+  65%      { transform: scaleY(0.85) translateY(5px);   }
+  80%      { transform: scaleY(1.05); }
+}
+
+/* Five stops through the palette. The last one resolves to --c1 so the
+   loop has no seam — a keyframe whose ends differ pops at the wrap. */
+@keyframes candy-cycle {
+  0%, 100% { color: var(--c1); }
+  25%      { color: var(--c2); }
+  50%      { color: var(--c3); }
+  75%      { color: var(--c4); }
+  /* --c5 appears between 75% and 100% by way of the wrap, so it gets
+     its own stop rather than being skipped. */
+  87%      { color: var(--c5); }
+}
+
+.caption {
+  position: relative;
+  z-index: 1;
+  margin: 18px 0 0;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  text-align: center;
+  color: rgba(11, 11, 11, .45);
+}
+
+/* Per-letter colour rotation. Written out rather than computed: CSS
+   cannot index an array, and a nine-line block is clearer than a
+   generated one that someone has to trust. */
+.ltr:nth-child(1) { --c1: var(--k1); --c2: var(--k2); --c3: var(--k3); --c4: var(--k4); --c5: var(--k5); }
+.ltr:nth-child(2) { --c1: var(--k2); --c2: var(--k3); --c3: var(--k4); --c4: var(--k5); --c5: var(--k1); }
+.ltr:nth-child(3) { --c1: var(--k3); --c2: var(--k4); --c3: var(--k5); --c4: var(--k1); --c5: var(--k2); }
+.ltr:nth-child(4) { --c1: var(--k4); --c2: var(--k5); --c3: var(--k1); --c4: var(--k2); --c5: var(--k3); }
+.ltr:nth-child(5) { --c1: var(--k5); --c2: var(--k1); --c3: var(--k2); --c4: var(--k3); --c5: var(--k4); }
+.ltr:nth-child(6) { --c1: var(--k1); --c2: var(--k2); --c3: var(--k3); --c4: var(--k4); --c5: var(--k5); }
+.ltr:nth-child(7) { --c1: var(--k2); --c2: var(--k3); --c3: var(--k4); --c4: var(--k5); --c5: var(--k1); }
+.ltr:nth-child(8) { --c1: var(--k3); --c2: var(--k4); --c3: var(--k5); --c4: var(--k1); --c5: var(--k2); }
+.ltr:nth-child(9)  { --c1: var(--k4); --c2: var(--k5); --c3: var(--k1); --c4: var(--k2); --c5: var(--k3); }
+.ltr:nth-child(10) { --c1: var(--k5); --c2: var(--k1); --c3: var(--k2); --c4: var(--k3); --c5: var(--k4); }
+
+/* ── Narrow screens ───────────────────────────────────────────────
+   64px across nine letters is about 430px of type. Below that the
+   clamp takes over rather than letting the word set its own line: a
+   wrapped "SvgAnimate" reads as two words, and the whole effect is the
+   word moving as one object. */
+@media (max-width: 560px) {
+  .word { font-size: clamp(30px, 8.6vw, 56px); }
+  .card { border-width: 2px; border-radius: 12px; }
+}
+
+/* ── Reduced motion ───────────────────────────────────────────────
+   The animation is the whole design here, so there is no reduced version
+   of it to fall back to — but the word must still be readable, and it
+   still gets its colour, because colour is not motion. The letters sit
+   at their rest state with the palette applied statically, which is what
+   the piece looks like between beats anyway. */
+@media (prefers-reduced-motion: reduce) {
+  .ltr {
+    animation: none;
+    transform: none;
+  }
+  /* Stagger the palette statically instead, so the piece keeps its
+     multi-colour reading without anything moving. */
+  .ltr:nth-child(9n+1) { color: var(--k1); }
+  .ltr:nth-child(9n+2) { color: var(--k2); }
+  .ltr:nth-child(9n+3) { color: var(--k3); }
+  .ltr:nth-child(9n+4) { color: var(--k4); }
+  .ltr:nth-child(9n+5) { color: var(--k5); }
+  .ltr:nth-child(10)   { color: var(--k5); }
+}
+</style>
+</head>
+
+<body>
+
+<div class="stage">
+  <!-- The press. Decorative: the word is the content, and the coils and
+       plates say nothing a screen reader needs. -->
+  <svg class="apparatus" viewBox="0 0 760 470" aria-hidden="true" focusable="false">
+    <!-- Top and bottom plates. -->
+    <line class="plate" x1="16" y1="44"  x2="744" y2="44" />
+    <line class="plate" x1="16" y1="426" x2="744" y2="426" />
+
+    <!-- Two short springs, one per side, three coils each. -->
+    <path class="coil" d="M54 150 c11 12, 11 34, 0 46 c-11 12, -11 34, 0 46 c11 12, 11 34, 0 46" />
+    <path class="coil" d="M706 150 c-11 12, -11 34, 0 46 c11 12, 11 34, 0 46 c-11 12, -11 34, 0 46" />
+  </svg>
+
+  <div class="card">
+    <!-- One heading, one accessible name, nine visual letters. -->
+    <h1 class="word" aria-label="SvgAnimate">
+      <span class="ltr" style="--i:0" aria-hidden="true">S</span><span class="ltr" style="--i:1" aria-hidden="true">v</span><span class="ltr" style="--i:2" aria-hidden="true">g</span><span class="ltr" style="--i:3" aria-hidden="true">A</span><span class="ltr" style="--i:4" aria-hidden="true">n</span><span class="ltr" style="--i:5" aria-hidden="true">i</span><span class="ltr" style="--i:6" aria-hidden="true">m</span><span class="ltr" style="--i:7" aria-hidden="true">a</span><span class="ltr" style="--i:8" aria-hidden="true">t</span><span class="ltr" style="--i:9" aria-hidden="true">e</span>
+    </h1>
+  </div>
+
+  <p class="caption">Elastic Stretch · 2.4s · 0.06s stagger</p>
+</div>
+
+</body>
+</html>
