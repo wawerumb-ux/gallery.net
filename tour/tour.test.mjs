@@ -1485,7 +1485,6 @@ describe('U — every button is toured', () => {
   // cannot be one. Anything else un-targeted fails the audit.
   const EXCLUDED = {
     tokenSubmit: 'signing in needs a real repo token — a visitor cannot perform it',
-    toastClose: 'transient toast chrome, not functionality',
     comfortBtn: 'display preference, not part of the archive flow — it opens a self-contained picker',
   };
 

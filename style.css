@@ -1154,7 +1154,9 @@ body.is-selecting .tabbar, body.is-selecting .fab { transform: translateY(110%);
 }
 
 /* Undo rides along on the message it belongs to, so a change is reversible
-   from where it happened rather than from a dialog the user has to find. */
+   from where it happened rather than from a dialog the user has to find.
+   The button is placed into the live hcg-toast item by showToast, between
+   the message and the dismiss glyph. */
 .toast-undo {
   appearance: none;
   border: 1px solid var(--hairline);
@@ -1312,50 +1314,69 @@ select.text-input option { background: var(--surface-3); color: var(--text); }
 .pick-select option { background: var(--surface-3); }
 .pick-hint { color: var(--text-faint); font-size: 11px; font-family: var(--font-mono); }
 
-/* ── Toast (One UI bottom snackbar) ──────────────────────────────── */
-.toast {
-  position: fixed;
+/* ── Notifications (hcg-toast, One UI bottom snackbar) ───────────────
+   The library ships the structure — container, item, icon, body, close
+   glyph — and the app themes it through the CSS variables it documents.
+   --toast-bg/--toast-ink are the app's own per-theme snackbar colours,
+   so every One UI theme still reaches the notification without a second
+   set of rules. */
+.hcg-toast-container {
+  --hcg-toast-bg: var(--toast-bg);
+  --hcg-toast-border: var(--hairline);
+  --hcg-toast-text: var(--toast-ink);
+  --hcg-toast-title: var(--toast-ink);
+  --hcg-toast-muted: var(--toast-ink-dim);
+  --hcg-toast-radius: var(--radius-pill);
+  --hcg-toast-shadow: 0 12px 32px var(--shadow);
+  --hcg-toast-width: min(92vw, 440px);
+  --hcg-toast-z: 130;
+  --hcg-toast-info-accent: var(--accent-text);
+  --hcg-toast-warning-accent: var(--warn);
+  --hcg-toast-error-accent: var(--danger);
+  --hcg-toast-success-accent: #3ecf8e;
+  font-family: inherit;
+}
+/* The library plates its icons with pale tints for a light page; the snackbar
+   is dark in every One UI theme, so the plate follows the accent instead. */
+.hcg-toast-item--info .hcg-toast-icon { background: var(--accent-dim); }
+.hcg-toast-item--success .hcg-toast-icon { background: rgba(62, 207, 142, 0.16); }
+.hcg-toast-item--warning .hcg-toast-icon { background: rgba(242, 163, 60, 0.16); }
+.hcg-toast-item--error .hcg-toast-icon { background: var(--danger-dim); }
+/* Clear of the fixed tab bar, and centred on the column the rest of the
+   chrome centres on rather than on the raw viewport. */
+.hcg-toast-container--bottom-center {
   bottom: calc(var(--tabbar-h) + 20px);
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 130;
-  background: var(--toast-bg);
-  border: 1px solid var(--hairline);
-  color: var(--toast-ink);
-  padding: 11px 44px 11px 18px;
-  border-radius: var(--radius-pill);
+  max-width: calc(100vw - 24px);
+}
+.hcg-toast-item {
+  padding: 11px 12px 11px 18px;
   font-size: 13px;
-  box-shadow: 0 12px 32px var(--shadow);
-  max-width: min(92vw, 440px);
-  animation: toastPop var(--duration-normal) var(--ease-spring);
+  align-items: center;
 }
-/* With an Undo riding along the pill has to lay out as a row, and the
-   dismiss glyph moves outboard of the button rather than under it. */
-.toast:has(.toast-undo) { display: flex; align-items: center; padding-right: 18px; }
-@keyframes toastPop {
-  from { opacity: 0; transform: translate(-50%, 12px); }
-  to { opacity: 1; transform: translate(-50%, 0); }
-}
+.hcg-toast-message { font-size: 13px; }
+.hcg-toast-icon { width: 20px; height: 20px; font-size: 0.72rem; }
 /* The glyph is 9x17 — a thumb cannot land on that. The button is given a
-   44px square centred on the same glyph, and the toast's right padding
-   widens by exactly 4px to hold it, so the mark sits where it did and only
-   the target grows. */
-.toast-close {
-  position: absolute; top: 50%; right: 0;
-  transform: translateY(-50%);
+   44px square centred on the same glyph, so the mark sits where it did
+   and only the target grows. */
+.hcg-toast-close {
   width: 44px; height: 44px;
   display: flex; align-items: center; justify-content: center;
-  background: none; border: none;
   color: var(--toast-ink-dim);
-  font-size: 17px; line-height: 1;
-  cursor: pointer; padding: 0;
-  transition: color var(--duration-fast) ease;
+  font-size: 17px;
 }
-.toast-close:hover { color: var(--toast-ink); }
+.hcg-toast-close:hover {
+  color: var(--toast-ink);
+  background: none;
+}
+.hcg-toast-close:focus-visible {
+  box-shadow: none;
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
 
 /* ── Overflow & fluid safety ─────────────────────────────────────── */
 .modal-copy, .modal-note, .modal h2, .empty, .empty-sub, .loading-caption,
-.tag-field, .toast, .viewer-name, .viewer-meta { overflow-wrap: anywhere; }
+.tag-field, .hcg-toast-message, .viewer-name, .viewer-meta { overflow-wrap: anywhere; }
 
 /* Scrollbars track the canvas, not a fixed dark */
 .pick-list::-webkit-scrollbar { width: 8px; }
@@ -1985,7 +2006,7 @@ select.text-input option { background: var(--surface-3); color: var(--text); }
   .card, .album-cover, .fab, .tab, .tab-ic, .appbar-hero, .appbar-mini,
   .welcome-card, .welcome-faces, .pop, .pop-overlay,
   .viewer, .viewer-top, .viewer-bottom, .viewer-nav, .viewer-img, .viewer-slide,
-  .sheet, .sheet-overlay, .modal, .toast, .selectbar, .tabbar,
+  .sheet, .sheet-overlay, .modal, .hcg-toast-item, .selectbar, .tabbar,
   .card img, .card-pick, .appbar-icon, .viewer-icon, .viewer-action, .btn,
   .comfort-swatch, .trash, .trash-lid, .is-eating .trash, .is-gulp .trash,
   .confirm-bin, .confirm-bin.is-in,
