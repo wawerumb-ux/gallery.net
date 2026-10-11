@@ -60,10 +60,23 @@ jobs:
         working-directory: wasm
         run: cargo test
 
-      - uses: jetli/trunk-action@v0.5.0
-        with:
-          working-directory: wasm
-          command: build --release
+      # Trunk is pinned by version and installed straight, rather than through
+      # a wrapper action: the first version of this workflow used one, and its
+      # working-directory handling put dist/ somewhere the check below could
+      # not find, which is how the job went red on its first run.
+      - name: Install Trunk
+        run: |
+          set -euo pipefail
+          TRUNK_VERSION=0.21.14
+          curl -fsSL -o trunk.tar.gz \
+            "https://github.com/trunk-rs/trunk/releases/download/v${TRUNK_VERSION}/trunk-x86_64-unknown-linux-gnu.tar.gz"
+          tar xzf trunk.tar.gz
+          install -m 0755 trunk /usr/local/bin/trunk
+          trunk --version
+
+      - name: Build
+        working-directory: wasm
+        run: trunk build --release
 
       # A build that emits no Wasm, or one that leans on an absolute path
       # outside /gallery.net/, fails here rather than in a browser.
