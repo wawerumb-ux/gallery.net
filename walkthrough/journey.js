@@ -96,8 +96,17 @@
       // stylesheet still owns placement — the phone breakpoint re-anchors
       // every card to the bottom of the screen, and an inline left/top
       // would outrank it.
-      card.style.setProperty('--jr-x', step.anchor.left + '%');
-      card.style.setProperty('--jr-y', step.anchor.top + '%');
+      /* `row`, not `anchor.top`. The measured anchors put seven stages on
+         three heights, and with the cards alternating sides that makes
+         consecutive strokes land on the same segment — a seven-stage trail
+         that reads as a fan of three. `row` gives every stage its own
+         point. See the note in stages.js. */
+      card.style.setProperty('--jr-y', step.row + '%');
+      /* Corner comes from the stage data, which cycles the four corners
+         anticlockwise. The measured anchor is no longer read — see the
+         note in stages.js for why a seven-stage trail cannot use seven
+         measured points that are really only three. */
+      card.classList.add('is-' + (step.corner || 'bl'));
       card.setAttribute('role', 'status');
       card.setAttribute('aria-live', 'polite');
 
@@ -133,16 +142,9 @@
      hand-drawn deck and did not suit a diagram sitting on live footage.
      One weight, one curve, and the weight is the stylesheet's.
 
-     Coordinates come from the laid-out cards, so they are cached and
-     recomputed only when the cards move. */
+     Coordinates come from the laid-out cards, so they are re-measured
+     only when the cards move. */
   var NS = 'http://www.w3.org/2000/svg';
-
-  function corner(card, which) {
-    var b = card.getBoundingClientRect();
-    return which === 'br'
-      ? { x: b.left + b.width, y: b.top + b.height }
-      : { x: b.left, y: b.top };
-  }
 
   function svgEl(name, className) {
     var el = document.createElementNS(NS, name);
@@ -176,58 +178,147 @@
     return fig;
   }
 
-/* One line per card, and it points at that card and nothing else. It
-     used to run from a card's bottom-right corner to the next card's
-     top-left — a path between two stages, six of them, which put the
-     line art in the business of connecting things rather than of
-     pointing at one. A leader line is the same stroke aimed at a single
-     card: it arrives at the card's top-left corner and stops.
+/* ── The trail ───────────────────────────────────────────────────
+     Six strokes, one between each pair of neighbouring cards, drawn as
+     the journey walks them. This is what the landing did before a leader
+     line replaced it: a path between two stages rather than an arrow at
+     one, so the line art was connecting things instead of pointing at
+     them.
 
-     The line comes in from up and to the left, clamped inside the frame
-     so a card anchored near an edge still gets a lead-in rather than one
-     that starts off-screen. */
-  var LEAD_X = 76;
-  var LEAD_Y = 52;
-  var EDGE = 20;
+     The difference now is the hand. A stroke drawn by a pen does not
+     land on a perfect cubic, so each segment is built with its control
+     points pushed off the straight line by a small, fixed amount, and a
+     second pass laid over the first at a slight offset and lower
+     opacity — the doubled stroke a real pen leaves. Both offsets are
+     derived from the segment's index rather than from Math.random, so a
+     resize re-measures the cards without re-rolling the handwriting:
+     the journey looks the same before and after a window drag, which a
+     random wobble would not.
 
-  function drawConnector(i) {
-    var card = cards[i];
-    if (!card) return null;
-    var to = corner(card, 'tl');
-    var from = {
-      x: Math.max(EDGE, to.x - LEAD_X),
-      y: Math.max(EDGE, to.y - LEAD_Y),
-    };
+     The stroke meets each card on the edge that faces the next one. A
+     line that arrives on the far corner reads as a mistake; one that
+     arrives where it is going reads as though it was aimed. */
+  var SWIM_WAVES = 1.5;    // undulations along the body of the stroke
+  var SWIM_AMP = 38;       // px off the straight run at full amplitude
+  var HAND_OVERLAY = 0.34;  // second pass offset
 
-    var line = group('jr-line');
+  /* Deterministic, seeded noise. Math.random() would redraw the whole
+     trail on every resize, and the visitor would watch their own
+     handwriting change under them. */
+  function wobble(seed) {
+    var x = Math.sin(seed * 12.9898 + 78.233) * 43758.5453;
+    return (x - Math.floor(x)) * 2 - 1;
+  }
 
-    /* One cubic, flat where it leaves and flat where it arrives, so it
-       reads as a line coming in from off to one side and settling onto
-       the card rather than as a curve drawn between two arbitrary
-       points. */
-    var k = Math.max(20, Math.abs(to.x - from.x) / 3);
-    line.appendChild(pathEl('jr-signal',
-      'M' + from.x + ' ' + from.y +
-      ' C' + (from.x + k) + ' ' + from.y + ', ' +
-      (to.x - k) + ' ' + to.y + ', ' +
-      to.x + ' ' + to.y));
+  /* The point on a card where a stroke coming from `towardX` should meet
+     it: the vertical middle of whichever side faces the other card. */
+  function edge(rect, towardX) {
+    var mid = rect.top + rect.height / 2;
+    return towardX > rect.left + rect.width / 2
+      ? { x: rect.right, y: mid }
+      : { x: rect.left, y: mid };
+  }
 
-    // The arrowhead is two short strokes off the end point, inside the
-    // line's own group, so one class can fade it in when the line has
-    // finished drawing rather than with it.
-    var ang = Math.atan2(to.y - from.y, to.x - from.x);
-    var head = 12;
-    var spread = 0.44;
+  /* A smooth chain of cubics through a set of sampled points.
+     Catmull-Rom, converted: the curve passes exactly through each sample,
+     which is what keeps the wave smooth rather than kinked, and unlike a
+     quadratic-per-sample it has no corner where two segments meet. */
+  function catmullRom(pts) {
+    var d = 'M' + pts[0].x.toFixed(1) + ' ' + pts[0].y.toFixed(1);
+    for (var i = 0; i < pts.length - 1; i++) {
+      var p0 = pts[i - 1] || pts[i];
+      var p1 = pts[i];
+      var p2 = pts[i + 1];
+      var p3 = pts[i + 2] || p2;
+      var c1x = p1.x + (p2.x - p0.x) / 6, c1y = p1.y + (p2.y - p0.y) / 6;
+      var c2x = p2.x - (p3.x - p1.x) / 6, c2y = p2.y - (p3.y - p1.y) / 6;
+      d += ' C' + c1x.toFixed(1) + ' ' + c1y.toFixed(1) + ', ' +
+                 c2x.toFixed(1) + ' ' + c2y.toFixed(1) + ', ' +
+                 p2.x.toFixed(1) + ' ' + p2.y.toFixed(1);
+    }
+    return d;
+  }
+
+  /* One segment, as a path string.
+
+     The shape is a body wave rather than a single bow. A fish swimming
+     does not travel in a smooth arc; the wave travels ALONG the body
+     while the body itself moves along its line of travel. So this
+     offsets the straight run sinusoidally in the perpendicular, and the
+     amplitude is enveloped by sin(pi*t) — zero at both ends.
+
+     That envelope is what makes it read as swimming rather than as a
+     squiggle: the stroke leaves the card squarely, undulates through the
+     middle, and arrives at the next card squarely. A wave that is still
+     oscillating where it meets a card looks like a loose wire, not a
+     line that was travelling.
+
+     `seed` shifts the phase, so no two segments undulate identically,
+     and the echo pass is the same wave seeded differently — the second
+     stroke of the same hand. */
+  function handPath(a, b, seed, scale) {
+    var dx = b.x - a.x;
+    var dy = b.y - a.y;
+    var run = Math.sqrt(dx * dx + dy * dy) || 1;
+    var ux = dx / run;
+    var uy = dy / run;
+    // Perpendicular to the run, so the wave bends relative to the
+    // direction of travel rather than to the page.
+    var nx = -uy;
+    var ny = ux;
+
+    var w = wobble(seed);
+    // Floored, for the same reason as before: raw, one seed in eight put
+    // the amplitude near zero and that stroke came out a straight rule.
+    var amp = SWIM_AMP * scale * (0.62 + 0.38 * Math.abs(w));
+    var phase = w * Math.PI;
+    var steps = 26;
+    var pts = [];
+    for (var i = 0; i <= steps; i++) {
+      var t = i / steps;
+      var envelope = Math.sin(Math.PI * t);
+      var wave = Math.sin(t * Math.PI * 2 * SWIM_WAVES + phase);
+      var off = amp * envelope * wave;
+      pts.push({ x: a.x + dx * t + nx * off, y: a.y + dy * t + ny * off });
+    }
+    return catmullRom(pts);
+  }
+
+  function drawLink(i) {
+    var from = cards[i];
+    var to = cards[i + 1];
+    if (!from || !to) return null;
+
+    /* Both rects are read before either is used. Measuring one card,
+     * building from it, and only then measuring the next lets a layout
+     * land in between, and the stroke is drawn to where the second card
+     * was a frame ago. */
+    var fa = from.getBoundingClientRect();
+    var fb = to.getBoundingClientRect();
+    var a = edge(fa, fb.left + fb.width / 2);
+    var b = edge(fb, fa.left + fa.width / 2);
+
+    var g = group('jr-line');
+    g.appendChild(pathEl('jr-signal jr-hand', handPath(a, b, i + 1, 1)));
+    g.appendChild(pathEl('jr-signal jr-hand jr-hand--echo', handPath(a, b, i + 9, HAND_OVERLAY)));
+
+    // A small open arrowhead at the far end, in the same hand.
+    var ang = Math.atan2(b.y - a.y, b.x - a.x);
+    var head = 13;
+    var spread = 0.42;
     var arrow = svgEl('g', 'jr-arrow');
-    line.appendChild(arrow);
+    g.appendChild(arrow);
     for (var s = -1; s <= 1; s += 2) {
+      var tipX = b.x - head * Math.cos(ang + s * spread);
+      var tipY = b.y - head * Math.sin(ang + s * spread);
+      var tailX = b.x - head * 0.92 * Math.cos(ang + s * spread * 0.8) + wobble(i + 3) * 1.6;
+      var tailY = b.y - head * 0.92 * Math.sin(ang + s * spread * 0.8) + wobble(i + 4) * 1.6;
       arrow.appendChild(pathEl('jr-head',
-        'M' + to.x + ' ' + to.y +
-        ' L' + (to.x - head * Math.cos(ang + s * spread)) + ' ' +
-        (to.y - head * Math.sin(ang + s * spread))));
+        'M' + tailX.toFixed(1) + ' ' + tailY.toFixed(1) +
+        ' L' + tipX.toFixed(1) + ' ' + tipY.toFixed(1)));
     }
 
-    return line;
+    return g;
   }
 
   /* A leader belongs to the card that is lit, so hiding one never changes
@@ -250,25 +341,36 @@
   }
 
   function buildConnectors() {
-    // A rebuild is a re-measure, not a reset: which card is lit is state,
-    // so its line survives a resize.
-    var lit = lines.map(function (l) {
-      return !!(l && l.classList.contains('is-on'));
+    /* A rebuild is a re-measure, not a reset: how far the journey has
+       been walked is state, so a resize must not throw the trail away
+       and make the visitor re-walk it to see where they are.
+
+       The trail is N-1 strokes, not N: there is nothing to draw into the
+       first card, because nothing has been walked yet. */
+    var drawn = lines.map(function (l) {
+      return !!(l && l.classList.contains('is-drawn'));
     });
     while (linesHost.firstChild) linesHost.removeChild(linesHost.firstChild);
     lines = [];
-    // Each line is built hidden and stays that way until the journey
-    // lights its card, so the opening state is the video and one card
-    // with a single line pointing at it.
-    for (var i = 0; i < N; i++) {
-      var line = drawConnector(i);
-      if (lit[i] && line) {
-        line.classList.add('is-on');
-        // Under reduced motion the draw is a single step, so a lit
-        // card's line is finished — arrow included.
-        if (reduce) line.classList.add('is-drawn');
+    for (var i = 0; i < N - 1; i++) {
+      var line = drawLink(i);
+      if (drawn[i] && line) {
+        line.classList.add('is-on', 'is-drawn');
       }
       lines.push(line);
+    }
+  }
+
+  /* Show the trail up to `step` and no further. Reaching step 3 means the
+     strokes 0→1 and 1→2 have been walked and drawn; stepping back to 1
+     takes the second away again.
+
+     This is the whole of the line's state, and it is why the trail can be
+     persistent: one number says how much of it exists. */
+  function showTrailTo(step) {
+    for (var i = 0; i < lines.length; i++) {
+      if (i < step) continue;   // lines[i] runs into card i+1
+      hideLine(lines[i]);
     }
   }
 
@@ -365,8 +467,7 @@
     }
   }
 
-  function swap(prev, next, incoming, opts) {
-    var draw = !(opts && opts.draw === false);
+  function swap(prev, next, incoming) {
     var outgoing = prev === next ? null : cards[prev];
     clearExcept(outgoing);
     // Held at full, with no transition on it: the outgoing card's start
@@ -391,15 +492,12 @@
       // stage, not a path between two stages, so it is not gated on
       // `draw` the way the line is.
       playFigure(incoming);
-      // Reduced motion: the line is simply there, pointing at the card
-      // that is lit. The pulse is off (journey.css), but a leader that
-      // never appears is a different design, not the same one made
-      // still.
-      for (var r = 0; r < lines.length; r++) {
-        if (r !== next) hideLine(lines[r]);
-      }
-      if (draw) playDraw(lines[next]);
-      else hideLine(lines[next]);
+      // Reduced motion: the trail is simply there, all the way to the
+      // card that is lit. The write-on is off (journey.css), but a
+      // stroke that never appears is a different design, not the same
+      // one made still.
+      showTrailTo(next);
+      if (next > 0) playDraw(lines[next - 1]);
       /* Reduced motion releases `busy` here, synchronously, because this
          branch has already applied every class it is going to apply —
          there is no transition to wait out and no timer above to do it
@@ -428,11 +526,12 @@
          Only a walk draws it. A card changing because the footage
          free-ran past it does not, so an unwalked journey never puts a
          line on the video. */
-      for (var l = 0; l < lines.length; l++) {
-        if (l !== next) hideLine(lines[l]);
-      }
-      if (draw) playDraw(lines[next]);
-      else hideLine(lines[next]);
+      /* The trail the visitor has already walked is the path they took,
+         so it stays. Only the strokes beyond the card just reached are
+         taken back, which is what makes stepping backwards feel like
+         un-walking rather than like the drawing being wrong. */
+      showTrailTo(next);
+      if (next > 0) playDraw(lines[next - 1]);
       setTimeout(function () {
         if (outgoing) outgoing.classList.remove('is-on', 'is-out');
         busy = false;
@@ -448,7 +547,7 @@
      frame behind it. Before this the video free-ran on its own clock and
      the card drifted off it, which was the one thing I could not justify
      about measuring the anchors in the first place. */
-  function stepTo(next, opts) {
+  function stepTo(next) {
     var prev = state;
     if (next === prev) return;
     busy = true;
@@ -471,7 +570,7 @@
         detail: { index: next, last: N - 1 },
       }));
     } catch (e) {}
-    swap(prev, next, cards[next], opts);
+    swap(prev, next, cards[next]);
     // The outgoing card's cleanup timer inside swap() releases busy.
   }
 
@@ -555,20 +654,20 @@
   function followFootage() {
     if (scrubbing) return;
     var t = video.currentTime;
-    // A loop wrapped backwards. The connectors are the path taken, so on
-    // a second lap they would be stale — six lines drawn to a card that
-    // has not been walked yet. They clear, and the walk starts over.
+    // A loop wrapped backwards. The trail is a record of how far the
+    // journey has come, so on a second lap it is stale — strokes drawn to
+    // cards that are about to be revisited. They clear, and the journey
+    // starts over.
     if (t < lastSeen - 0.5) resetLines();
     lastSeen = t;
     var want = stageAtTime(t);
-    // No connector is drawn here. The lines are the path the visitor
-    // walked, and nobody walked this: the footage is playing on its own,
-    // so a card changing under them draws nothing. Only an input — a
-    // click, a key, the wheel — draws a line.
-    if (want !== state) { busy = false; stepTo(want, { draw: false }); }
+    // The card follows the footage even when nothing was asked of it,
+    // and the stroke into it is drawn on that change too. See swap() for
+    // why the old "only a walk draws a line" gate had to go.
+    if (want !== state) { busy = false; stepTo(want); }
   }
 
-  function scrubTo(t, fromWheel) {
+  function scrubTo(t) {
     var d = video.duration;
     // Unknown duration means the metadata has not landed; the seek is
     // held rather than applied to t=0, which would look like the wheel
@@ -587,7 +686,7 @@
       busy = false;
       // A wheel scrub draws: the visitor is walking the journey. The
       // card lands under their hand, so the connector belongs.
-      stepTo(want, { draw: fromWheel });
+      stepTo(want);
     }
   }
 
@@ -698,7 +797,10 @@
   // pointing at it. playDraw is called without the state machine, so
   // under reduced motion it lands already drawn rather than waiting for
   // a walk that has not happened.
-  playDraw(lines[state]);
+  /* Opening state: stage 0 has nothing behind it, so there is no trail
+     yet. `lines[-1]` is undefined and playDraw returns early on it,
+     which is exactly the behaviour wanted — one card, no line. */
+  playDraw(lines[state - 1]);
   video.addEventListener('timeupdate', followFootage);
 
   // Cached coordinates, so this is the only thing that invalidates them.

@@ -25,12 +25,30 @@
    cuts rather than on them. They are recorded because the brief asks for
    them and are inert: the journey is click-driven, nothing scrubs.
 
-   `anchor` is measured, not eyeballed. Each stage's frame was sampled
-   into a 4x3 grid and scored lum + 2 x cyan, so a card lands in a dark
-   cell holding little of the video's own cyan light in it. `cell`
-   records which, and it is always one of that frame's three safest —
-   picked from those three so no two stages share a cell, because two
-   cards on one anchor make the connector between them double back.
+   `corner` is which of the frame's four corners the card sits in. It
+   cycles bottom-left, bottom-right, top-right, top-left and round again,
+   so the cards travel the frame anticlockwise and no two consecutive
+   stages share a point — which is what keeps the stroke between them
+   from being drawn twice over.
+
+   It replaces the measured anchor's left/top for the same reason `row`
+   did before it: seven stages need seven distinguishable points for a
+   trail to read as a trail, and the corners give that for free while
+   also keeping the middle of the frame clear for the way into the
+   archive.
+
+   This trades away the card following its stage's subject in the
+   footage. That was what `anchor` was for, and the vertical anchor was
+   kept through two earlier redesigns on exactly that basis. The trail is
+   the thing being asked for now, and a trail needs the cards to be at
+   distinguishable points.
+
+   `anchor` is kept, and it is still measured: each stage's frame was
+   sampled into a 4x3 grid and scored lum + 2 x cyan, so a card lands in a
+   dark cell holding little of the video's own cyan light in it. `cell`
+   records which, and it is always one of that frame's three safest. It
+   is no longer read by the layout, and that is the one loose end here —
+   a recorded measurement nothing consumes is a record, not a feature.
    ──────────────────────────────────────────────────────────────────── */
 const STAGES = [
   {
@@ -38,6 +56,7 @@ const STAGES = [
     at: 0.000,
     title: 'CLIENT',
     cell: 'c2r2',
+    corner: 'bl',
     anchor: { left: 50, top: 67 },
     figure: ['M10 22 H90 V80 H10 Z', 'M10 38 H90', 'M22 30 h5', 'M34 30 H72'],
     copy: 'You type a web address and press Enter. Your browser creates a request — a small message asking a server for a webpage. The journey starts right here, at your computer.',
@@ -47,6 +66,7 @@ const STAGES = [
     at: 1.404,
     title: 'CAT6A',
     cell: 'c1r2',
+    corner: 'br',
     anchor: { left: 25, top: 67 },
     figure: ['M8 70 C 28 70, 28 34, 48 34', 'M48 24 H78 V46 H48 Z', 'M58 46 V58', 'M68 46 V58'],
     copy: 'The request travels down a Cat6A cable. Cat6A is copper wire made to carry data quickly and reliably. Electrical signals move through the cable’s twisted pairs.',
@@ -56,6 +76,7 @@ const STAGES = [
     at: 2.808,
     title: 'PATCH PANEL',
     cell: 'c3r2',
+    corner: 'tr',
     anchor: { left: 75, top: 67 },
     figure: ['M8 28 H92 V76 H8 Z', 'M8 42 H92', 'M18 54 h13 v12 h-13 z', 'M40 54 h13 v12 h-13 z', 'M62 54 h13 v12 h-13 z'],
     copy: 'In a server room, cables connect into a patch panel. It’s like a switchboard — every cable has a labeled port, so technicians know exactly where each connection goes.',
@@ -65,6 +86,7 @@ const STAGES = [
     at: 4.312,
     title: 'SWITCH',
     cell: 'c2r1',
+    corner: 'tl',
     anchor: { left: 50, top: 33 },
     figure: ['M8 32 H92 V68 H8 Z', 'M22 50 H44', 'M38 43 L44 50 L38 57', 'M78 50 H56', 'M62 43 L56 50 L62 57'],
     copy: 'The switch reads the request’s address and decides where to send it next. It’s the traffic controller of the local network.',
@@ -74,6 +96,7 @@ const STAGES = [
     at: 5.715,
     title: 'CEILING TRAY',
     cell: 'c0r2',
+    corner: 'bl',
     anchor: { left: 2, top: 67 },
     figure: ['M8 38 H92 V62 H8 Z', 'M28 38 V20 H44', 'M68 38 V20 H56', 'M20 50 C 34 34, 52 66, 80 50'],
     copy: 'Cables run above the ceiling in metal trays. This is the backbone of the building’s network — hundreds of cables, organized and out of sight.',
@@ -83,6 +106,7 @@ const STAGES = [
     at: 7.119,
     title: 'DATA CENTER',
     cell: 'c0r0',
+    corner: 'br',
     anchor: { left: 2, top: 4 },
     figure: ['M22 10 H78 V90 H22 Z', 'M22 32 H78', 'M22 54 H78', 'M22 76 H78', 'M14 10 V90', 'M86 10 V90'],
     copy: 'The request reaches a remote data center — a building full of servers. A server finds the webpage you asked for and prepares to send it back.',
@@ -92,6 +116,7 @@ const STAGES = [
     at: 8.623,
     title: 'CONNECTED',
     cell: 'c1r0',
+    corner: 'tr',
     anchor: { left: 25, top: 4 },
     figure: ['M40 32 H28 A18 18 0 0 0 28 68 H40', 'M60 32 H72 A18 18 0 0 1 72 68 H60', 'M40 50 H60'],
     copy: 'The server sends the webpage back the same way it came. Your browser receives it, and the page appears. Round trip complete.',

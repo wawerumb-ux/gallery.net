@@ -42,11 +42,23 @@
   --jr-accent: #ffb020;
   --jr-accent-ink: #14100a;
   --jr-mark: rgba(244, 247, 250, 0.34);
+  /* The trail gets its own weight. --jr-mark is tuned for card chrome —
+     a step number, a 2px rule — where a lighter touch is right and
+     anything heavier shouts over the copy. The trail is the only thing
+     on the page meant to be watched moving, and at .34 over live footage
+     it was too faint to read as flowing at all. Still neutral: this is
+     the same hue at a higher alpha, not a second accent. */
+  --jr-trail: rgba(244, 247, 250, 0.58);
 
   --jr-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 18px 44px rgba(0, 0, 0, 0.44);
 
   --jr-radius: 16px;
-  --jr-card-w: 320px;
+  /* The card is square: this one token is both its width and its
+     height. It is a min() rather than a fixed 300px because at 320px
+     wide a 300px square does not fit, and clamping only the width left
+     the card a 288x300 rectangle — the exact shape the brief asked to
+     get rid of. Clamping the token keeps it square at every width. */
+  --jr-card-w: min(300px, calc(100vw - 40px));
   --jr-inset: 28px;
 
   /* The CTA's typewriter. One monospace character and the label's
@@ -149,27 +161,29 @@ body.jr {
    which is the kind of arithmetic that goes wrong the moment the copy
    grows.
 
-   The horizontal anchor is gone; the vertical one stays. --jr-y is
-   measured per stage from the footage, and keeping it is what stops
-   the cards from becoming seven identical captions stacked in one
-   place: each card still sits where the subject of its stage is, and
-   the leader line drawn into it still arrives from a different place
-   each time. Only the horizontal choreography is lost, which was the
-   part that pushed a card under the video's brightest face.
+   Square, in the frame's corners. The runtime puts .is-bl / .is-br /
+   .is-tl / .is-tr on each card from the stage's `corner`, cycling the
+   four anticlockwise.
 
-   --jr-card-w is kept in the token block because the runtime still
-   reads it; see the note above it. */
+   Square because the stage's own figure is drawn in a square box, and in
+   a wide card that drawing floats at one end of a lot of empty glass.
+   A 300px square holds the figure, the number, the title and the whole
+   note at a readable size; a 300px-wide rectangle could only have done
+   it by making the copy a long thin line.
+
+   The corners, rather than two columns, for two reasons. No two
+   consecutive stages share a point, so the stroke between them is never
+   drawn twice over. And the middle of the frame stays clear, which is
+   where the way into the archive appears.
+
+   --jr-card-w is now both the width and the height. */
 .jr-card {
   position: absolute;
-  /* The vertical anchor comes from the runtime as a custom property,
-     so the breakpoint below can re-place every card without an inline
-     style outranking it. Defaults are stage 1's anchor. */
-  left: var(--jr-inset);
-  right: var(--jr-inset);
-  top: var(--jr-y, 67%);
-  width: auto;
-  max-width: none;
-  padding: 20px 24px;
+  width: var(--jr-card-w);
+  height: var(--jr-card-w);
+  max-width: calc(100vw - var(--jr-inset) * 2);
+  max-height: calc(100vh - var(--jr-inset) * 2);
+  padding: 20px;
   border-radius: var(--jr-radius);
   border: 1px solid var(--jr-edge);
   background: var(--jr-glass);
@@ -187,14 +201,22 @@ body.jr {
 .jr-card.is-out {
   transition: opacity var(--jr-in) var(--jr-ease);
 }
+
+/* Which corner. The inset is --jr-inset and not less because journey.js
+   translates the whole host by up to DEPTH.cards (16px) toward the
+   cursor — a smaller inset lets the card's edge cross the screen edge
+   on a wide display where the swing is widest. */
+.jr-card.is-bl { left: var(--jr-inset);  top: auto;    bottom: var(--jr-inset); }
+.jr-card.is-br { right: var(--jr-inset); top: auto;    bottom: var(--jr-inset); }
+.jr-card.is-tl { left: var(--jr-inset);  bottom: auto; top: var(--jr-inset); }
+.jr-card.is-tr { right: var(--jr-inset); bottom: auto; top: var(--jr-inset); }
 /* The active card's accent, as a bar rather than a border change: a
    border would shift every line of text by 3px the moment the card
    lit up, which is a jump in the middle of the swap.
 
-   It runs along the top edge at every width, not just on a phone. The
-   card is full-width everywhere now, so a left-edge bar would be a
-   3px tick at the far corner of a very long edge — it would read as an
-   artefact rather than as a marker. */
+   It runs along the top edge. A side-edge bar would be a 3px tick
+   directly under the point the trail arrives at, which reads as two
+   marks meaning one thing. */
 .jr-card::before {
   content: '';
   position: absolute;
@@ -231,7 +253,7 @@ body.jr {
   color: var(--jr-mark);
 }
 .jr-card-title {
-  margin: 6px 0 8px;
+  margin: 5px 0 7px;
   /* 22px read as a caption while the card was a 320px panel. At full
      width the same size reads as a headline, and it out-types the CTA —
      which is exactly the inversion the CTA is meant to prevent. The
@@ -243,17 +265,13 @@ body.jr {
 }
 .jr-card-copy {
   margin: 0;
-  font-size: 14px;
+  font-size: 12.5px;
+  line-height: 1.55;
   color: var(--jr-muted);
 }
-/* The card now spans the frame, so its text must not. Left to fill a
-   1400px row the note becomes a single unreadable line, which makes
-   the card look like a strip of tape rather than a card. Capped at a
-   readable measure; the rest of the row stays empty glass, which is
-   also what keeps the card subordinate to the CTA sitting over it. */
-.jr-card-title,
-.jr-card-copy,
-.jr-card-num { max-width: 72ch; }
+/* The square is its own measure — 260px of content width is already a
+   readable line — so the text is simply allowed to fill it. The cap that
+   lived here was for the full-width band this replaced. */
 
 /* ════════════════════════════════════════════════════════════════════
    START HERE — the one way into the archive
@@ -697,21 +715,43 @@ body.jr {
 }
 
 /* ── The line work ────────────────────────────────────────────────
-   Stroke-based, and deliberately thin: one weight, round caps, no
-   fills. A leader is invisible until the journey lights its card, so
-   the opening state is the video alone — one card, one figure, and one
-   line pointing at that card. The write-on is a dash offset on the
-   path, and
-   once it lands the dash pattern itself travels: the line stops being
-   a stroke and becomes the request moving along it. */
+   The trail: one stroke between each pair of neighbouring cards, drawn
+   as the journey walks it and left behind afterwards, so the marks on
+   screen are the path the visitor actually took rather than a
+   decoration that is always the same.
+
+   The hand comes from three things. The curve is an S rather than an
+   arc — the control points bow by different amounts at the two ends,
+   which journey.js computes. The stroke is laid twice, the second pass
+   offset and fainter, which is what a pen actually leaves. And the
+   width tapers: a hand accelerates into a stroke and lifts out of one,
+   so the dash pattern on the echo pass is spaced rather than solid,
+   and reads as a lighter second pass rather than as a dotted line.
+
+   Round caps and joins throughout — a square cap on a hand-drawn
+   stroke reads as a computer drawing one. */
 .jr-lines path { fill: none; }
 .jr-lines .jr-line { opacity: 0; }
 .jr-lines .jr-line.is-on { opacity: 1; }
 .jr-lines .jr-line path {
-  stroke: var(--jr-mark);
+  stroke: var(--jr-trail);
   stroke-width: 2;
   stroke-linecap: round;
   stroke-linejoin: round;
+}
+/* The doubled pen line. The echo is the same curve, seeded differently
+   in journey.js and laid a few pixels off the first pass; it is thinner,
+   fainter, and spaced, so the pair reads as one hand passing twice
+   rather than as two different lines. */
+.jr-lines .jr-hand { stroke-width: 2.2; }
+.jr-lines .jr-hand--echo {
+  stroke-width: 1;
+  opacity: .5;
+  /* A fine, short dash. At 26/7 the echo read as a dotted rule running
+     beside the stroke rather than as the same hand passing twice; the
+     point of it is to make the line look drawn, and a long dash looks
+     typed. */
+  stroke-dasharray: 3 4;
 }
 .jr-lines .jr-line.is-drawn .jr-signal {
   stroke-dasharray: 9 15;
@@ -730,9 +770,9 @@ body.jr {
    in CSS because the runtime's stroke width is in the viewBox's own
    units, not screen pixels. */
 .jr-figure {
-  width: 60px;
-  height: 60px;
-  margin: 0 0 14px;
+  width: 58px;
+  height: 58px;
+  margin: 0 0 10px;
   overflow: visible;
 }
 .jr-card .jr-figure path {
@@ -806,15 +846,27 @@ body.jr {
      .jr-bottom's padding above, and declaring it in both places counted
      it twice — 56px of inset on a 390px phone, which is most of the
      screen. */
-  .jr-card {
+  /* The side rules above are .is-left / .is-right, which outrank a bare
+     .jr-card selector — so the phone layout has to name them too or it
+     would silently keep two columns on a 320px screen. */
+  .jr-card.is-bl,
+  .jr-card.is-br,
+  .jr-card.is-tl,
+  .jr-card.is-tr {
     position: absolute;
-    left: 0;
-    right: 0;
+    left: 50%;
+    right: auto;
     top: auto;
     bottom: 0;
-    width: auto;
-    margin: 0;
-    padding: 16px 18px;
+    width: var(--jr-card-w);
+    height: var(--jr-card-w);
+    max-width: calc(100vw - 32px);
+    max-height: calc(100svh - 32px);
+    /* Centred, because on a phone the corners are the one thing the
+       frame does not have room for and the card would otherwise sit
+       half off the side. */
+    margin-left: calc(var(--jr-card-w) / -2);
+    padding: 16px;
   }
   .jr-card.is-on { position: relative; }
   .jr-landing-stack {
