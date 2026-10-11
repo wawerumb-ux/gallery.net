@@ -194,22 +194,42 @@ body.jr {
 }
 
 /* ── Start here ──────────────────────────────────────────────────────
-   The way into the archive, revealed once the journey has been walked.
-   It sits in the middle of the page because by then the footage is
-   finished and nothing else is asking for attention — the journey cards
-   and the corner link both stay, but this is the one that says go.
+   The one way into the archive, revealed once the journey has been
+   walked and never taken back. It sits in the middle of the page because
+   by then the footage has finished and nothing else is asking for
+   attention — the journey cards stay, but this is the one that says go.
 
-   The animation is the point: a finished visitor should not have to read
-   the page to find out what happens next. A slow breathing halo and a
-   one-way arrow nudge, both paused on hover and on focus so the button
-   holds still exactly when someone has decided to press it. */
+   The motion is the argument. A finished visitor should not have to read
+   the page to find out what happens next, so the button does three
+   things at once: it breathes (scale 1 ↔ 1.055), it glows in the site's
+   accent, and its halo runs outward. All three share one 2.4s period so
+   they read as one object rather than three effects arguing.
+
+   Two of the three live on the wrapper and the button rather than on one
+   element, because the arrival and the breathing both want the transform
+   and CSS gives an element only one. The wrapper owns the arrival (which
+   has to carry its own centring translate), the button owns the
+   breathing.
+
+   Hover, focus and press cancel the breathing outright rather than
+   pausing it: a paused animation holds whatever value it happened to be
+   at, so a half-breath frozen mid-scale reads as a button that is stuck.
+   Cancelling and setting the scale outright is the only way to hold
+   still at a chosen size — which matters, because a button that keeps
+   pulsing under a thumb reads as though it is about to do something
+   else. */
 .jr-cta-centre {
+  /* The one easing shared by the breathing, the glow and the halo. A
+     symmetric ease-in-out reads as a metronome; starting the swell out
+     faster than it settles is what makes it feel like reaching. */
+  --jr-cta-swell: cubic-bezier(0.45, 0.00, 0.55, 1.00);
   position: fixed;
   z-index: 4;
   left: 50%;
   top: 50%;
   transform: translate(-50%, -50%);
   pointer-events: none;
+  animation: jr-cta-arrive 620ms var(--wt-ease) both;
 }
 .jr-cta-centre[hidden] { display: none; }
 
@@ -232,9 +252,35 @@ body.jr {
   pointer-events: auto;
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
-  animation: jr-cta-arrive 620ms var(--wt-ease) both;
+  /* The breathing. One period shared with the glow and the halo, so the
+     three effects swell and fade as one object rather than drifting
+     against each other. 620ms of delay lines it up with the arrival. */
+  animation: jr-cta-breathe 2.4s var(--jr-cta-swell) 620ms infinite;
   transition: transform var(--wt-short) var(--wt-ease),
               box-shadow var(--wt-short) var(--wt-ease);
+}
+
+/* The glow. A painted element rather than a box-shadow on the button
+   itself, for two reasons: a shadow that pulses repaints the button on
+   every frame, and the landing is already carrying a video behind it;
+   and a blurred inset is the only way to get a glow that spreads past
+   the edge rather than hugging it.
+
+   Negative z-index puts it behind the button's own text while still
+   inside the plate — the button's backdrop-filter makes it a stacking
+   context, so the shadow is contained but not clipped, and it spreads
+   outward over the footage. */
+.jr-cta-start::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  box-shadow: 0 0 30px 2px rgba(0, 114, 239, 0.55),
+              0 0 64px 16px rgba(0, 114, 239, 0.28);
+  opacity: 0.5;
+  pointer-events: none;
+  z-index: -1;
+  animation: jr-cta-glow 2.4s var(--jr-cta-swell) 620ms infinite;
 }
 
 /* The halo is a sibling of the button rather than an outline, because an
@@ -249,7 +295,7 @@ body.jr {
   border: 2px solid var(--wt-accent);
   opacity: 0;
   pointer-events: none;
-  animation: jr-cta-halo 2.6s var(--wt-ease) 620ms infinite;
+  animation: jr-cta-halo 2.4s var(--jr-cta-swell) 620ms infinite;
 }
 
 .jr-cta-eyebrow {
@@ -282,28 +328,67 @@ body.jr {
 
 .jr-cta-start:hover,
 .jr-cta-start:focus-visible {
-  transform: scale(1.03);
+  /* Cancel, do not pause: a paused animation is frozen at whatever value
+     it reached, so the button would stop somewhere between 1 and 1.055
+     and look stuck. Cancelling lets the scale below say where it holds. */
+  animation: none;
+  transform: scale(1.07);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5), 0 30px 74px rgba(0, 0, 0, 0.6);
 }
-/* Hold still the moment it is being pressed — a button that keeps pulsing
-   under a thumb reads as though it is about to do something else. */
+/* The glow holds too, at its brighter end, so hovering feels like turning
+   the button up rather than like the button drifting under the cursor. */
+.jr-cta-start:hover::after,
+.jr-cta-start:focus-visible::after {
+  animation: none;
+  opacity: 1;
+}
 .jr-cta-start:hover::before,
 .jr-cta-start:hover .jr-cta-label::after,
 .jr-cta-start:focus-visible::before,
 .jr-cta-start:focus-visible .jr-cta-label::after,
 .jr-cta-start:active::before,
-.jr-cta-start:active .jr-cta-label::after {
-  animation-play-state: paused;
+.jr-cta-start:active .jr-cta-label::after,
+.jr-cta-start:active::after {
+  animation: none;
 }
 .jr-cta-start:focus-visible {
   outline: 2px solid var(--wt-accent);
   outline-offset: 4px;
 }
-.jr-cta-start:active { transform: scale(0.99); }
+.jr-cta-start:active {
+  animation: none;
+  transform: scale(0.99);
+}
 
 @keyframes jr-cta-arrive {
+  from { opacity: 0; transform: translate(-50%, -50%) scale(0.94) translateY(10px); }
+  to   { opacity: 1; transform: translate(-50%, -50%) scale(1) translateY(0); }
+}
+/* The same arrival for the docked layout, which is positioned with right
+   rather than left and so must not carry the centring translate. Without
+   this the button would arrive offset by half its own width and stay
+   there — the arrival fills forwards, so nothing would correct it. */
+@keyframes jr-cta-arrive-docked {
   from { opacity: 0; transform: scale(0.94) translateY(10px); }
   to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+/* The enlargement and the shrinkage. Asymmetric — a longer swell out than
+   in — because a button should feel like it is reaching, then settling,
+   rather than ticking. */
+@keyframes jr-cta-breathe {
+  0%   { transform: scale(1); }
+  50%  { transform: scale(1.055); }
+  100% { transform: scale(1); }
+}
+/* The glow swells with the same period, so brightness and size peak
+   together; the two running out of step would read as a flicker. */
+@keyframes jr-cta-glow {
+  0%   { opacity: 0.45; box-shadow: 0 0 24px 2px rgba(0, 114, 239, 0.45),
+                                   0 0 52px 12px rgba(0, 114, 239, 0.22); }
+  50%  { opacity: 1;    box-shadow: 0 0 38px 6px rgba(0, 114, 239, 0.65),
+                                   0 0 78px 22px rgba(0, 114, 239, 0.34); }
+  100% { opacity: 0.45; box-shadow: 0 0 24px 2px rgba(0, 114, 239, 0.45),
+                                   0 0 52px 12px rgba(0, 114, 239, 0.22); }
 }
 @keyframes jr-cta-halo {
   0%   { opacity: 0.55; transform: scale(1); }
@@ -316,11 +401,20 @@ body.jr {
 }
 
 /* Reduced motion: the button still arrives, and still reads as the next
-   thing to do, but nothing moves on its own. The scale-up on hover/focus
-   stays, because that is a response to the visitor rather than motion the
-   page imposes on them. */
+   thing to do, but nothing moves on its own. The breathing and the halo
+   are the page imposing movement on someone who asked it not to, so both
+   go entirely. The glow stays — a steady brightness is not motion, and
+   it is the one thing left saying "this is the button".
+
+   The scale-up on hover and focus also stays, because that is a response
+   to the visitor rather than movement the page imposes on them. */
 @media (prefers-reduced-motion: reduce) {
+  .jr-cta-centre { animation: none; }
   .jr-cta-start { animation: none; }
+  .jr-cta-start::after {
+    animation: none;
+    opacity: 0.85;
+  }
   .jr-cta-start::before {
     animation: none;
     opacity: 0.7;
@@ -366,7 +460,7 @@ body.jr {
     left: auto;
     right: var(--jr-inset, 24px);
     top: calc(var(--jr-inset, 24px) + env(safe-area-inset-top, 0px));
-    transform: none;
+    animation-name: jr-cta-arrive-docked;
   }
   .jr-cta-start { padding: 12px 22px 14px; gap: 2px; border-radius: 16px; }
   .jr-cta-start::before { border-radius: 18px; }
@@ -376,38 +470,11 @@ body.jr {
 }
 
 /* ── Controls ─────────────────────────────────────────────────────── */
-/* ── The landing's control bar ───────────────────────────────────
-   walkthrough.js moves the two ways on — into the deck, and the quiet
-   exit to the archive — into a .wt-landing-bar here. They are the same
-   .wt-cta / .wt-alt anchors the step pages use, so they keep the site's
-   own affordance; only their placement is new. Bottom-left, because the
-   footage's subject sits centre-frame in four of the five shots. */
-.wt-landing-bar {
-  position: fixed;
-  z-index: 3;
-  left: var(--jr-inset);
-  bottom: calc(var(--jr-inset) + env(safe-area-inset-bottom, 0px));
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 6px;
-  pointer-events: none;
-}
-.wt-landing-bar .wt-actions {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 6px;
-  pointer-events: auto;
-}
-.wt-landing-bar .wt-cta {
-  width: auto;
-  height: 44px;
-  padding: 0 20px;
-  border-radius: var(--wt-r-md);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 10px 28px rgba(0, 0, 0, 0.44);
-}
-.wt-landing-bar .wt-alt { margin-top: 0; }
+/* The landing used to carry a .wt-landing-bar here: a permanent corner
+   link out to the archive, so the gate could never trap anyone. The way
+   in is the centred "Start here" button above now, and it is earned by
+   finishing the walk rather than always offered, so the bar and its
+   styles went with it. Nothing below references either. */
 
 /* Desktop only: the bottom group dissolves and each of its children
    takes its own corner, the corners the footage leaves free. The phone
@@ -570,7 +637,6 @@ body.jr {
     gap: 8px;
     pointer-events: none;
   }
-  .jr-landing-stack .wt-actions,
   .jr-landing-stack .jr-controls {
     position: static;
     pointer-events: auto;
@@ -589,18 +655,5 @@ body.jr {
   .jr-card-title { font-size: 19px; }
   .jr-card-copy { font-size: 13.5px; }
   .jr-lines { display: none; }
-  /* Edge to edge, and the two ways on sit on one line: on a phone the
-     card is the page, so everything under it is a thin strip. */
-  .wt-landing-bar {
-    position: static;
-    width: 100%;
-  }
-  .wt-landing-bar .wt-actions {
-    flex-direction: row;
-    align-items: center;
-    gap: 10px;
-    width: 100%;
-  }
-  .wt-landing-bar .wt-cta { flex: 1 1 auto; height: 42px; padding: 0 16px; font-size: 14px; }
   .jr-controls { justify-content: flex-end; width: 100%; }
 }

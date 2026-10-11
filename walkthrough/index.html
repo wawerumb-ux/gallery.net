@@ -51,20 +51,27 @@
 <div class="jr-bottom">
   <div class="jr-cards" id="jrCards"></div>
   <div class="jr-landing-stack" id="jrStack">
-    <div class="wt-landing-bar-slot" id="jrBarSlot"></div>
     <div class="jr-controls">
       <button class="jr-reset" id="jrReset" type="button">Replay from the start</button>
     </div>
   </div>
 </div>
-<!-- The way in, once the journey has been walked. The corner link above
-     is always there, because the gate must never be able to trap anyone;
-     this is the same destination given the weight the moment it is
-     earned. It starts hidden and walkthrough.js reveals it when the last
-     card lights, so it never competes with a journey still in progress.
+<!-- The one way into the archive. walkthrough.js reveals it when the
+     last card lights and never takes it back — a visitor who has
+     finished the walk should not have to keep the button still to keep
+     the offer open. Pressing it is the only thing that removes it, by
+     navigating.
+
+     This replaced a permanent "Browse the gallery" link in the corner,
+     which existed so the gate could never trap anyone. That safety
+     valve is deliberately gone: the way in is now earned by finishing
+     rather than always offered, so a visitor who abandons the journey
+     part-way has no route into the archive from this page. If that is
+     ever not wanted, this is the one thing to put back.
+
      Deliberately not focusable while hidden (see aria-hidden and the
      tabindex removal) — an invisible link in the tab order is a trap for
-     keyboard users, which is the same fault the gate would be. -->
+     keyboard users, which is the same fault the removed link avoided. -->
 <div class="jr-cta-centre" id="jrCtaCentre" hidden aria-hidden="true">
   <a class="jr-cta-start" id="jrCtaStart" href="../index.html" tabindex="-1">
     <span class="jr-cta-eyebrow">The archive is ready</span>
@@ -76,16 +83,15 @@
 <main class="wt-page wt-page-landing">
   <section class="wt-panel">
     <!-- The journey cards carry the copy, so the title block is retired
-         rather than duplicated. The panel survives as the control bar:
-         the gate sends first-time visitors here, so the landing must
-         still offer the way into the archive, or it becomes a trap (see
-         walkthrough.js markSeen). The counter, title, copy and dots went
-         with the deck that used to fill them. -->
+         rather than duplicated. The panel survives as the control bar.
+         Its corner used to carry the way into the archive; that link is
+         gone and the way in is the centred button above, earned by
+         finishing the walk. The counter, title, copy and dots went with
+         the deck that used to fill them. -->
     <span class="wt-counter" id="wtCounter" hidden></span>
     <h1 class="wt-title" id="wtTitle" hidden></h1>
     <p class="wt-copy" id="wtCopy" hidden></p>
     <nav class="wt-dots" id="wtDots" aria-label="Progress" hidden></nav>
-    <div class="wt-actions" id="wtActions"></div>
   </section>
 </main>
 

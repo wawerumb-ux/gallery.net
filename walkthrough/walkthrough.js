@@ -92,52 +92,17 @@
 
   buildAmbient();
 
-  /* ── The way in ──────────────────────────────────────────────────
-     The landing plays the footage full-bleed with seven cards naming
-     each stop, so the journey is the content and there is no title
-     card to write. What it still owes the visitor is the way out,
-     because the gate that sends people here cannot be allowed to trap
-     them. One link, in the panel's corner, out of the footage's way. */
-  function galleryUrl() { return '../index.html'; }
-
-  function addAction(label, href, primary) {
-    var host = document.getElementById('wtActions');
-    if (!host) return null;
-    var a = document.createElement('a');
-    a.className = primary ? 'wt-cta' : 'wt-alt';
-    a.href = href;
-    a.textContent = label;
-    host.appendChild(a);
-    return a;
-  }
-
-  /* The actions host moves rather than being copied: the slot is already
-     inside the landing's own control stack, where journey.css places it
-     in the corner (and lays it out in flow on a phone) so the link sits
-     out of the footage's way. Copying would leave the original behind
-     and put the way in twice. */
-  (function mountLandingBar() {
-    var slot = document.getElementById('jrBarSlot');
-    var actions = document.getElementById('wtActions');
-    if (!slot || !actions || !actions.parentNode) return;
-    var bar = document.createElement('div');
-    bar.className = 'wt-landing-bar';
-    bar.appendChild(actions);
-    slot.appendChild(bar);
-  })();
-
-  addAction('Browse the gallery', galleryUrl(), true);
-
   /* ── Start here ──────────────────────────────────────────────────
-     The corner link is the way out. This is the way in: the same
-     destination, given the middle of the page and the weight of a
-     finished journey behind it.
+     The one way into the archive. It appears in the middle of the page
+     when the journey's last card lights, and from then on it stays:
+     a visitor who has finished the walk should not have to keep the
+     button still to keep the offer open. Stepping back onto an earlier
+     card does not take it away — only pressing it leaves.
 
-     It is shown and hidden from the journey's own step event rather
-     than from its end event, because a replay has to put it away again
-     — journey-end fires once, when the last card lights, and says
-     nothing about the visitor stepping back off it. Two states only:
-     last card lit, or not. */
+     The corner link this replaced is gone. That was the gate's safety
+     valve — the gallery sends first-time visitors here, so the landing
+     used to carry a permanent, unmissable exit. The trade is recorded in
+     index.html and in the CSS below rather than left in a diff. */
   var ctaCentre = document.getElementById('jrCtaCentre');
   var ctaStart = document.getElementById('jrCtaStart');
 
@@ -161,13 +126,17 @@
     var last = e.detail && e.detail.last;
     var index = e.detail && e.detail.index;
     if (typeof last !== 'number' || typeof index !== 'number') return;
-    setStartHere(index === last);
+    // One-way: the button appears once the walk is done and stays. It is
+    // never taken back, because the only thing that should remove the way
+    // into the archive is taking it.
+    if (index === last) setStartHere(true);
   });
 
-  /* Watching the journey to its last card is a finish; the link is a
-     skip. Either opens the gate — the record is what the gallery reads,
-     not the route taken to earn it. journey.js announces the last card
-     (every path that moves the journey goes through its stepTo). */
+  /* Walking the journey to its last card is a finish; pressing the button
+     is the way through. Either opens the gate — the record is what the
+     gallery reads, not the route taken to earn it. journey.js announces
+     the last card (every path that moves the journey goes through its
+     stepTo). */
   document.addEventListener('walkthrough:journey-end', function () { markSeen('completed'); });
 
   var navigating = false;
