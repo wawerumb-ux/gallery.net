@@ -15,6 +15,21 @@ const CONFIG = {
 // While owner/repo are blank, the site runs on local sample data so you can
 // test every feature before a real repo exists. Fill in CONFIG above and
 // this switches off automatically.
+
+/* ── The gallery ──────────────────────────────────────────────────────
+   One closure, one private scope — the shape the vendored toast library
+   uses. Everything below (the journey model, the repo client, the
+   renderers, the admin tools) is private to it; nothing reaches `window`
+   except the deliberate surface returned at the foot. The guided tour
+   reads that surface, and so does the test suite, which is why it lists
+   what it needs rather than reaching into the module.
+
+   The body is wrapped, not reindented, and that is deliberate: the
+   renderers build markup in template literals whose bytes are the
+   markup, and the closing `];` of each top-level table has to stay on
+   column 0 for the tests that slice this file to find it. */
+const gallery = (() => {
+
 const DEMO_MODE = !CONFIG.owner || !CONFIG.repo;
 
 /* ── Classify vs sort ────────────────────────────────────────────
@@ -294,10 +309,15 @@ const el = (id) => document.getElementById(id);
    this getter (tour/boot.js): a tour that starts signed in
    walks the admin tool set; one that starts signed out never
    sees those steps. Read once, at tour start. */
-window.__gallery = { get adminMode() { return state.adminMode; } };
 
 // Loading status: "loading images..." + Arch-style ASCII progress bar.
 const LOAD_PROG_WIDTH = 24;
+/* How long the loading card takes to fade once every image is in. Long
+   enough to read as a fade rather than a cut. */
+const GATE_FADE_MS = 320;
+/* The eager images are already decoded by then, so the card is not worth
+   keeping around. A slow first paint gets this grace before it goes. */
+const GATE_HOLD_MS = 6000;
 const loadProg = {
   _pct: 0,
   _images: 0,
@@ -330,7 +350,7 @@ const loadProg = {
       const gate = el('loadingState');
       if (!gate || gate.hidden) return;
       gate.style.opacity = '0';
-      setTimeout(() => { gate.hidden = true; gate.style.opacity = ''; }, 320);
+      setTimeout(() => { gate.hidden = true; gate.style.opacity = ''; }, GATE_FADE_MS);
     }, delay);
   },
 };
@@ -643,7 +663,7 @@ function openComfortPicker() {
   el('comfortOverlay').hidden = false;
 }
 
-function closeComfortPicker() { el('comfortOverlay').hidden = true; }
+const closeComfortPicker = () => { el('comfortOverlay').hidden = true; };
 /* Same dismissal contract as the typeface popover: a tap on the modal
    screen closes, a tap on the panel does not. Escape and the back button
    already route through overlayStack. */
@@ -828,7 +848,7 @@ function openFontPicker() {
   overlayPush('fontOverlay', closeFontPicker);
   el('fontOverlay').hidden = false;
 }
-function closeFontPicker() { el('fontOverlay').hidden = true; }
+const closeFontPicker = () => { el('fontOverlay').hidden = true; };
 /* The video backdrop. Three jobs the attribute set alone cannot do:
 
    autoplay refused — iOS Low Power Mode and every desktop browser's
@@ -1021,9 +1041,9 @@ async function persistMetadata() {
 // photos can't be collapsed by accident. Extend at your own risk.
 const VARIANT_REGEX = /(@\d+x|-(\d{3,4}|thumb|thumbnail|sm|md|lg|xl|orig|original|full))$/i;
 
-function basenameStem(name) { return name.replace(/\.[^.]+$/, ''); }
-function isVariantName(name) { return VARIANT_REGEX.test(basenameStem(name)); }
-function assetBase(name) { return basenameStem(name).replace(VARIANT_REGEX, '').toLowerCase(); }
+const basenameStem = (name) => name.replace(/\.[^.]+$/, '');
+const isVariantName = (name) => VARIANT_REGEX.test(basenameStem(name));
+const assetBase = (name) => basenameStem(name).replace(VARIANT_REGEX, '').toLowerCase();
 
 /* Lower = better canonical. Original always wins; among variants the
    largest endpoint wins; bare thumbs trail everything. */
@@ -1321,7 +1341,7 @@ function render() {
     const eager = document.querySelectorAll('#gallery .card img[loading="eager"]').length;
     loadProg.imageCount(eager);
     if (!eager) loadProg.finish();
-    else setTimeout(() => loadProg.finish(), 6000);
+    else setTimeout(() => loadProg.finish(), GATE_HOLD_MS);
   }
   // A re-render can stale the open viewer (rename/delete/classify) — refresh it.
   if (!el('lightbox').hidden) updateLightbox();
@@ -1673,6 +1693,15 @@ function wireGalleryEvents() {
 
 /* S10 selection gesture: long-press a photo (touch) or right-click it
    (desktop) to enter selection mode with that photo picked. */
+/* Long-press opens selection. The timings are one gesture: a tap must not
+   reach this at all (browsers fire touchstart on tap, so the press has to
+   outlast a real tap), a hold has to feel held rather than instant, and the
+   window after the hold is how long a stray click from the same finger is
+   swallowed so it does not also open the viewer. */
+const LONG_PRESS_MS = 480;
+const CLICK_SUPPRESS_MS = 700;
+const HAPTIC_MS = 15;
+
 function wireLongPress(fig) {
   let timer = null, sx = 0, sy = 0;
   const cancel = () => { if (timer) { clearTimeout(timer); timer = null; } };
@@ -1682,10 +1711,10 @@ function wireLongPress(fig) {
     sx = e.touches[0].clientX; sy = e.touches[0].clientY;
     timer = setTimeout(() => {
       timer = null;
-      state._suppressClickUntil = Date.now() + 700;
+      state._suppressClickUntil = Date.now() + CLICK_SUPPRESS_MS;
       enterSelectMode(fig.dataset.path);
-      if (navigator.vibrate) navigator.vibrate(15);
-    }, 480);
+      if (navigator.vibrate) navigator.vibrate(HAPTIC_MS);
+    }, LONG_PRESS_MS);
   }, { passive: true });
   fig.addEventListener('touchend', cancel, { passive: true });
   fig.addEventListener('touchcancel', cancel, { passive: true });
@@ -1865,10 +1894,10 @@ function initConfirm() {
 
 /* Overlay close routines (shared by the X/Esc/outside handlers and the
    back-button popstate path, so both run identical cleanup). */
-function closeUploadModal() { el('uploadModalOverlay').hidden = true; state.pendingUploads = null; }
-function closeSortModal() { el('sortModalOverlay').hidden = true; }
-function closeSettingsModal() { el('settingsModalOverlay').hidden = true; }
-function closeTagModal() { el('tagModalOverlay').hidden = true; state.taggingPath = null; }
+const closeUploadModal = () => { el('uploadModalOverlay').hidden = true; state.pendingUploads = null; };
+const closeSortModal = () => { el('sortModalOverlay').hidden = true; };
+const closeSettingsModal = () => { el('settingsModalOverlay').hidden = true; };
+const closeTagModal = () => { el('tagModalOverlay').hidden = true; state.taggingPath = null; };
 
 /* ── Admin: sign in / out ─────────────────────────────────────── */
 
@@ -2146,7 +2175,7 @@ function openSheet(cfg) {
   el('sheetOverlay').hidden = false;
 }
 
-function closeSheet() { el('sheetOverlay').hidden = true; }
+const closeSheet = () => { el('sheetOverlay').hidden = true; };
 
 /* Header ⋮: everyone gets the walkthrough; a visitor also gets sign-in,
    the admin gets the full tool set. */
@@ -2436,7 +2465,7 @@ async function saveTagModal() {
    creates the new folder and moves the selection there. Moving a photo moves
    its canonical file AND its committed webp variants together. ── */
 
-function availableCategories() { return state.order; }
+const availableCategories = () => state.order;
 
 function normalizeCategory(name) {
   return sanitizeFilename(name).toLowerCase();
@@ -3392,6 +3421,9 @@ function openLightbox(folder, index, startSrc) {
    full-res, and a slot that leaves the window has its src dropped so
    the decoder can release it. */
 const SLIDE_MS = 320;
+/* Grace past the slide transition before the clock settles the track on its
+   own, for a tab that never painted. */
+const SLIDE_SLACK_MS = 150;
 const SLIDE_IDS = ['lightboxImgPrev', 'lightboxImg', 'lightboxImgNext'];
 const SLIDE_CLASSES = ['is-prev', 'is-current', 'is-next'];
 let slideAnimating = false;
@@ -3588,8 +3620,9 @@ function lightboxStep(delta) {
   track.addEventListener('transitionend', done);
   track.addEventListener('transitioncancel', done);
   // A backgrounded tab paints nothing and would never fire transitionend,
-  // which would strand the track off-centre. Settle it by clock instead.
-  setTimeout(() => { if (slideAnimating) done(null); }, SLIDE_MS + 150);
+  // which would strand the track off-centre. Settle it by clock instead,
+  // SLIDE_SLACK_MS past the transition so the real end still wins the race.
+  setTimeout(() => { if (slideAnimating) done(null); }, SLIDE_MS + SLIDE_SLACK_MS);
 }
 
 /* ── Small helpers ────────────────────────────────────────────── */
@@ -3679,9 +3712,9 @@ function sanitizeFilename(name) {
     .replace(/\.+$/, '') // Remove trailing dots
     .replace(/^[-_]+|[-_]+$/g, ''); // Trim leading/trailing hyphens/underscores
 }
-function cssSafe(s) { return s.replace(/[^a-zA-Z0-9_-]/g, '_'); }
-function escapeHtml(s) { return s.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c])); }
-function escapeAttr(s) { return escapeHtml(s).replace(/"/g, '&quot;'); }
+const cssSafe = (s) => s.replace(/[^a-zA-Z0-9_-]/g, '_');
+const escapeHtml = (s) => s.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+const escapeAttr = (s) => escapeHtml(s).replace(/"/g, '&quot;');
 
 /* ── Notifications ─────────────────────────────────────────────────
    Every message in the gallery goes through showToast, which is now a
@@ -3797,3 +3830,41 @@ function failureSuffix(failedNames) {
   const extra = failedNames.length > 3 ? ` and ${failedNames.length - 3} more` : '';
   return ` (${failedNames.length} failed: ${shown}${extra})`;
 }
+
+  /* ── Public surface ───────────────────────────────────────────────────
+     Deliberate and small. tour/boot.js reads `adminMode` to decide whether
+     the walkthrough walks the admin tool set; the tests read the rest to
+     exercise the pure model and the repo client with no DOM at all. */
+  return {
+    get adminMode() { return state.adminMode; },
+    state,
+
+    // Repo client
+    githubFetch, githubPut, githubDelete, loadTree, loadMetadata, persistMetadata,
+
+    // Journey model
+    JOURNEY, JOURNEY_BY_SEQUENCE, FOLDER_STAGES,
+    journeyFor, folderSequence, albumStageName, availableCategories,
+    classifyPhoto, clsLabel, normalizeCategory, allPhaseOptions,
+    extractPhotoDate, prettyName,
+
+    // Assets & duplicates
+    buildAssets, discoverFromTree, setAssets, summarizeDuplicates,
+    scopeEntries, isAdminCommit, planRestore, renameDerivedName,
+
+    // URLs, names & sources
+    rawUrl, pageUrl, imgSrc, cardSrc, lightboxSrc, thumbSrc,
+    sanitizeFilename, cssSafe, escapeHtml, escapeAttr,
+
+    // Notifications
+    showToast, dismissToast,
+
+    // Walkthrough gate
+    shouldRequireWalkthrough, WALKTHROUGH_SEEN_KEY,
+  };
+})();
+
+/* The one deliberate global. The guided tour asks the live page whether an
+   admin is signed in (tour/boot.js), and the tests load this file into a
+   vm and reach the same object. */
+window.__gallery = gallery;

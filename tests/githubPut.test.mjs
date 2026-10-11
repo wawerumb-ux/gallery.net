@@ -64,9 +64,8 @@ async function setup() {
     __pending: null,
   };
 
-  const expose = `
-    globalThis.__X = { githubPut, setToken: (v) => { state.token = v; }, getLast: () => globalThis.__last };
-  `;
+  /* app.js is one closure now; its declared surface hangs off
+     window.__gallery rather than sitting in the global scope. */
   sandbox.__last = null;
   sandbox.fetch = async (url, options) => {
     await fetchMock(url, options);
@@ -81,9 +80,18 @@ async function setup() {
       json: async () => r.json,
     };
   };
-  vm.runInContext(code + expose, vm.createContext(sandbox), { filename: 'app.js' });
-  sandbox.__X.setToken('test-token');
-  return sandbox.__X;
+  vm.runInContext(code, vm.createContext(sandbox), { filename: 'app.js' });
+  const api = sandbox.window.__gallery;
+  if (!api) throw new Error('app.js did not expose window.__gallery');
+  const X = {
+    githubPut: api.githubPut,
+    // The token lives in the module's own state; the test drives it through
+    // the same object the page does rather than through a global.
+    setToken: (v) => { api.state.token = v; },
+    getLast: () => sandbox.__last,
+  };
+  X.setToken('test-token');
+  return X;
 }
 
 describe('P1 — updating an existing file includes the current sha', () => {

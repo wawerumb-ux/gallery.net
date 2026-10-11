@@ -51,16 +51,17 @@ function loadAppPure() {
   };
   sandbox2.globalThis = sandbox2;
   const ctx = vm.createContext(sandbox2);
-  const expose = `
-    globalThis.__X = { journeyFor, classifyPhoto, buildAssets, discoverFromTree,
-      setAssets, summarizeDuplicates, normalizeCategory, rawUrl, pageUrl, imgSrc, cardSrc,
-      lightboxSrc, thumbSrc, prettyName, sanitizeFilename,
-      isAdminCommit, scopeEntries, planRestore,
-      renameDerivedName,
-      setDPR: (v) => { devicePixelRatio = v; } };
-  `;
-  vm.runInContext(code + expose, ctx, { filename: 'app.js' });
-  return sandbox2.__X;
+  /* app.js is one closure now, so the names are not globals — they are the
+     module's declared public surface, hung off window.__gallery. Reaching
+     through that surface is the point: if a name leaves it, this throws and
+     the suite says which one. */
+  vm.runInContext(code, ctx, { filename: 'app.js' });
+  const api = sandbox2.window.__gallery;
+  if (!api) throw new Error('app.js did not expose window.__gallery');
+  return {
+    ...api,
+    setDPR: (v) => { sandbox2.devicePixelRatio = v; },
+  };
 }
 
 export const G = (() => { try { return loadAppPure(); } catch (e) { console.error('app.js load failed: ' + e.message); return null; } })();
