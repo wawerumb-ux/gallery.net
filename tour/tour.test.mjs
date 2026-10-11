@@ -248,6 +248,25 @@ function setup({ reducedMotion = false, multiplierPatch = null, seedState = null
   const menuBtn = reg(makeEl('button', { rect: { top: 20, left: 1200, right: 1244, bottom: 64, width: 44, height: 44 } }));
   menuBtn.id = 'menuBtn';
   menuBtn.setAttribute('data-tour-target', 'menu-btn');
+
+  // The two display preferences: an app bar button that opens a popover,
+  // then a swatch inside it. In the real app the grids are rendered by
+  // renderFontGrid / renderComfortGrid; the fixture only needs an element
+  // carrying each attribute for the engine to find.
+  const fontBtn = reg(makeEl('button', { rect: { top: 20, left: 1112, right: 1156, bottom: 64, width: 44, height: 44 } }));
+  fontBtn.id = 'fontBtn';
+  fontBtn.setAttribute('data-tour-target', 'font-open');
+  body.appendChild(fontBtn);
+  const fontSwatch = reg(makeEl('button', { rect: { top: 300, left: 400, right: 880, bottom: 348, width: 480, height: 48 } }));
+  fontSwatch.setAttribute('data-tour-target', 'font-pick');
+  body.appendChild(fontSwatch);
+  const comfortBtn = reg(makeEl('button', { rect: { top: 20, left: 1156, right: 1200, bottom: 64, width: 44, height: 44 } }));
+  comfortBtn.id = 'comfortBtn';
+  comfortBtn.setAttribute('data-tour-target', 'comfort-open');
+  body.appendChild(comfortBtn);
+  const comfortSwatch = reg(makeEl('button', { rect: { top: 300, left: 400, right: 880, bottom: 348, width: 480, height: 48 } }));
+  comfortSwatch.setAttribute('data-tour-target', 'comfort-pick');
+  body.appendChild(comfortSwatch);
   const sheetOverlay = reg(makeEl('div'));
   sheetOverlay.id = 'sheetOverlay';
   const sheetList = reg(makeEl('div'));
@@ -493,6 +512,10 @@ function setup({ reducedMotion = false, multiplierPatch = null, seedState = null
     lightboxTag,
     lightboxDelete,
     menuBtn,
+    fontBtn,
+    fontSwatch,
+    comfortBtn,
+    comfortSwatch,
     menuAdminSignin,
     menuAddPhotos,
     menuNewAlbum,
@@ -1191,9 +1214,9 @@ describe('S — the speed multiplier is the single timing source', () => {
 /* ── Integration: the real authored tour ──────────────────── */
 
 describe('T — the real TOUR_STEPS integration', () => {
-  test('T1 — the authored 56-step tour runs end to end on the real targets', () => {
+  test('T1 — the authored 60-step tour runs end to end on the real targets', () => {
     const h = setup();
-    assert.equal(h.X.TOUR_STEPS.length, 56);
+    assert.equal(h.X.TOUR_STEPS.length, 60);
     const tour = h.X.createGuidedTour({ steps: h.X.TOUR_STEPS });
     tour.start();
     // A step's action listener is bound when it reaches
@@ -1227,6 +1250,10 @@ describe('T — the real TOUR_STEPS integration', () => {
     step('album-open', h.albumCover);
     step('album-photo', h.photoCard);
     step('album-viewer-close', h.viewerClose);
+    step('font-open', h.fontBtn);
+    step('font-pick', h.fontSwatch);
+    step('comfort-open', h.comfortBtn);
+    step('comfort-pick', h.comfortSwatch);
     step('menu-open', h.menuBtn);
     // Segment 2 — the visitor-only sign-in reveal.
     step('menu-admin-signin', h.menuAdminSignin);
@@ -1297,6 +1324,7 @@ describe('T — the real TOUR_STEPS integration', () => {
     sameDeep(saved.completed, [
       'wall-photo', 'viewer-next', 'viewer-prev', 'viewer-close',
       'albums-tab', 'album-open', 'album-photo', 'album-viewer-close',
+      'font-open', 'font-pick', 'comfort-open', 'comfort-pick',
       'menu-open', 'menu-admin-signin', 'admin-modal-cancel',
       'menu-add-photos', 'upload-confirm', 'upload-cancel',
       'fab-add', 'upload-cancel-2', 'pictures-tab',
@@ -1399,20 +1427,21 @@ describe('T — the real TOUR_STEPS integration', () => {
     // user cannot perform.
     assert.ok(visitor.every(s => !s.adminOnly));
     assert.ok(admin.every(s => !s.visitorOnly));
-    assert.equal(visitor.length, 11);
-    assert.equal(admin.length, 54);
+    assert.equal(visitor.length, 15);
+    assert.equal(admin.length, 58);
     // Orders renumber 1..N for the audience's own walk.
     sameDeep(visitor.map(s => s.order), visitor.map((_, i) => i + 1));
     sameDeep(admin.map(s => s.order), admin.map((_, i) => i + 1));
-    // The shared path is identical for both audiences.
-    sameDeep(visitor.slice(0, 9).map(s => s.id), admin.slice(0, 9).map(s => s.id));
+    // The shared path is identical for both audiences — the two display
+    // preferences live in it, so a visitor gets them too.
+    sameDeep(visitor.slice(0, 13).map(s => s.id), admin.slice(0, 13).map(s => s.id));
     // Each walk ends on its own completion toast.
     assert.equal(visitor[visitor.length - 1].id, 'admin-modal-cancel');
     assert.equal(admin[admin.length - 1].id, 'menu-sign-out');
     // The authored array itself is never mutated.
-    assert.equal(h.X.TOUR_STEPS.length, 56);
+    assert.equal(h.X.TOUR_STEPS.length, 60);
     assert.equal(h.X.TOUR_STEPS[0].order, 1);
-    assert.equal(h.X.TOUR_STEPS[55].order, 56);
+    assert.equal(h.X.TOUR_STEPS[59].order, 60);
   });
 
   test('T4 — an input step with valueMatches "" counts only an empty box', () => {
@@ -1471,10 +1500,12 @@ describe('T — the real TOUR_STEPS integration', () => {
     sameDeep(
       h.X.TOUR_STEPS.filter(s => s.confirm.kind === 'toast').map(s => s.id),
       ['admin-modal-cancel', 'menu-sign-out']);
-    // The segments: 9 shared, 2 visitor-only, 45 admin-only.
+    // The segments: 13 shared, 2 visitor-only, 45 admin-only. The shared
+    // path grew when the two display preferences joined it — a typeface and
+    // an eye-comfort background are a visitor's business, not an admin's.
     assert.equal(h.X.TOUR_STEPS.filter(s => s.visitorOnly).length, 2);
     assert.equal(h.X.TOUR_STEPS.filter(s => s.adminOnly).length, 45);
-    assert.equal(h.X.TOUR_STEPS.filter(s => !s.adminOnly && !s.visitorOnly).length, 9);
+    assert.equal(h.X.TOUR_STEPS.filter(s => !s.adminOnly && !s.visitorOnly).length, 13);
   });
 });
 
@@ -1485,7 +1516,6 @@ describe('U — every button is toured', () => {
   // cannot be one. Anything else un-targeted fails the audit.
   const EXCLUDED = {
     tokenSubmit: 'signing in needs a real repo token — a visitor cannot perform it',
-    comfortBtn: 'display preference, not part of the archive flow — it opens a self-contained picker',
   };
 
   test('U1 — every static button is a tour step or an explicit exclusion', () => {

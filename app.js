@@ -642,6 +642,10 @@ function renderComfortGrid() {
     b.setAttribute('role', 'radio');
     b.setAttribute('aria-checked', theme.id === comfortTheme ? 'true' : 'false');
     b.dataset.comfort = theme.id;
+    // The guided tour points at the swatches, not the button that opens the
+    // picker — picking a background is the real action, and the step that
+    // opens the picker has already been taken by then.
+    b.setAttribute('data-tour-target', 'comfort-pick');
     b.innerHTML =
       `<span class="comfort-chip" style="background:${theme.chip}"></span>` +
       `<span class="comfort-label">${theme.label}</span>` +
@@ -822,6 +826,10 @@ function renderFontGrid() {
     b.setAttribute('role', 'radio');
     b.setAttribute('aria-checked', font.id === fontChoice ? 'true' : 'false');
     b.dataset.font = font.id;
+    // The guided tour points at the swatches, not the button that opens the
+    // picker — picking a typeface is the real action, and the step that opens
+    // the picker has already been taken by then.
+    b.setAttribute('data-tour-target', 'font-pick');
     // The sample is set in the face itself, so the choice is visible
     // before it is made — the swatch is a preview, not a label. The
     // LingoJam style it answers is named underneath, because that is
