@@ -72,13 +72,15 @@ function parseTourState(raw) {
   }
 }
 
-/* Auto-start policy (boot): a finished tour never restarts; an
-   explicit ?tour=1 or an in-progress tour (currentStepId set)
-   starts/resumes. */
-function shouldAutoStartTour(saved, params) {
-  if (saved && saved.finished) return false;
-  if (params && params.get && params.get('tour') === '1') return true;
-  return !!(saved && saved.currentStepId);
+/* Auto-start policy (boot): the tour is not opt-in. Every visit to the
+   archive starts it, and a finished tour starts again on the next one —
+   the walkthrough at /walkthrough/ is a separate story and this does not
+   touch it.
+
+   `saved` is read for resume only: a tour abandoned halfway picks up at
+   the step it stopped on rather than restarting from the wall. */
+function shouldAutoStartTour(saved) {
+  return true;
 }
 
 /* Audience selection (boot): the authored tour carries

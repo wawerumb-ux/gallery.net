@@ -193,6 +193,188 @@ body.jr {
   color: var(--jr-muted);
 }
 
+/* ── Start here ──────────────────────────────────────────────────────
+   The way into the archive, revealed once the journey has been walked.
+   It sits in the middle of the page because by then the footage is
+   finished and nothing else is asking for attention — the journey cards
+   and the corner link both stay, but this is the one that says go.
+
+   The animation is the point: a finished visitor should not have to read
+   the page to find out what happens next. A slow breathing halo and a
+   one-way arrow nudge, both paused on hover and on focus so the button
+   holds still exactly when someone has decided to press it. */
+.jr-cta-centre {
+  position: fixed;
+  z-index: 4;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+.jr-cta-centre[hidden] { display: none; }
+
+.jr-cta-start {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 22px 40px 24px;
+  border-radius: 20px;
+  background: rgba(18, 18, 22, 0.86);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5), 0 24px 60px rgba(0, 0, 0, 0.55);
+  color: #ffffff;
+  font-family: inherit;
+  text-decoration: none;
+  text-align: center;
+  cursor: pointer;
+  pointer-events: auto;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  animation: jr-cta-arrive 620ms var(--wt-ease) both;
+  transition: transform var(--wt-short) var(--wt-ease),
+              box-shadow var(--wt-short) var(--wt-ease);
+}
+
+/* The halo is a sibling of the button rather than an outline, because an
+   animated outline repaints on every frame and the landing is already
+   carrying a video behind it. A scaled pseudo-element is one composited
+   layer instead. */
+.jr-cta-start::before {
+  content: '';
+  position: absolute;
+  inset: -2px;
+  border-radius: 22px;
+  border: 2px solid var(--wt-accent);
+  opacity: 0;
+  pointer-events: none;
+  animation: jr-cta-halo 2.6s var(--wt-ease) 620ms infinite;
+}
+
+.jr-cta-eyebrow {
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.62);
+  /* One line, always. Tracked-out small caps wrap at the narrowest
+     widths, and a two-line eyebrow above "Start here" reads as a
+     heading that ran out of room. */
+  white-space: nowrap;
+}
+.jr-cta-label {
+  position: relative;
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.1;
+}
+.jr-cta-label::after {
+  content: ' →';
+  display: inline-block;
+  animation: jr-cta-nudge 1.9s var(--wt-ease) 1s infinite;
+}
+.jr-cta-hint {
+  font-size: 13px;
+  color: rgba(255, 255, 255, 0.55);
+  white-space: nowrap;
+}
+
+.jr-cta-start:hover,
+.jr-cta-start:focus-visible {
+  transform: scale(1.03);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5), 0 30px 74px rgba(0, 0, 0, 0.6);
+}
+/* Hold still the moment it is being pressed — a button that keeps pulsing
+   under a thumb reads as though it is about to do something else. */
+.jr-cta-start:hover::before,
+.jr-cta-start:hover .jr-cta-label::after,
+.jr-cta-start:focus-visible::before,
+.jr-cta-start:focus-visible .jr-cta-label::after,
+.jr-cta-start:active::before,
+.jr-cta-start:active .jr-cta-label::after {
+  animation-play-state: paused;
+}
+.jr-cta-start:focus-visible {
+  outline: 2px solid var(--wt-accent);
+  outline-offset: 4px;
+}
+.jr-cta-start:active { transform: scale(0.99); }
+
+@keyframes jr-cta-arrive {
+  from { opacity: 0; transform: scale(0.94) translateY(10px); }
+  to   { opacity: 1; transform: scale(1) translateY(0); }
+}
+@keyframes jr-cta-halo {
+  0%   { opacity: 0.55; transform: scale(1); }
+  70%  { opacity: 0;    transform: scale(1.07); }
+  100% { opacity: 0;    transform: scale(1.07); }
+}
+@keyframes jr-cta-nudge {
+  0%, 100% { transform: translateX(0); }
+  50%      { transform: translateX(5px); }
+}
+
+/* Reduced motion: the button still arrives, and still reads as the next
+   thing to do, but nothing moves on its own. The scale-up on hover/focus
+   stays, because that is a response to the visitor rather than motion the
+   page imposes on them. */
+@media (prefers-reduced-motion: reduce) {
+  .jr-cta-start { animation: none; }
+  .jr-cta-start::before {
+    animation: none;
+    opacity: 0.7;
+    transform: scale(1);
+  }
+  .jr-cta-label::after { animation: none; }
+  .jr-cta-start,
+  .jr-cta-start:hover,
+  .jr-cta-start:focus-visible,
+  .jr-cta-start:active { transition: none; }
+}
+
+/* Phone: the middle of the page is where the thumb already is, but a
+   40px horizontal pad either side plus the label at 28px is wider than a
+   320px screen allows once the safe-area insets are counted. */
+@media (max-width: 420px) {
+  .jr-cta-start {
+    padding: 20px 24px 22px;
+    max-width: calc(100vw - 40px);
+  }
+  .jr-cta-label { font-size: 24px; }
+  .jr-cta-eyebrow { font-size: 11px; letter-spacing: 0.06em; }
+  .jr-cta-hint { font-size: 11.5px; }
+}
+
+/* The journey's last card is pinned to the bottom and grows with its own
+   copy, so the exact height it takes is not knowable from here. On a
+   screen shorter than about 720px the two would meet in the middle, so
+   the way-in rides above centre instead — still the middle of what is
+   left once the card has taken its share. */
+@media (max-height: 720px) {
+  .jr-cta-centre { top: 34%; }
+}
+
+/* Short and wide (a phone turned sideways) is the one place where the
+   middle of the page is not available: at 360px tall the journey's last
+   card goes full-width and occupies it, so a centred button lands on the
+   card's own copy. There is no honest centre left, so it docks to the
+   top-right corner over clear video instead — still prominent, still
+   animated, just not pretending the middle is free. */
+@media (max-height: 420px) and (orientation: landscape) {
+  .jr-cta-centre {
+    left: auto;
+    right: var(--jr-inset, 24px);
+    top: calc(var(--jr-inset, 24px) + env(safe-area-inset-top, 0px));
+    transform: none;
+  }
+  .jr-cta-start { padding: 12px 22px 14px; gap: 2px; border-radius: 16px; }
+  .jr-cta-start::before { border-radius: 18px; }
+  .jr-cta-label { font-size: 20px; }
+  .jr-cta-hint { display: none; }
+  .jr-cta-eyebrow { font-size: 10px; }
+}
+
 /* ── Controls ─────────────────────────────────────────────────────── */
 /* ── The landing's control bar ───────────────────────────────────
    walkthrough.js moves the two ways on — into the deck, and the quiet

@@ -1039,14 +1039,40 @@ describe('P — persistence', () => {
     sameDeep(saved.completed, ['s1', 's2']); // in order, no duplicates
   });
 
-  test('P3 — finished: true prevents re-starting on the next visit', () => {
+  test('P3 — the tour is a must: every visit starts it', () => {
+    // The policy used to be opt-in — a finished tour never restarted, and
+    // only ?tour=1 or an interrupted run would start one. It is now
+    // unconditional: finishing the walk does not buy you a quiet archive.
     const h = setup();
-    const params = (v) => ({ get: (k) => (k === 'tour' ? v : null) });
-    assert.equal(h.X.shouldAutoStartTour({ finished: true }, params('1')), false);
-    assert.equal(h.X.shouldAutoStartTour({ finished: true, currentStepId: 's1' }, params(null)), false);
-    assert.equal(h.X.shouldAutoStartTour(null, params('1')), true);
-    assert.equal(h.X.shouldAutoStartTour({ finished: false, currentStepId: 's2' }, params(null)), true);
-    assert.equal(h.X.shouldAutoStartTour(null, params(null)), false);
+    assert.equal(h.X.shouldAutoStartTour({ finished: true }), true);
+    assert.equal(h.X.shouldAutoStartTour({ finished: true, currentStepId: 's1' }), true);
+    assert.equal(h.X.shouldAutoStartTour(null), true);
+    assert.equal(h.X.shouldAutoStartTour({ finished: false, currentStepId: 's2' }), true);
+    assert.equal(h.X.shouldAutoStartTour({}), true);
+  });
+
+  test('P3b — a finished tour still starts from the top, not the tail', () => {
+    // Unconditional start must not resurrect the old completed list: the
+    // resume flag is what separates "pick up where I stopped" from
+    // "start again", and a finished run has nothing to pick up. This is
+    // boot.js's own expression of the rule, over real parsed state.
+    const h = setup({ seedState: {
+      startedAt: '2026-01-01T00:00:00.000Z', currentStepId: null,
+      completed: ['s1', 's2'], skipped: ['s3'],
+      escapedAt: null, finished: true,
+    } });
+    const savedBefore = h.X.parseTourState(h.store.get('walkthrough.tourState'));
+    const resume = !!(savedBefore && savedBefore.currentStepId && !savedBefore.finished);
+    const tour = h.X.createGuidedTour({ steps: tourOf(
+      clickStep('s1', 1, 'album-cover'),
+      clickStep('s2', 2, 'album-photo'),
+    ) });
+    tour.start({ resume });
+    assert.equal(tour.getCurrentStepId(), 's1', 'a finished tour starts from the top');
+    const saved = h.X.parseTourState(h.store.get('walkthrough.tourState'));
+    assert.equal(saved.finished, false);
+    sameDeep(saved.completed, []);
+    sameDeep(saved.skipped, []);
   });
 
   test('P4 — a fresh start resets the persisted lists', () => {

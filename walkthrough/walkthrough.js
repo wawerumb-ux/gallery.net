@@ -128,6 +128,42 @@
 
   addAction('Browse the gallery', galleryUrl(), true);
 
+  /* ── Start here ──────────────────────────────────────────────────
+     The corner link is the way out. This is the way in: the same
+     destination, given the middle of the page and the weight of a
+     finished journey behind it.
+
+     It is shown and hidden from the journey's own step event rather
+     than from its end event, because a replay has to put it away again
+     — journey-end fires once, when the last card lights, and says
+     nothing about the visitor stepping back off it. Two states only:
+     last card lit, or not. */
+  var ctaCentre = document.getElementById('jrCtaCentre');
+  var ctaStart = document.getElementById('jrCtaStart');
+
+  function setStartHere(on) {
+    if (!ctaCentre) return;
+    ctaCentre.hidden = !on;
+    // Out of the tab order and out of the accessibility tree while it is
+    // not on screen. hidden already removes it from both in every
+    // current browser, but aria-hidden and tabindex make the intent
+    // explicit and hold for the ones that do not.
+    if (on) {
+      ctaCentre.removeAttribute('aria-hidden');
+      if (ctaStart) ctaStart.removeAttribute('tabindex');
+    } else {
+      ctaCentre.setAttribute('aria-hidden', 'true');
+      if (ctaStart) ctaStart.setAttribute('tabindex', '-1');
+    }
+  }
+
+  document.addEventListener('walkthrough:journey-step', function (e) {
+    var last = e.detail && e.detail.last;
+    var index = e.detail && e.detail.index;
+    if (typeof last !== 'number' || typeof index !== 'number') return;
+    setStartHere(index === last);
+  });
+
   /* Watching the journey to its last card is a finish; the link is a
      skip. Either opens the gate — the record is what the gallery reads,
      not the route taken to earn it. journey.js announces the last card

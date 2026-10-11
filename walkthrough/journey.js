@@ -450,6 +450,14 @@
         document.dispatchEvent(new CustomEvent('walkthrough:journey-end'));
       } catch (e) {}
     }
+    // Which card is lit, announced every step. journey-end says the walk
+    // is over but nothing about stepping back off the last card, and the
+    // landing needs that to put its centred way-in away again on a replay.
+    try {
+      document.dispatchEvent(new CustomEvent('walkthrough:journey-step', {
+        detail: { index: next, last: N - 1 },
+      }));
+    } catch (e) {}
     swap(prev, next, cards[next], opts);
     // The outgoing card's cleanup timer inside swap() releases busy.
   }

@@ -57,6 +57,22 @@
     </div>
   </div>
 </div>
+<!-- The way in, once the journey has been walked. The corner link above
+     is always there, because the gate must never be able to trap anyone;
+     this is the same destination given the weight the moment it is
+     earned. It starts hidden and walkthrough.js reveals it when the last
+     card lights, so it never competes with a journey still in progress.
+     Deliberately not focusable while hidden (see aria-hidden and the
+     tabindex removal) — an invisible link in the tab order is a trap for
+     keyboard users, which is the same fault the gate would be. -->
+<div class="jr-cta-centre" id="jrCtaCentre" hidden aria-hidden="true">
+  <a class="jr-cta-start" id="jrCtaStart" href="../index.html" tabindex="-1">
+    <span class="jr-cta-eyebrow">The archive is ready</span>
+    <span class="jr-cta-label">Start here</span>
+    <span class="jr-cta-hint">316 photos, eight albums</span>
+  </a>
+</div>
+
 <main class="wt-page wt-page-landing">
   <section class="wt-panel">
     <!-- The journey cards carry the copy, so the title block is retired
