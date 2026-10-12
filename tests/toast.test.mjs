@@ -1,7 +1,7 @@
 /* The notification is Penguin UI's stacking toast, dressed on hcg-toast,
    with a synthesised ding.
 
-   Three things about it are load-bearing and none of them are visible in
+   Five things about it are load-bearing and none of them are visible in
    a screenshot:
 
    1. The sound is gated on a user gesture. An AudioContext built before
@@ -16,6 +16,15 @@
       where Penguin puts the actions on a message-style notification, and
       it is also what keeps the button from sitting between the text and
       the dismiss X at the same height as both.
+   4. A sticky message with no type of its own is *pending*. Every sticky
+      line in this app is a batch saying what it is doing, so the default
+      has to be the orange that means "still going" — and the one batch
+      that raises a sticky error must still come out red, which is why
+      `type` outranks the default rather than the other way round.
+   5. The progress bar reports a proportion, and only says so when it has
+      one. `done` past `total` must not render a bar wider than its own
+      track, and a write with no total must sweep rather than sit at a
+      confident 0%.
 
    Plus the boring ones: every type the call sites use has a glyph, the
    dismissal is the stroked cross rather than the library's `&times;`, the
@@ -120,12 +129,13 @@ describe('C — every message is drawn in Penguin\'s shape', () => {
     const used = new Set([...app.matchAll(/type:\s*'([a-z]+)'/g)].map(m => m[1]));
     assert.ok(used.size > 0, 'no typed notifications found — the audit found nothing');
     const defined = new Set([...app.matchAll(/^\s{2}(\w+): TOAST_GLYPH\(/gm)].map(m => m[1]));
-    for (const t of ['info', 'success', 'warning', 'error']) {
+    for (const t of ['info', 'success', 'warning', 'error', 'pending']) {
       assert.ok(defined.has(t), `the library type '${t}' has no glyph`);
     }
     for (const t of used) {
       assert.ok(defined.has(t), `type '${t}' is raised somewhere but has no glyph`);
     }
+    assert.ok(used.has('pending'), 'showPending must actually raise the type');
   });
 
   test('C2 — the glyphs are inline SVG, not the library\'s text characters', () => {
@@ -171,6 +181,16 @@ describe('C — every message is drawn in Penguin\'s shape', () => {
       'a replacing toast must remove the last one outright');
   });
 
+  test('C6b — it goes through lib.show(), not the four typed helpers', () => {
+    // `pending` is not one of the library's four. show() takes the type as
+    // an option and builds the variant class from it, which is the only
+    // way a fifth type can exist; the helpers are sugar over it.
+    const show = app.slice(app.indexOf('function showToast'));
+    assert.match(show, /lib\.show\(msg, \{\s*type,/);
+    assert.doesNotMatch(show, /lib\[type\]\(/,
+      'a fifth type cannot go through the four named helpers');
+  });
+
   test('C7 — the timing is Penguin\'s, and Undo buys itself more', () => {
     assert.match(app, /const TOAST_MS = 8000;/);
     assert.match(app, /const TOAST_UNDO_MS = 10000;/);
@@ -180,13 +200,154 @@ describe('C — every message is drawn in Penguin\'s shape', () => {
   });
 });
 
+describe('E — the colour follows the action', () => {
+  test('E1 — success is green, a failed read or write is red, work in flight is orange', () => {
+    const block = css.slice(css.indexOf('Notifications (hcg-toast, Penguin'));
+    // Green.
+    const success = block.slice(block.indexOf('.hcg-toast-item--success'));
+    assert.match(success, /--toast-tint: var\(--hcg-toast-success-accent\);/);
+    // Red.
+    const error = block.slice(block.indexOf('.hcg-toast-item--error'));
+    assert.match(error, /--toast-tint: var\(--danger\);/);
+    // Orange — pending shares --warn, and the two are told apart by glyph.
+    const pending = block.slice(block.indexOf('.hcg-toast-item--warning,'));
+    assert.match(pending, /\.hcg-toast-item--pending \{[\s\S]*?--toast-tint: var\(--warn\);/);
+  });
+
+  test('E2 — a sticky line with no type of its own is pending', () => {
+    // Every sticky message in this app is a batch saying what it is
+    // doing, so the default has to be the colour that means "still going".
+    const show = app.slice(app.indexOf('function showToast'));
+    assert.match(show, /const type = o\.type \|\| \(o\.sticky \? 'pending' : 'info'\);/);
+  });
+
+  test('E3 — an explicit type outranks the sticky default', () => {
+    // The batches raise sticky *errors* mid-run — a file that 403s has to
+    // come out red, not orange, or a failed read reads as still-working.
+    const errs = [...app.matchAll(/\{[^}]*type: 'error'[^}]*sticky: true/g)];
+    assert.ok(errs.length >= 3,
+      'the batches raise sticky errors; none found, so the default cannot be trusted');
+    for (const [, opts] of errs) {
+      assert.match(opts, /type: 'error'/, 'a sticky error must keep naming its type');
+    }
+  });
+
+  test('E4 — the pending glyph is a clock, not a spinner', () => {
+    // Nothing in the notification set animates to imply progress; the bar
+    // does. A spinning glyph would also sit frozen under reduced-motion
+    // while still claiming to be working.
+    const glyph = app.slice(app.indexOf('pending: TOAST_GLYPH'), app.indexOf('};', app.indexOf('pending: TOAST_GLYPH')));
+    assert.doesNotMatch(glyph, /animation|@keyframes/);
+    assert.match(glyph, /<path d="M10 18a8 8 0 1 0 0-16/);
+  });
+});
+
+describe('F — long reads and writes report a number', () => {
+  test('F1 — showPending says what the app is doing, with a bar under it', () => {
+    const fn = app.slice(app.indexOf('function showPending'), app.indexOf('/* A message, optionally carrying'));
+    assert.match(fn, /showToast\(action, \{ type: 'pending', sticky: true, progress: \{ done, total \} \}\)/);
+  });
+
+  test('F2 — the bar is built onto the live item, so it dies with it', () => {
+    // No separate timer, no node of its own: the item carries it and
+    // dismissAll() takes both away together.
+    const fn = app.slice(app.indexOf('function renderToastProgress'), app.indexOf('function showPending'));
+    assert.match(fn, /item\.classList\.add\('hcg-toast-item--progress'\);/);
+    assert.match(fn, /item\.appendChild\(bar\);/);
+    assert.match(fn, /item\.querySelector\('\.toast-progress'\)/,
+      'the second call must reuse the bar, not stack a new one per step');
+  });
+
+  test('F3 — both labels live inside the strip', () => {
+    const fn = app.slice(app.indexOf('function renderToastProgress'), app.indexOf('function showPending'));
+    assert.match(fn, /<div class="toast-progress-fill"><\/div>/);
+    assert.match(fn, /<span class="toast-progress-count"><\/span>/);
+    assert.match(fn, /<span class="toast-progress-pct"><\/span>/);
+    // No interpolation: the only things that go in here are numbers this
+    // function formats, and nothing in it may be able to inject markup.
+    assert.match(fn, /bar\.innerHTML = '<div class="toast-progress-fill"><\/div>'\s*\+\s*'<span class="toast-progress-count"><\/span>'\s*\+\s*'<span class="toast-progress-pct"><\/span>';/);
+  });
+
+  test('F4 — done is clamped to total, so the bar cannot overflow its track', () => {
+    // A batch that over-counts — a skipped file still advancing the
+    // counter — must not render a fill wider than 100%.
+    const fn = app.slice(app.indexOf('function renderToastProgress'), app.indexOf('function showPending'));
+    assert.match(fn, /const n = Math\.max\(0, Math\.min\(done, total\)\);/);
+    assert.match(fn, /bar\.style\.setProperty\('--toast-progress', ratio\.toFixed\(4\)\);/);
+    assert.match(fn, /pct\.textContent = `\$\{Math\.round\(ratio \* 100\)\}%`;/);
+  });
+
+  test('F5 — no usable total sweeps and admits it, instead of claiming 0%', () => {
+    const fn = app.slice(app.indexOf('function renderToastProgress'), app.indexOf('function showPending'));
+    assert.match(fn, /if \(!Number\.isFinite\(total\) \|\| total <= 0\) \{/);
+    assert.match(fn, /bar\.classList\.add\('toast-progress--indeterminate'\);/);
+    assert.match(fn, /pct\.textContent = 'Working…';/);
+    // ...and it must not also leave a stale fraction behind on the track.
+    assert.match(fn, /bar\.style\.removeProperty\('--toast-progress'\);/);
+  });
+
+  test('F6 — every long batch reports through it, with both halves', () => {
+    // Each batch opens at 0 and advances inside its loop; a bar that only
+    // ever opens is a decoration, not progress. `label` is passed through
+    // unquoted — applyRestore is called with 'Undo' and 'Revert all'.
+    for (const [action, total] of [
+      ['Uploading photos', 'total'],
+      ['Deleting photos', 'paths.length'],
+      ['Moving photos', 'paths.length'],
+      ['Renaming photos', 'affected.length'],
+      ['Removing photos', 'files'],
+      ['label', 'total'],
+    ]) {
+      const a = new RegExp(`showPending\\('?${action}'?, 0, ${total.replace('.', '\\.')}\\);`);
+      assert.match(app, a, `${action} must open its bar at zero`);
+      assert.match(app, new RegExp(`showPending\\('?${action}'?, (\\+\\+)?[a-z]+, ${total.replace('.', '\\.')}\\);`),
+        `${action} must advance its bar inside the loop`);
+    }
+  });
+
+  test('F7 — the phase-removal bar counts files, not photos', () => {
+    // One asset is its canonical plus its generated variants, so counting
+    // assets would sit at 100% for most of the work.
+    assert.match(app, /const files = affected\.reduce\(\(n, a\) => n \+ 1 \+ a\.variants\.length, 0\);/);
+  });
+
+  test('F8 — the stylesheet gives the strip room and the labels somewhere to sit', () => {
+    assert.match(css, /\.hcg-toast-item--progress \{ padding-bottom: 31px; \}/,
+      'a bar needs somewhere to sit that is not the message');
+    const bar = css.slice(css.indexOf('.toast-progress {'));
+    assert.match(bar, /\.toast-progress \{[\s\S]*?position: absolute;/);
+    assert.match(bar, /\.toast-progress \{[\s\S]*?bottom: 0;/);
+    assert.match(bar, /\.toast-progress-count \{ left: 0; \}/);
+    assert.match(bar, /\.toast-progress-pct \{ right: 0; \}/);
+    // The labels sit on the fill at one end of the run and the track at
+    // the other, which is why --toast-fill is a darker step than the tint.
+    for (const v of ['info', 'success', 'error', 'warning']) {
+      const at = css.indexOf(`.hcg-toast-item--${v === 'warning' ? 'warning,' : v} {`);
+      const rule = css.slice(at, css.indexOf('}', at));
+      assert.match(rule, /--toast-fill: #[0-9a-f]{6};/,
+        `${v} needs a deep fill for the white label to clear 4.5:1`);
+    }
+  });
+
+  test('F9 — reduced-motion stops the sweep rather than freezing it', () => {
+    const rm = css.slice(css.lastIndexOf('@media (prefers-reduced-motion: reduce)'));
+    assert.match(rm, /\.toast-progress-fill \{ transition: none !important; animation: none !important; \}/);
+  });
+});
+
 describe('D — the stylesheet paints it', () => {
-  test('D1 — each variant carries its own tint, border and icon plate', () => {
-    for (const type of ['info', 'success', 'warning', 'error']) {
-      assert.match(css, new RegExp(`\\.hcg-toast-item--${type} \\{[^}]*--toast-tint:`),
-        `${type} must declare --toast-tint`);
-      assert.match(css, new RegExp(`\\.hcg-toast-item--${type} \\{[^}]*background-image: linear-gradient\\(`),
+  test('D1 — each variant carries its own tint, fill and icon plate', () => {
+    for (const type of ['info', 'success', 'warning', 'error', 'pending']) {
+      // warning and pending share one rule, so the selector list is
+      // matched up to the brace rather than assumed to be a lone class.
+      const rule = new RegExp(`\\.hcg-toast-item--${type}[^{]*\\{[^}]*--toast-tint:`);
+      assert.match(css, rule, `${type} must declare --toast-tint`);
+      assert.match(css, new RegExp(`\\.hcg-toast-item--${type}[^{]*\\{[^}]*--toast-fill:`),
+        `${type} must declare --toast-fill, or its bar label has nothing to sit on`);
+      assert.match(css, new RegExp(`\\.hcg-toast-item--${type}[^{]*\\{[^}]*background-image: linear-gradient\\(`),
         `${type} must wash itself in its own colour`);
+      assert.match(css, new RegExp(`\\.hcg-toast-item--${type}[^{]*\\.hcg-toast-icon \\{`),
+        `${type} must plate its icon in its own colour`);
     }
   });
 
@@ -231,7 +392,7 @@ describe('D — the stylesheet paints it', () => {
   });
 
   test('D1d — cards hug their text at both anchors', () => {
-    const block = css.slice(css.indexOf('Notifications (hcg-toast, Penguin'), css.indexOf('One variant token per message'));
+    const block = css.slice(css.indexOf('Notifications (hcg-toast, Penguin'), css.indexOf('One pair of tokens per message'));
     assert.match(block, /\.hcg-toast-container \{[\s\S]*?align-items: flex-start;/,
       'a phone card should sit against the inset edge, not stretch across it');
     assert.match(block, /@media \(min-width: 768px\)[\s\S]*?align-items: flex-end;/,
@@ -247,7 +408,7 @@ describe('D — the stylesheet paints it', () => {
   });
 
   test('D3 — the phone anchors to the top, clearing the tab bar', () => {
-    const block = css.slice(css.indexOf('Notifications (hcg-toast, Penguin'), css.indexOf('One variant token per message'));
+    const block = css.slice(css.indexOf('Notifications (hcg-toast, Penguin'), css.indexOf('One pair of tokens per message'));
     assert.match(block, /\.hcg-toast-container \{[\s\S]*?top: calc\(env\(safe-area-inset-top, 0px\) \+ 12px\);/);
     assert.doesNotMatch(block, /transform: translateX\(-50%\)/,
       "the library's top-center centring is replaced by left/right insets");

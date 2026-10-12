@@ -146,17 +146,54 @@ an ellipsis past the cap. A notification is one sentence you read in a
 glance, and a three-line card that reflows while you watch it is a worse
 interruption than whatever it interrupted.
 
-The wrapper owns the three things the library cannot know about. **Which
-glyph**: `error` is hcg-toast's name for what Penguin calls *danger*, and
-both sets are drawn from Heroicons' 20px solid icons, so a message gets a
-real mark rather than the library's `ℹ ✓ ⚠ ✕` text characters. **Undo**: a
-message that can be reversed is Penguin's *message* variant, so the button
-is a plain bold text action under the message instead of a control parked
-between the text and the X. **The ding**: two sine partials a fifth apart,
-struck together and again 50ms later, both gone inside 600ms. Penguin ships
-a sound file with its component; this one is synthesised, because a file
-would mean a network request, a licence and an mp3 decoder for what is one
-oscillator — and the archive has to keep working with the network gone.
+Three types are the outcome of the JS action, and the colour is the
+outcome's: **green** for success (a sign-in, a write that landed), **red**
+for a read or write that failed, **orange** for work still in flight. The
+card's text is the action itself — *Uploading photos*, *Deleting photos*,
+*Revert all* — so what the card says is what the app is doing, not merely
+that something is. A sticky message with no type of its own is treated as
+pending, because every sticky message in the app is a batch saying what it
+is doing; an explicit type outranks that, which is what keeps the batches'
+sticky *errors* red rather than reading as still-working.
+
+The wrapper also owns the three things the library cannot know about.
+**Which glyph**: `error` is hcg-toast's name for what Penguin calls
+*danger*, and both sets are drawn from Heroicons' 20px solid icons, so a
+message gets a real mark rather than the library's `ℹ ✓ ⚠ ✕` text
+characters. **Undo**: a message that can be reversed is Penguin's
+*message* variant, so the button is a plain bold text action under the
+message instead of a control parked between the text and the X. **The
+ding**: two sine partials a fifth apart, struck together and again 50ms
+later, both gone inside 600ms. Penguin ships a sound file with its
+component; this one is synthesised, because a file would mean a network
+request, a licence and an mp3 decoder for what is one oscillator — and the
+archive has to keep working with the network gone.
+
+## The progress bar
+
+A long read or write gets a bar with the percentage **inside** it:
+`7 / 40` on the left, `18%` on the right, both drawn in white on the
+variant's deep fill. Both labels sit inside the strip, which is why each
+one lands on the fill at one end of its run and the pale track at the
+other — so `--toast-fill` is a darker step than the tint, and the tints
+are all light enough that white-on-tint would be around 2:1.
+
+Six batches report through it, opening at zero and advancing inside their
+loops: upload, batch delete, move, rename, phase removal and undo/revert.
+Phase removal counts *files* rather than photos, since one asset is its
+canonical plus its generated variants — counting the photos would sit at
+100% for most of the work. A single write has no total to divide by, so
+its bar sweeps and the label says `Working…` rather than showing a
+confident 0%.
+
+hcg-toast does have a progress bar, but it is a *countdown* — how long is
+left before the toast dismisses itself, the opposite of what a batch
+needs — and it only renders at all when the toast has a non-zero duration,
+which a progress line by definition does not. So the bar is built onto the
+live item instead, which means it dies with the item: no separate timer or
+node to clean up, and the batch's own `dismissToast()` takes the bar with
+it. Reduced-motion stops the sweep rather than freezing it, because a
+frozen sweep claims to be reporting a number it does not have.
 
 The sound is off the ⋮ menu, remembered under `gallery.toastSound`, and it
 has two gates it will not open by itself. No `AudioContext` is built until
@@ -171,6 +208,12 @@ progress line replaces the last, and the final summary replaces the last
 progress line rather than joining it. `hcg-toast` would happily hold three;
 the batch loops depend on the replace, so it stays. Timing is Penguin's own
 8-second `displayDuration`, rising to 10s when there is something to undo.
+
+The card is also **compact**: 9px of padding around a 20px icon plate puts
+a one-line card at 38px, about twice the text it holds. The dismiss target
+is still 44px — a thumb cannot land on less — but it is pulled outside the
+card's padding on all three sides it would otherwise inflate, so the mark
+sets the line height again rather than the target.
 
 **The landing is the request journey.** It plays `video/` full-bleed behind
 seven cards, one per stage of a web request's trip — CLIENT → CAT6A → PATCH

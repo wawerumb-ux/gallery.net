@@ -1400,40 +1400,58 @@ select.text-input option { background: var(--surface-3); color: var(--text); }
   }
 }
 
-/* One variant token per message, read by every rule below it. The
-   wash is a colour-mix of the tint so it tracks --warn and --danger
-   when an eye-comfort theme re-points them; the flat rgba ahead of it
-   is what an engine without colour-mix falls back to. */
+/* One pair of tokens per message, read by every rule below it.
+   --toast-tint is the bright tone: the wash, the icon, the Undo text.
+   --toast-fill is a deep tone of the same hue, used only where light ink
+   has to sit on top of it — the progress bar's label. The tints are all
+   light enough that white-on-tint would be around 2:1, so the fill is a
+   separate, darker step rather than the tint itself.
+   The wash is a colour-mix of the tint so it tracks --warn and --danger
+   when an eye-comfort theme re-points them; the flat rgba ahead of it is
+   what an engine without colour-mix falls back to. */
 .hcg-toast-item--info {
   --toast-tint: var(--accent-text);
+  --toast-fill: #1a5fb4;
   background-image: linear-gradient(rgba(94, 157, 255, 0.10), rgba(94, 157, 255, 0.10));
   background-image: linear-gradient(color-mix(in srgb, var(--toast-tint) 10%, transparent),
                                     color-mix(in srgb, var(--toast-tint) 10%, transparent));
 }
 .hcg-toast-item--success {
   --toast-tint: var(--hcg-toast-success-accent);
+  --toast-fill: #0d7a4f;
   background-image: linear-gradient(rgba(62, 207, 142, 0.10), rgba(62, 207, 142, 0.10));
   background-image: linear-gradient(color-mix(in srgb, var(--toast-tint) 10%, transparent),
                                     color-mix(in srgb, var(--toast-tint) 10%, transparent));
 }
-.hcg-toast-item--warning {
+/* Pending is the orange the archive reserves for work in flight. It
+   shares --warn with `warning` on purpose: in this app a warning is
+   almost always "that is not done yet, do this first", which is the same
+   idea. The two are told apart by their glyph and by the bar. */
+.hcg-toast-item--warning,
+.hcg-toast-item--pending {
   --toast-tint: var(--warn);
+  --toast-fill: #a35c07;
   background-image: linear-gradient(rgba(242, 163, 60, 0.10), rgba(242, 163, 60, 0.10));
   background-image: linear-gradient(color-mix(in srgb, var(--toast-tint) 10%, transparent),
                                     color-mix(in srgb, var(--toast-tint) 10%, transparent));
 }
 .hcg-toast-item--error {
   --toast-tint: var(--danger);
+  --toast-fill: #b3261e;
   background-image: linear-gradient(rgba(255, 90, 82, 0.10), rgba(255, 90, 82, 0.10));
   background-image: linear-gradient(color-mix(in srgb, var(--toast-tint) 10%, transparent),
                                     color-mix(in srgb, var(--toast-tint) 10%, transparent));
 }
 
 .hcg-toast-item {
-  padding: 14px;
-  gap: 10px;
+  /* Compact. Padding, gap and the icon plate are all sized off the 13px
+     message rather than off a comfortable 44px-row idea of a notification:
+     9px of padding around a 20px plate puts a one-line card at 38px, which
+     is the floor the dismiss target allows and about twice the text. */
+  padding: 9px 8px 9px 10px;
+  gap: 8px;
   font-size: 13px;
-  align-items: flex-start;
+  align-items: center;
   /* The rectangle is still there — 1px, so the shadow's geometry and
      every offset below stay exactly where they were — it just does not
      draw. The wash and the shadow are the edge now. */
@@ -1451,6 +1469,9 @@ select.text-input option { background: var(--surface-3); color: var(--text); }
   transform: translateY(32px);
   transition: opacity 300ms ease-out, transform 300ms ease-out;
 }
+/* A card carrying a bar gives the bar somewhere to sit, so it is the one
+   shape here that is taller than its text on purpose. */
+.hcg-toast-item--progress { padding-bottom: 31px; }
 .hcg-toast-item--enter,
 .hcg-toast-container .hcg-toast-item--enter {
   opacity: 1;
@@ -1487,9 +1508,9 @@ select.text-input option { background: var(--surface-3); color: var(--text); }
 }
 /* Circular plate in the variant colour: a 15% wash behind a 100% glyph. */
 .hcg-toast-icon {
-  width: 26px;
-  height: 26px;
-  padding: 3px;
+  width: 20px;
+  height: 20px;
+  padding: 2px;
   border-radius: 9999px;
   font-size: 0.72rem;
   color: var(--toast-tint);
@@ -1497,18 +1518,82 @@ select.text-input option { background: var(--surface-3); color: var(--text); }
 }
 .hcg-toast-item--info .hcg-toast-icon { background: rgba(94, 157, 255, 0.15); }
 .hcg-toast-item--success .hcg-toast-icon { background: rgba(62, 207, 142, 0.15); }
-.hcg-toast-item--warning .hcg-toast-icon { background: rgba(242, 163, 60, 0.15); }
+.hcg-toast-item--warning .hcg-toast-icon,
+.hcg-toast-item--pending .hcg-toast-icon { background: rgba(242, 163, 60, 0.15); }
 .hcg-toast-item--error .hcg-toast-icon { background: rgba(255, 90, 82, 0.15); }
-.hcg-toast-icon svg { width: 20px; height: 20px; }
+.hcg-toast-icon svg { width: 16px; height: 16px; }
+
+/* The progress bar, and both of its labels, live inside the strip at the
+   card's foot — so a long read or write reports itself as a number rather
+   than as "Uploading 7/40…" frozen at whatever it said when it appeared.
+   The strip is a child of the item, which has overflow: hidden, so the
+   card's radius clips its bottom corners for free.
+
+   Both labels sit *inside* the strip, which means each one lands on the
+   deep fill at one end of its run and on the pale track at the other.
+   That is why --toast-fill is a darker step than --toast-tint: white ink
+   has to clear 4.5:1 against both. */
+.toast-progress {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 22px;
+  background: rgba(255, 255, 255, 0.07);
+  overflow: hidden;
+}
+.toast-progress-fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: calc(var(--toast-progress, 0) * 100%);
+  background: var(--toast-fill);
+  transition: width 240ms ease-out;
+}
+/* No total to divide by — a single write, or a read of unknown length.
+   The fill sweeps instead of sitting at a fraction, and the label says
+   so rather than showing a made-up 0%. */
+.toast-progress--indeterminate .toast-progress-fill {
+  width: 38%;
+  transition: none;
+  animation: toast-progress-sweep 1100ms ease-in-out infinite;
+}
+@keyframes toast-progress-sweep {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(263%); }
+}
+.toast-progress-count,
+.toast-progress-pct {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  padding: 0 9px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  line-height: 1;
+  color: #ffffff;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.toast-progress-count { left: 0; }
+.toast-progress-pct { right: 0; }
 
 /* The library renders `&times;`, a slanted multiplication sign. Penguin's
    mark is a thin stroked cross, so the glyph is swapped for the real
-   path by decorateToast() and this only has to size it. The 44px square
-   is the thumb target; the mark inside stays at 20px. */
+   path by decorateToast() and this only has to size it.
+
+   The button is a 44px square because that is the smallest target a thumb
+   can land on, but it is pulled outside the card's padding on all three
+   sides it would otherwise inflate. Net contribution to the card's height
+   is 14px — under the 20px icon plate, so the mark, not the target, is
+   what sets the line height again. The mark stays at 20px. */
 .hcg-toast-close {
   width: 44px;
   height: 44px;
-  margin: -9px -9px 0 0;
+  margin: -14px -8px -14px 0;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2169,6 +2254,9 @@ select.text-input option { background: var(--surface-3); color: var(--text); }
     transition: none !important;
     animation: none !important;
   }
+  /* The bar sweeps rather than steps, and stops dead instead: a frozen
+     sweep would claim to be reporting a number it does not have. */
+  .toast-progress-fill { transition: none !important; animation: none !important; }
   /* The backdrop is the page's only looping motion, and on this archive it
      runs behind every photo — reduced-motion has to stop it, not just the
      transitions above. The scrim stays, so the canvas keeps its wash. */

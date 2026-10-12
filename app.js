@@ -2337,7 +2337,7 @@ async function performUploads() {
   const existing = new Set();
   for (const folder of state.order) for (const f of state.folders[folder]) existing.add(f.path);
 
-  showToast(`Uploading 0/${total}…`, true);
+  showPending('Uploading photos', 0, total);
   for (const [folder, files] of Object.entries(groups)) {
     if (DEMO_MODE) {
       if (!state.folders[folder]) {
@@ -2358,7 +2358,7 @@ async function performUploads() {
         });
         existing.add(path);
         done++;
-        showToast(`Uploading ${done}/${total}…`, true);
+        showPending('Uploading photos', done, total);
       }
       continue;
     }
@@ -2383,7 +2383,7 @@ async function performUploads() {
         if (!failedReasons.includes(why)) failedReasons.push(why);
       }
       done++;
-      showToast(`Uploading ${done}/${total}…`, true);
+      showPending('Uploading photos', done, total);
     }
   }
   const added = total - skipped - failed;
@@ -2515,7 +2515,9 @@ async function saveTagModal() {
   // save that throws mid-flight cannot leave the next dialog's Save dead.
   const saveBtn = el('tagSave');
   if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Saving…'; }
-  const savingId = showToast('Saving classification…', true);
+  // One photo, so no count to divide — the bar sweeps instead. The text
+  // names the action, which is the part a visitor reads.
+  const savingId = showPending('Saving classification');
 
   let renamedLive = false;
   let renameMsg = '';
@@ -2666,7 +2668,7 @@ async function batchDeleteSelected() {
   // dialog was up. The loop below runs once it has closed.
   let done = 0, failed = 0;
   const failedNames = [];
-  showToast(`Deleting 0/${paths.length}…`, true);
+  showPending('Deleting photos', 0, paths.length);
   for (let i = 0; i < paths.length; i++) {
     const path = paths[i];
     const asset = state.assets.find(a => a.canonical.path === path);
@@ -2681,7 +2683,7 @@ async function batchDeleteSelected() {
       eatRestore([cards[i] && cards[i].querySelector('.card-img')]);
     }
     done++;
-    showToast(`Deleting ${done}/${paths.length}…`, true);
+    showPending('Deleting photos', done, paths.length);
   }
   exitBatchSelect();
   showToast(failed
@@ -2743,7 +2745,7 @@ async function performBatchMove() {
 
   let done = 0, failed = 0, collided = 0;
   const failedNames = [];
-  showToast(`Moving 0/${paths.length}…`, true);
+  showPending('Moving photos', 0, paths.length);
   for (const path of paths) {
     const asset = state.assets.find(a => a.canonical.path === path);
     const items = asset ? [asset.canonical, ...asset.variants] : [];
@@ -2766,7 +2768,7 @@ async function performBatchMove() {
       failedNames.push(items[0].name);
     }
     done++;
-    showToast(`Moving ${done}/${paths.length}…`, true);
+    showPending('Moving photos', done, paths.length);
   }
   exitBatchSelect();
   const moved = done - failed - collided;
@@ -2829,7 +2831,7 @@ async function renamePhase() {
   const affected = state.assets.filter(a => a.folder === from);
   let done = 0, failed = 0;
   const failedNames = [];
-  showToast(`Renaming 0/${affected.length}\u2026`, true);
+  showPending('Renaming photos', 0, affected.length);
   for (const asset of affected) {
     try {
       for (const item of [asset.canonical, ...asset.variants]) {
@@ -2844,7 +2846,7 @@ async function renamePhase() {
       failedNames.push(asset.canonical.name);
     }
     done++;
-    showToast(`Renaming ${done}/${affected.length}\u2026`, true);
+    showPending('Renaming photos', done, affected.length);
   }
   // Remap metadata keys from the old folder to the new one, then persist.
   const md = Object.keys(state.metadata);
@@ -2904,7 +2906,13 @@ async function removePhase() {
 
   const affected = state.assets.filter(a => a.folder === folder);
   let failed = 0;
-  showToast(`Removing 0/${affected.length} photo${affected.length === 1 ? '' : 's'}\u2026`, true);
+  // The bar counts files, not photos. One asset is its canonical plus its
+  // generated variants, so a phase of forty photos is well over forty
+  // requests, and a bar counting the photos would sit at 100% for most of
+  // the work it is meant to be reporting on.
+  const files = affected.reduce((n, a) => n + 1 + a.variants.length, 0);
+  let removed = 0;
+  showPending('Removing photos', 0, files);
   for (const asset of affected) {
     for (const item of [asset.canonical, ...asset.variants]) {
       try {
@@ -2913,6 +2921,9 @@ async function removePhase() {
         failed++;
         showToast(`Failed: ${item.name} — ${err.message}`, { type: 'error', sticky: true });
       }
+      // After the try rather than inside it: the bar reports requests
+      // finished, and a failed one is finished too.
+      showPending('Removing photos', ++removed, files);
     }
   }
   for (const key of Object.keys(state.metadata)) if (key.startsWith(prefix)) delete state.metadata[key];
@@ -3003,7 +3014,7 @@ async function applyRestore(plan, label) {
   let done = 0, failed = 0;
   const failedNames = [];
   const headers = { Authorization: `Bearer ${state.token}` };
-  showToast(`Reverting 0/${total}…`, true);
+  showPending(label, 0, total);
   for (const { path, sha } of plan.put) {
     try {
       const blob = await githubFetch(`https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/git/blobs/${sha}`, { headers });
@@ -3014,7 +3025,7 @@ async function applyRestore(plan, label) {
       failed++;
       failedNames.push(path);
     }
-    showToast(`Reverting ${++done}/${total}…`, true);
+    showPending(label, ++done, total);
   }
   for (const { path, sha } of plan.remove) {
     try {
@@ -3023,7 +3034,7 @@ async function applyRestore(plan, label) {
       failed++;
       failedNames.push(path);
     }
-    showToast(`Reverting ${++done}/${total}…`, true);
+    showPending(label, ++done, total);
   }
   showToast(failed ? `${label} done${failureSuffix(failedNames)}.` : `${label} done.`,
     { type: failed ? 'warning' : 'success' });
@@ -3390,7 +3401,7 @@ async function deleteImage(path, sha, prettyLabel, opts = {}) {
      app with an Undo behind it, so a wait that cannot be interpreted is
      the worst place to have one. Sticky, so it holds until the outcome
      replaces it. */
-  const deletingId = showToast(`Deleting ${prettyLabel}…`, true);
+  const deletingId = showPending(`Deleting ${prettyLabel}`);
   // The local state change is last: re-rendering mid-swallow pulls the
   // photo out of the bin before it arrives, which is the one thing this
   // effect must not do.
@@ -3879,14 +3890,21 @@ const escapeAttr = (s) => escapeHtml(s).replace(/"/g, '&quot;');
    which glyph a gallery message deserves, the Undo action, and the
    ding.
 
-   Types map onto the library's typed helpers: `type` is 'info'
-   (default), 'success', 'warning' or 'error' — which the stylesheet
-   paints as Penguin's *danger*, the one name the two vocabularies do
-   not share. Progress lines and other transient updates are 'info'.
-   `opts.sticky` — or `true` as the whole argument, the shorthand the
-   batch loops use — marks a progress line: it stays until the next
-   call replaces it, so a long upload shows one moving line rather than
-   a stack.
+   Three types are the JS action's outcome, and the stylesheet paints each
+   one: `success` is green, `error` is red (Penguin's *danger*), and
+   `pending` is orange — the colour this archive reserves for a write or a
+   read that is still in flight. The card's text is the action itself
+   ("Uploading photos", "Deleting photos", "Revert all"), so what the card
+   says is what the app is doing, not merely that something is.
+
+   A sticky message with no type of its own is pending by default, because
+   every sticky message in this app is a batch telling you what it is
+   doing. An explicit `type` outranks that, which is what keeps the
+   batches' sticky *errors* red — a file that 403s mid-upload must not
+   read as still-working. `opts.sticky` — or `true` as the whole argument
+   — is the shorthand for such a line: it stays until the next call
+   replaces it, so a long upload shows one moving line rather than a
+   stack.
 
    Duration is 8s — Penguin's own displayDuration, and long enough to
    finish reading the sentence a forty-photo batch spends most of its
@@ -3909,6 +3927,10 @@ const TOAST_GLYPHS = {
   success: TOAST_GLYPH('<path d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm3.857-9.809a.75.75 0 0 0-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 1 0-1.06 1.061l2.5 2.5a.75.75 0 0 0 1.137-.089l4-5.5Z"/>'),
   warning: TOAST_GLYPH('<path d="M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Zm-8-5a.75.75 0 0 1 .75.75v4.5a.75.75 0 0 1-1.5 0v-4.5A.75.75 0 0 1 10 5Zm0 10a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z"/>'),
   error: TOAST_GLYPH('<path d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16ZM8.34 8.34l2.25 2.25-2.25 2.25 1.41 1.41 2.25-2.25 2.25 2.25 1.41-1.41-2.25-2.25 2.25-2.25-1.41-1.41-2.25 2.25-2.25-2.25-1.41 1.41Z"/>'),
+  // A clock, not a spinner: nothing here animates to imply progress, the
+  // bar does, and a spinning glyph would sit still under reduced-motion
+  // while still claiming to be working.
+  pending: TOAST_GLYPH('<path d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16ZM10.75 5a.75.75 0 0 0-1.5 0v4.5c0 .27.14.52.36.66l3 1.8a.75.75 0 1 0 .78-1.3l-3-1.8V5Z"/>'),
 };
 /* The library renders `&times;` — a slanted multiplication sign, not the
    thin stroked cross the rest of the set is drawn in. */
@@ -4051,6 +4073,72 @@ function decorateToast(id, undo) {
   (item.querySelector('.hcg-toast-body') || item).appendChild(btn);
 }
 
+/* The bar, and both of its labels, for a long read or write.
+
+   The library has a progress bar of its own, but it is a countdown — it
+   shows how much time is left before the toast dismisses itself, which is
+   the opposite of what a batch needs — and it only renders at all when the
+   toast has a non-zero duration, which a progress line by definition does
+   not. So the bar is built here and appended to the live item, which means
+   it dies with the item: there is no separate timer or node to clean up,
+   and the batch's own `dismissToast()` takes the bar with it.
+
+   Both labels sit inside the strip. `done / total` on the left, the
+   percentage on the right, so the bar reports a count and a proportion
+   from one place instead of the message having to say both. */
+function renderToastProgress(id, done, total) {
+  const item = document.querySelector(`.hcg-toast-item[data-toast-id="${id}"]`);
+  if (!item) return;
+
+  item.classList.add('hcg-toast-item--progress');
+  let bar = item.querySelector('.toast-progress');
+  if (!bar) {
+    bar = document.createElement('div');
+    bar.className = 'toast-progress';
+    // Static markup, no interpolation: the only things that ever go in
+    // here are numbers this function formats.
+    bar.innerHTML = '<div class="toast-progress-fill"></div>'
+      + '<span class="toast-progress-count"></span>'
+      + '<span class="toast-progress-pct"></span>';
+    item.appendChild(bar);
+  }
+
+  const count = bar.querySelector('.toast-progress-count');
+  const pct = bar.querySelector('.toast-progress-pct');
+
+  // No usable total: a single write, or a read whose length is unknown.
+  // The fill sweeps and the label admits it, rather than showing a 0%
+  // that would be a claim about work that is already under way.
+  if (!Number.isFinite(total) || total <= 0) {
+    bar.classList.add('toast-progress--indeterminate');
+    bar.style.removeProperty('--toast-progress');
+    count.textContent = '';
+    pct.textContent = 'Working…';
+    return;
+  }
+
+  // Clamped: a batch that over-counts (a skipped file still advancing the
+  // counter, say) must not render a bar wider than its own track.
+  const n = Math.max(0, Math.min(done, total));
+  const ratio = n / total;
+  bar.classList.remove('toast-progress--indeterminate');
+  bar.style.setProperty('--toast-progress', ratio.toFixed(4));
+  count.textContent = `${n} / ${total}`;
+  pct.textContent = `${Math.round(ratio * 100)}%`;
+}
+
+/* A long read or write, reported as the action it is performing with the
+   bar beneath it. `action` is the string the card shows — "Uploading
+   photos", "Revert all" — which is the whole point: the visitor is told
+   what the app is doing, not just that something is happening.
+
+   done/total are optional. Without a total the bar sweeps instead of
+   filling. With them it is a real proportion, and calling this on every
+   step is what makes the bar move. */
+function showPending(action, done, total) {
+  return showToast(action, { type: 'pending', sticky: true, progress: { done, total } });
+}
+
 /* A message, optionally carrying the Undo for what it is reporting.
    `opts === true` is the shorthand the batch loops use for a sticky
    progress line. */
@@ -4059,13 +4147,18 @@ function showToast(msg, opts = {}) {
   if (!lib) return null;
   const o = opts === true ? { sticky: true } : (opts || {});
   const undo = o.undo || null;
-  const type = o.type || 'info';
+  // A sticky message with no type of its own is work in flight. Every
+  // sticky line in this app is a batch saying what it is doing, so the
+  // default has to be the colour that means "still going".
+  const type = o.type || (o.sticky ? 'pending' : 'info');
   const duration = o.sticky ? 0 : (undo ? TOAST_UNDO_MS : TOAST_MS);
 
   dismissToast();
-  // The library's typed helpers — toast.success() and friends — each set
-  // the type themselves; `type` picks which one this message goes through.
-  const id = lib[type](msg, {
+  // lib.show() rather than the typed helpers: `pending` is not one of the
+  // library's four, and show() takes the type as an option anyway — the
+  // helpers are only sugar over it.
+  const id = lib.show(msg, {
+    type,
     duration,
     closable: true,
     pauseOnHover: true,
@@ -4075,6 +4168,7 @@ function showToast(msg, opts = {}) {
   if (id == null) return null;
   toastId = id;
   decorateToast(id, undo);
+  if (o.progress) renderToastProgress(id, o.progress.done, o.progress.total);
   // A sticky line is a progress bar in words: a batch raises one per
   // photo, and forty dings across one upload is not a notification. Only
   // a message that is actually going to sit on screen gets the sound.
@@ -4118,7 +4212,7 @@ function failureSuffix(failedNames) {
     sanitizeFilename, cssSafe, escapeHtml, escapeAttr,
 
     // Notifications
-    showToast, dismissToast,
+    showToast, showPending, dismissToast,
 
     // Walkthrough gate
     shouldRequireWalkthrough, WALKTHROUGH_SEEN_KEY,

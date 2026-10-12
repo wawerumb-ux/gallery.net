@@ -41,12 +41,15 @@ const saveTagModal = body('saveTagModal');
 
 describe('A classification save says what it is doing', () => {
   test('a pending message is shown before the first network await', () => {
-    assert.match(saveTagModal, /showToast\(\s*'Saving classification…'/,
+    // showPending, not showToast: one photo is one write, so the bar has
+    // no count to divide and sweeps instead — but the card is still
+    // orange and still says what the app is doing.
+    assert.match(saveTagModal, /showPending\(\s*'Saving classification'/,
       'saveTagModal must open with a pending toast');
     // The point is that it comes before any `await`, not merely that the
     // string exists: a pending toast raised after the write has already
     // happened is exactly the silence this is fixing.
-    const toastAt = saveTagModal.indexOf("showToast('Saving classification…'");
+    const toastAt = saveTagModal.indexOf("showPending('Saving classification'");
     const firstAwait = saveTagModal.indexOf('await ');
     assert.ok(toastAt !== -1, 'no pending toast found');
     assert.ok(firstAwait !== -1, 'saveTagModal has no await to order against');
@@ -54,9 +57,14 @@ describe('A classification save says what it is doing', () => {
       'the pending toast must precede the first await, or it announces nothing');
   });
 
-  test('the pending message is sticky, so it survives a slow write', () => {
-    assert.match(saveTagModal, /showToast\(\s*'Saving classification…',\s*true\s*\)/,
-      'the pending toast must be sticky — a timed one would expire mid-write');
+  test('the pending message cannot expire mid-write', () => {
+    // showPending is sticky by construction — it is the call for work in
+    // flight. A timed card would be gone before a slow write returns.
+    assert.doesNotMatch(saveTagModal, /showToast\(\s*'Saving classification'/,
+      'a plain showToast here would be timed, and would expire mid-write');
+    const fn = source.slice(source.indexOf('function showPending'));
+    assert.match(fn.slice(0, fn.indexOf('}')), /sticky: true/,
+      'showPending must be sticky, or this whole claim is unfounded');
   });
 
   test('a re-entrant save is refused', () => {
