@@ -2202,6 +2202,8 @@ const ICONS = {
   signIn: '<svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true"><path d="M11 7 9.6 8.4l2.6 2.6H2v2h10.2l-2.6 2.6L11 17l5-5-5-5zm9 12h-8v2h8c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2h-8v2h8v14z"/></svg>',
   route: '<svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true"><path d="M19 15.18V5c0-1.1-.9-2-2-2H7C5.9 3 5 3.9 5 5v10.18c-1.16.41-2 1.51-2 2.82 0 1.66 1.34 3 3 3s3-1.34 3-3c0-1.3-.84-2.4-2-2.82V7h8v8.18c-1.16.41-2 1.51-2 2.82 0 1.66 1.34 3 3 3s3-1.34 3-3c0-1.31-.84-2.41-2-2.82z"/></svg>',
   play: '<svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>',
+  soundOn: '<svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0 0 14 7.97v8.05A4.47 4.47 0 0 0 16.5 12zM14 3.23v2.06a7 7 0 0 1 0 13.42v2.06a9 9 0 0 0 0-17.54z"/></svg>',
+  soundOff: '<svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true"><path d="M16.5 12A4.5 4.5 0 0 0 14 7.97v2.21l2.45 2.45c.03-.2.05-.42.05-.63zM19 12c0 .94-.2 1.82-.54 2.64l1.51 1.51A8.8 8.8 0 0 0 21 12a9 9 0 0 0-7-8.77v2.06A7 7 0 0 1 19 12zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73L16.73 17.27A6.9 6.9 0 0 1 14 18.73v2.06a9 9 0 0 0 3.69-1.53L19.73 21 21 19.73 4.27 3zM12 4L9.91 6.09 12 8.18V4z"/></svg>',
 };
 
 function openSheet(cfg) {
@@ -2230,10 +2232,17 @@ function openSheet(cfg) {
 
 const closeSheet = () => { el('sheetOverlay').hidden = true; };
 
-/* Header ⋮: everyone gets the walkthrough; a visitor also gets sign-in,
-   the admin gets the full tool set. */
+/* Header ⋮: everyone gets the notification-sound switch and the
+   walkthrough; a visitor also gets sign-in, the admin gets the full
+   tool set. The sound row is built from the live flag, so it always
+   says what tapping it will do rather than what it did last time. */
 function mainMenu() {
   const items = [
+    {
+      icon: toastSoundOn ? ICONS.soundOn : ICONS.soundOff,
+      label: toastSoundOn ? 'Notification sound on' : 'Notification sound off',
+      onTap: () => setToastSound(!toastSoundOn),
+    },
     { icon: ICONS.play, label: 'Guided tour', onTap: () => { window.location.href = 'tour/'; } },
     ...(state.adminMode ? [
       { icon: ICONS.photoAdd, label: 'Add photos', tourTarget: 'menu-add-photos', onTap: () => pickFiles(null) },
@@ -3858,26 +3867,125 @@ const escapeHtml = (s) => s.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;',
 const escapeAttr = (s) => escapeHtml(s).replace(/"/g, '&quot;');
 
 /* ── Notifications ─────────────────────────────────────────────────
-   Every message in the gallery goes through showToast, which is now a
+   Every message in the gallery goes through showToast, which is a
    thin wrapper over hcg-toast (hcg-toast.js, loaded ahead of app.js in
-   index.html). It owns the placement, the timing and the one toast on
-   screen at a time; callers only say what happened.
+   index.html). It owns the placement, the timing, the sound and the one
+   toast on screen at a time; callers only say what happened.
+
+   The shape is Penguin UI's stacking notification and the skin is in
+   style.css: a card washed 10% in its own variant colour, a circular
+   plate holding the glyph, the message, and a stroked dismiss X. What
+   the wrapper adds is the three things the library cannot know about:
+   which glyph a gallery message deserves, the Undo action, and the
+   ding.
 
    Types map onto the library's typed helpers: `type` is 'info'
-   (default), 'success', 'warning' or 'error'. Progress lines and
-   other transient updates are 'info'. `opts.sticky` — or `true` as the
-   whole argument, the shorthand the batch loops use — marks a progress
-   line: it stays until the next call replaces it, so a long upload shows
-   one moving line rather than a stack.
+   (default), 'success', 'warning' or 'error' — which the stylesheet
+   paints as Penguin's *danger*, the one name the two vocabularies do
+   not share. Progress lines and other transient updates are 'info'.
+   `opts.sticky` — or `true` as the whole argument, the shorthand the
+   batch loops use — marks a progress line: it stays until the next
+   call replaces it, so a long upload shows one moving line rather than
+   a stack.
 
-   Duration is 3.2s for a message you only have to notice, 6s when
-   there is something to undo, and 0 (sticky) for a progress line the
-   next call replaces. hcg-toast pauses its own timer on hover and
-   clears it on removal, so there is no timer here to leak. */
-const TOAST_POSITION = 'bottom-center';
+   Duration is 8s — Penguin's own displayDuration, and long enough to
+   finish reading the sentence a forty-photo batch spends most of its
+   life building — rising to 10s when there is something to undo, and 0
+   for a progress line the next call replaces. hcg-toast pauses its
+   own timer on hover and clears it on removal, so there is no timer
+   here to leak. */
+const TOAST_POSITION = 'top-center';
 const TOAST_MAX = 3;
-const TOAST_MS = 3200;
-const TOAST_UNDO_MS = 6000;
+const TOAST_MS = 8000;
+const TOAST_UNDO_MS = 10000;
+
+/* Penguin paints its variant glyphs from Heroicons' 20px solid set,
+   and so does this — the two libraries reach for the same free icons,
+   and hand-drawing a third set would only be worse. */
+const TOAST_GLYPH = (d) =>
+  `<svg viewBox="0 0 20 20" fill="currentColor" fill-rule="evenodd" aria-hidden="true" focusable="false">${d}</svg>`;
+const TOAST_GLYPHS = {
+  info: TOAST_GLYPH('<path d="M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Zm-7-4a1 1 0 1 1-2 0 1 1 0 0 1 2 0ZM9 9a.75.75 0 0 0 0 1.5h.253a.25.25 0 0 1 .244.304l-.459 2.066A1.75 1.75 0 0 0 10.747 15H11a.75.75 0 0 0 0-1.5h-.253a.25.25 0 0 1-.244-.304l.459-2.066A.75.75 0 0 0 9.253 9H9Z"/>'),
+  success: TOAST_GLYPH('<path d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm3.857-9.809a.75.75 0 0 0-1.214-.882l-3.483 4.79-1.88-1.88a.75.75 0 1 0-1.06 1.061l2.5 2.5a.75.75 0 0 0 1.137-.089l4-5.5Z"/>'),
+  warning: TOAST_GLYPH('<path d="M18 10a8 8 0 1 1-16 0 8 8 0 0 1 16 0Zm-8-5a.75.75 0 0 1 .75.75v4.5a.75.75 0 0 1-1.5 0v-4.5A.75.75 0 0 1 10 5Zm0 10a1 1 0 1 0 0-2 1 1 0 0 0 0 2Z"/>'),
+  error: TOAST_GLYPH('<path d="M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16ZM8.34 8.34l2.25 2.25-2.25 2.25 1.41 1.41 2.25-2.25 2.25 2.25 1.41-1.41-2.25-2.25 2.25-2.25-1.41-1.41-2.25 2.25-2.25-2.25-1.41 1.41Z"/>'),
+};
+/* The library renders `&times;` — a slanted multiplication sign, not the
+   thin stroked cross the rest of the set is drawn in. */
+const TOAST_CLOSE_GLYPH = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M6 18L18 6M6 6l12 12"/></svg>';
+
+/* ── The notification sound ─────────────────────────────────────────
+   Penguin ships a ding with its component. This one is synthesised:
+   two sine partials a fifth apart, struck together and again 50ms
+   later, both gone inside 600ms. A file would mean a network request, a licence and an mp3 decoder for
+   what is one oscillator — and the archive has to keep working with the
+   network gone. */
+const TOAST_SOUND_KEY = 'gallery.toastSound';
+
+function storedToastSound() {
+  try {
+    return localStorage.getItem(TOAST_SOUND_KEY) !== 'off';
+  } catch (_) {
+    return true; // cannot remember — sound on, as shipped
+  }
+}
+
+let toastSoundOn = storedToastSound();
+
+/* An AudioContext built before a gesture is born suspended, and Chrome
+   logs a warning for the privilege of asking. So none is built until the
+   page has been touched: the first pointerdown or keydown anywhere is the
+   unlock. Until then a notification is silent — which is what every
+   browser's autoplay policy would have done to a file anyway. */
+let toastUnlocked = false;
+if (typeof window !== 'undefined' && window.addEventListener) {
+  const unlock = () => { toastUnlocked = true; };
+  window.addEventListener('pointerdown', unlock, { once: true, capture: true });
+  window.addEventListener('keydown', unlock, { once: true, capture: true });
+}
+
+let toastAudio = null;
+function playToastDing() {
+  if (!toastSoundOn || !toastUnlocked) return;
+  const AudioCtx = window.AudioContext || window.webkitAudioContext;
+  if (!AudioCtx) return;
+  try {
+    if (!toastAudio) toastAudio = new AudioCtx();
+    if (toastAudio.state === 'suspended') return;
+    const now = toastAudio.currentTime;
+    const bus = toastAudio.createGain();
+    bus.gain.setValueAtTime(0.0001, now);
+    bus.gain.exponentialRampToValueAtTime(0.16, now + 0.012);
+    bus.gain.exponentialRampToValueAtTime(0.0001, now + 0.6);
+    bus.connect(toastAudio.destination);
+    for (const [freq, delay, peak] of [[1318.51, 0, 1], [1975.53, 0.05, 0.4]]) {
+      const osc = toastAudio.createOscillator();
+      const gain = toastAudio.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(freq, now + delay);
+      gain.gain.setValueAtTime(0.0001, now + delay);
+      gain.gain.exponentialRampToValueAtTime(peak, now + delay + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + delay + 0.55);
+      osc.connect(gain);
+      gain.connect(bus);
+      osc.start(now + delay);
+      osc.stop(now + delay + 0.6);
+    }
+  } catch (_) {
+    // The sound is decoration. A device with no output, or a context
+    // that refuses to build, must not cost the message it belongs to.
+  }
+}
+
+/* Turned off from the ⋮ menu, remembered under gallery.toastSound.
+   Turning it back on plays the ding, so the row confirms itself by being
+   heard — and the tap that reached the menu is what unlocked the
+   context. */
+function setToastSound(on) {
+  toastSoundOn = !!on;
+  try { localStorage.setItem(TOAST_SOUND_KEY, toastSoundOn ? 'on' : 'off'); } catch (_) { /* nothing to remember it in */ }
+  if (toastSoundOn) playToastDing();
+}
 
 /* The id of the toast currently on screen. hcg-toast stacks, but the
    gallery showed one message at a time and the batch loops lean on
@@ -3919,22 +4027,28 @@ function dismissToast() {
 }
 
 /* The Undo for the message it belongs to. hcg-toast renders the icon,
-   the body and the dismiss glyph and nothing else, so the button is
-   placed into the live toast element after it is shown — between the
-   body and the glyph — and removed with it. Same affordance, same
-   guarantee: undo always reverses the most recent change made from
-   the gallery, so a second change inside the window is what Undo
-   takes back. */
-function attachToastUndo(id, undo) {
+   the body and the dismiss glyph and nothing else, so both are placed
+   into the live toast element after it is shown and removed with it.
+   Undo goes inside the body's column, under the message, because that
+   is where Penguin puts the actions on a message-style notification.
+   Same affordance, same guarantee: undo always reverses the most recent
+   change made from the gallery, so a second change inside the window is
+   what Undo takes back. */
+function decorateToast(id, undo) {
   const item = document.querySelector(`.hcg-toast-item[data-toast-id="${id}"]`);
   if (!item) return;
+
+  const close = item.querySelector('.hcg-toast-close');
+  if (close) close.innerHTML = TOAST_CLOSE_GLYPH;
+  if (!undo) return;
+
   const btn = document.createElement('button');
   btn.type = 'button';
   btn.id = 'toastUndo';
   btn.className = 'toast-undo';
   btn.textContent = 'Undo';
   btn.addEventListener('click', () => { dismissToast(); undo(); });
-  item.insertBefore(btn, item.querySelector('.hcg-toast-close') || null);
+  (item.querySelector('.hcg-toast-body') || item).appendChild(btn);
 }
 
 /* A message, optionally carrying the Undo for what it is reporting.
@@ -3956,9 +4070,15 @@ function showToast(msg, opts = {}) {
     closable: true,
     pauseOnHover: true,
     showProgress: false,
+    iconHtml: TOAST_GLYPHS[type] || TOAST_GLYPHS.info,
   });
+  if (id == null) return null;
   toastId = id;
-  if (undo) attachToastUndo(id, undo);
+  decorateToast(id, undo);
+  // A sticky line is a progress bar in words: a batch raises one per
+  // photo, and forty dings across one upload is not a notification. Only
+  // a message that is actually going to sit on screen gets the sound.
+  if (!o.sticky) playToastDing();
   return id;
 }
 

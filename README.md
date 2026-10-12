@@ -126,6 +126,52 @@ This set replaced fourteen themes drawn from a 2,292-palette search. The five
 that went — graphite, slate, dusk, mist, paper — were the neutrals and cools,
 and not one of the ten newest palettes is either.
 
+## Notifications
+
+Every message in the gallery goes through one wrapper, `showToast()`, over
+**hcg-toast** — a vendored, dependency-free vanilla library that keeps the
+plumbing (the stack, the timers, hover-pause, the max-toasts eviction). Its
+skin is [Penguin UI's stacking notification](https://ui-penguin.com/): a
+card washed 10% in its own variant colour, a circular plate holding the
+glyph, the message, and a dismiss X. Placement follows Penguin too — inset
+from the top on a phone, which is the one edge a bottom tab bar leaves
+clear, and out of the way at bottom-right from the `md` breakpoint up.
+
+Two deliberate departures. **The card draws no border** — the rectangle is
+still there at 1px so the shadow's geometry and every offset stay put, it
+just does not paint; the wash and the shadow are the edge, and a hairline
+on top of them reads as a box drawn around a box. And **the card is sized
+by its text and never wraps**: `max-content`, capped by the container, with
+an ellipsis past the cap. A notification is one sentence you read in a
+glance, and a three-line card that reflows while you watch it is a worse
+interruption than whatever it interrupted.
+
+The wrapper owns the three things the library cannot know about. **Which
+glyph**: `error` is hcg-toast's name for what Penguin calls *danger*, and
+both sets are drawn from Heroicons' 20px solid icons, so a message gets a
+real mark rather than the library's `ℹ ✓ ⚠ ✕` text characters. **Undo**: a
+message that can be reversed is Penguin's *message* variant, so the button
+is a plain bold text action under the message instead of a control parked
+between the text and the X. **The ding**: two sine partials a fifth apart,
+struck together and again 50ms later, both gone inside 600ms. Penguin ships
+a sound file with its component; this one is synthesised, because a file
+would mean a network request, a licence and an mp3 decoder for what is one
+oscillator — and the archive has to keep working with the network gone.
+
+The sound is off the ⋮ menu, remembered under `gallery.toastSound`, and it
+has two gates it will not open by itself. No `AudioContext` is built until
+the page has been touched — one built before a gesture is born suspended,
+and Chrome logs a warning for the privilege of asking — and a **sticky
+progress line is silent**, because the batch loops raise one per photo and
+forty dings across a single upload is not a notification. A timed message
+that is actually going to sit on screen is the only thing that sounds.
+
+The gallery still shows **one message at a time**, not a stack: each
+progress line replaces the last, and the final summary replaces the last
+progress line rather than joining it. `hcg-toast` would happily hold three;
+the batch loops depend on the replace, so it stays. Timing is Penguin's own
+8-second `displayDuration`, rising to 10s when there is something to undo.
+
 **The landing is the request journey.** It plays `video/` full-bleed behind
 seven cards, one per stage of a web request's trip — CLIENT → CAT6A → PATCH
 PANEL → SWITCH → CEILING TRAY → DATA CENTER → CONNECTED — each with a plain

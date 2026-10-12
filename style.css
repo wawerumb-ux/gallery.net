@@ -1155,26 +1155,35 @@ body.is-selecting .tabbar, body.is-selecting .fab { transform: translateY(110%);
 
 /* Undo rides along on the message it belongs to, so a change is reversible
    from where it happened rather than from a dialog the user has to find.
-   The button is placed into the live hcg-toast item by showToast, between
-   the message and the dismiss glyph. */
+   A message that carries one is Penguin's *message* variant, so the button
+   is a plain bold text action under the message — no plate, no border —
+   rather than a control parked beside the text. decorateToast() puts it
+   inside the toast's body for exactly that reason. */
 .toast-undo {
   appearance: none;
-  border: 1px solid var(--hairline);
-  border-radius: var(--radius-pill);
+  border: none;
   background: transparent;
-  color: var(--accent-text);
+  /* Inherited from the item: Undo wears the variant colour of the message
+     it is undoing, which is what Penguin does with its action buttons. */
+  color: var(--toast-tint);
   font: inherit;
   font-size: 13px;
-  font-weight: 600;
-  padding: 7px 14px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  text-align: left;
+  padding: 0;
   min-height: 44px;
-  margin-left: 12px;
+  margin: 2px -8px 0 0;
   cursor: pointer;
-  flex: none;
-  transition: background var(--duration-fast) ease;
+  transition: opacity var(--duration-fast) ease;
 }
-.toast-undo:hover { background: var(--accent-dim); }
-.toast-undo:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.toast-undo:hover { opacity: 0.75; }
+.toast-undo:active { opacity: 1; }
+.toast-undo:focus-visible {
+  outline: 2px solid var(--toast-tint);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
 
 /* Change history is deliberately behind a disclosure: it is the recovery
    path, not the everyday one. */
@@ -1314,53 +1323,195 @@ select.text-input option { background: var(--surface-3); color: var(--text); }
 .pick-select option { background: var(--surface-3); }
 .pick-hint { color: var(--text-faint); font-size: 11px; font-family: var(--font-mono); }
 
-/* ── Notifications (hcg-toast, One UI bottom snackbar) ───────────────
-   The library ships the structure — container, item, icon, body, close
-   glyph — and the app themes it through the CSS variables it documents.
-   --toast-bg/--toast-ink are the app's own per-theme snackbar colours,
-   so every One UI theme still reaches the notification without a second
-   set of rules. */
+/* ── Notifications (hcg-toast, Penguin stacking toast) ───────────────
+   The shape is Penguin UI's stacking notification: a card carrying a
+   10%-tinted wash of its own variant colour, a circular plate holding a
+   stroke glyph, the message, and a dismiss X on the right. Where a
+   message carries an Undo it becomes Penguin's *message* variant —
+   plain bold text actions under the message instead of a button parked
+   beside it.
+
+   Two departures from Penguin, both deliberate. The card has **no
+   visible border**: the wash and the shadow already draw the edge, and a
+   hairline on top of them reads as a box drawn around a box. And the
+   card is **sized by its text** — `max-content`, capped, never wrapping.
+   A notification is one sentence you read in a glance; a three-line card
+   that reflows as you watch it is a worse interruption than the thing it
+   interrupted, and one long enough to ellipsise is still readable from
+   its first clause.
+
+   The library still owns the plumbing: the container, the stack, the
+   timers, hover-pause, the max-toasts eviction and the enter/exit
+   classes. Everything here is skin, applied through the --hcg-toast-*
+   variables it documents — except the transforms, which are rewritten
+   outright because Penguin enters from below and leaves sideways while
+   the library only ever moved 8px.
+
+   Placement follows Penguin too: inset from the top on a phone, which
+   is the one edge a bottom tab bar leaves clear, and out of the way at
+   bottom-right from the md breakpoint up. --toast-bg/--toast-ink stay
+   the app's own per-theme plate colours, so all eleven eye-comfort
+   themes reach the notification without a second set of rules. */
 .hcg-toast-container {
   --hcg-toast-bg: var(--toast-bg);
-  --hcg-toast-border: var(--hairline);
+  --hcg-toast-border: transparent;
   --hcg-toast-text: var(--toast-ink);
   --hcg-toast-title: var(--toast-ink);
   --hcg-toast-muted: var(--toast-ink-dim);
-  --hcg-toast-radius: var(--radius-pill);
+  --hcg-toast-radius: 14px;
   --hcg-toast-shadow: 0 12px 32px var(--shadow);
-  --hcg-toast-width: min(92vw, 440px);
-  --hcg-toast-z: 130;
+  --hcg-toast-gap: 8px;
   --hcg-toast-info-accent: var(--accent-text);
   --hcg-toast-warning-accent: var(--warn);
   --hcg-toast-error-accent: var(--danger);
   --hcg-toast-success-accent: #3ecf8e;
   font-family: inherit;
+
+  /* Phone: a card inset from the top, no wider than the reading column.
+     The library's own position classes are one class deep and load
+     earlier, so these win on order alone — no !important needed below. */
+  top: calc(env(safe-area-inset-top, 0px) + 12px);
+  left: 12px;
+  right: 12px;
+  width: auto;
+  max-width: 440px;
+  margin: 0 auto;
+  transform: none;
+  /* Cards hug their own text rather than filling the column — a short
+     message gets a short card, and only a long one runs to the cap. */
+  align-items: flex-start;
+  z-index: 130;
 }
-/* The library plates its icons with pale tints for a light page; the snackbar
-   is dark in every One UI theme, so the plate follows the accent instead. */
-.hcg-toast-item--info .hcg-toast-icon { background: var(--accent-dim); }
-.hcg-toast-item--success .hcg-toast-icon { background: rgba(62, 207, 142, 0.16); }
-.hcg-toast-item--warning .hcg-toast-icon { background: rgba(242, 163, 60, 0.16); }
-.hcg-toast-item--error .hcg-toast-icon { background: var(--danger-dim); }
-/* Clear of the fixed tab bar, and centred on the column the rest of the
-   chrome centres on rather than on the raw viewport. */
-.hcg-toast-container--bottom-center {
-  bottom: calc(var(--tabbar-h) + 20px);
-  max-width: calc(100vw - 24px);
+/* Desktop: out of the reading column, bottom-right, clear of the tab bar. */
+@media (min-width: 768px) {
+  .hcg-toast-container {
+    top: auto;
+    left: auto;
+    right: 20px;
+    bottom: calc(var(--tabbar-h) + 20px);
+    max-width: 380px;
+    margin: 0;
+    /* column-reverse so the newest card sits nearest the corner, the
+       same way Penguin stacks from its anchor. */
+    flex-direction: column-reverse;
+    /* ...and the cards hug towards that corner rather than towards the
+       screen edge they are measured from. */
+    align-items: flex-end;
+  }
 }
+
+/* One variant token per message, read by every rule below it. The
+   wash is a colour-mix of the tint so it tracks --warn and --danger
+   when an eye-comfort theme re-points them; the flat rgba ahead of it
+   is what an engine without colour-mix falls back to. */
+.hcg-toast-item--info {
+  --toast-tint: var(--accent-text);
+  background-image: linear-gradient(rgba(94, 157, 255, 0.10), rgba(94, 157, 255, 0.10));
+  background-image: linear-gradient(color-mix(in srgb, var(--toast-tint) 10%, transparent),
+                                    color-mix(in srgb, var(--toast-tint) 10%, transparent));
+}
+.hcg-toast-item--success {
+  --toast-tint: var(--hcg-toast-success-accent);
+  background-image: linear-gradient(rgba(62, 207, 142, 0.10), rgba(62, 207, 142, 0.10));
+  background-image: linear-gradient(color-mix(in srgb, var(--toast-tint) 10%, transparent),
+                                    color-mix(in srgb, var(--toast-tint) 10%, transparent));
+}
+.hcg-toast-item--warning {
+  --toast-tint: var(--warn);
+  background-image: linear-gradient(rgba(242, 163, 60, 0.10), rgba(242, 163, 60, 0.10));
+  background-image: linear-gradient(color-mix(in srgb, var(--toast-tint) 10%, transparent),
+                                    color-mix(in srgb, var(--toast-tint) 10%, transparent));
+}
+.hcg-toast-item--error {
+  --toast-tint: var(--danger);
+  background-image: linear-gradient(rgba(255, 90, 82, 0.10), rgba(255, 90, 82, 0.10));
+  background-image: linear-gradient(color-mix(in srgb, var(--toast-tint) 10%, transparent),
+                                    color-mix(in srgb, var(--toast-tint) 10%, transparent));
+}
+
 .hcg-toast-item {
-  padding: 11px 12px 11px 18px;
+  padding: 14px;
+  gap: 10px;
   font-size: 13px;
-  align-items: center;
+  align-items: flex-start;
+  /* The rectangle is still there — 1px, so the shadow's geometry and
+     every offset below stay exactly where they were — it just does not
+     draw. The wash and the shadow are the edge now. */
+  border-color: transparent;
+  /* Sized by the message: as wide as the text, capped by the container,
+     never wider. The library stretches items by default, which is what
+     made a four-word card look like a full-width bar. */
+  width: max-content;
+  max-width: 100%;
+  /* Penguin enters by rising into place over 300ms — no scale. The
+     library also gives the item a transform per position class, but only
+     for its three bottom anchors; top-center has none, which is why this
+     one rule is enough to own the entrance. */
+  opacity: 0;
+  transform: translateY(32px);
+  transition: opacity 300ms ease-out, transform 300ms ease-out;
 }
-.hcg-toast-message { font-size: 13px; }
-.hcg-toast-icon { width: 20px; height: 20px; font-size: 0.72rem; }
-/* The glyph is 9x17 — a thumb cannot land on that. The button is given a
-   44px square centred on the same glyph, so the mark sits where it did
-   and only the target grows. */
+.hcg-toast-item--enter,
+.hcg-toast-container .hcg-toast-item--enter {
+  opacity: 1;
+  transform: translateY(0);
+}
+/* Leaving is directional: down on a phone, where the stack is anchored
+   to the top, and out to the right on a desktop, where it is anchored to
+   the bottom. Both are the library's own --exit class, so the timeout
+   fallback still cleans up if the transition never fires. */
+.hcg-toast-item--exit,
+.hcg-toast-container .hcg-toast-item--exit {
+  opacity: 0;
+  transform: translateY(32px);
+  transition-duration: 300ms;
+  transition-timing-function: ease-in;
+}
+@media (min-width: 768px) {
+  .hcg-toast-item--exit,
+  .hcg-toast-container .hcg-toast-item--exit {
+    transform: translateX(96px);
+  }
+}
+
+/* One line, always. The body is the flex item that can actually shrink —
+   it already carries min-width: 0 from the library — so this is where the
+   ellipsis lands when a message runs past the card's cap. nowrap wins
+   outright: a notification may be cut short, but it may not reflow. */
+.hcg-toast-message {
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* Circular plate in the variant colour: a 15% wash behind a 100% glyph. */
+.hcg-toast-icon {
+  width: 26px;
+  height: 26px;
+  padding: 3px;
+  border-radius: 9999px;
+  font-size: 0.72rem;
+  color: var(--toast-tint);
+  background: var(--plate-faint);
+}
+.hcg-toast-item--info .hcg-toast-icon { background: rgba(94, 157, 255, 0.15); }
+.hcg-toast-item--success .hcg-toast-icon { background: rgba(62, 207, 142, 0.15); }
+.hcg-toast-item--warning .hcg-toast-icon { background: rgba(242, 163, 60, 0.15); }
+.hcg-toast-item--error .hcg-toast-icon { background: rgba(255, 90, 82, 0.15); }
+.hcg-toast-icon svg { width: 20px; height: 20px; }
+
+/* The library renders `&times;`, a slanted multiplication sign. Penguin's
+   mark is a thin stroked cross, so the glyph is swapped for the real
+   path by decorateToast() and this only has to size it. The 44px square
+   is the thumb target; the mark inside stays at 20px. */
 .hcg-toast-close {
-  width: 44px; height: 44px;
-  display: flex; align-items: center; justify-content: center;
+  width: 44px;
+  height: 44px;
+  margin: -9px -9px 0 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   color: var(--toast-ink-dim);
   font-size: 17px;
 }
@@ -1370,13 +1521,17 @@ select.text-input option { background: var(--surface-3); color: var(--text); }
 }
 .hcg-toast-close:focus-visible {
   box-shadow: none;
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--toast-tint);
   outline-offset: -2px;
 }
+.hcg-toast-close svg { width: 20px; height: 20px; }
 
 /* ── Overflow & fluid safety ─────────────────────────────────────── */
 .modal-copy, .modal-note, .modal h2, .empty, .empty-sub, .loading-caption,
-.tag-field, .hcg-toast-message, .viewer-name, .viewer-meta { overflow-wrap: anywhere; }
+.tag-field, .viewer-name, .viewer-meta { overflow-wrap: anywhere; }
+/* .hcg-toast-message used to be in that list. It is not any more: the
+   notification is one line with an ellipsis, and a rule that lets it
+   break anywhere is the opposite instruction. */
 
 /* Scrollbars track the canvas, not a fixed dark */
 .pick-list::-webkit-scrollbar { width: 8px; }
@@ -2019,4 +2174,16 @@ select.text-input option { background: var(--surface-3); color: var(--text); }
      transitions above. The scrim stays, so the canvas keeps its wash. */
   .video-bg-el { display: none; }
   .video-bg { background: var(--bg); background-image: none; }
+
+  /* The notification transitions are killed above, which would otherwise
+     strand a card at the 32px offset its enter animation starts from —
+     visible, but visibly parked where it should have landed. */
+  .hcg-toast-item,
+  .hcg-toast-container .hcg-toast-item,
+  .hcg-toast-item--enter,
+  .hcg-toast-container .hcg-toast-item--enter,
+  .hcg-toast-item--exit,
+  .hcg-toast-container .hcg-toast-item--exit {
+    transform: none;
+  }
 }
