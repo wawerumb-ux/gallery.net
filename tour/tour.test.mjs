@@ -1607,8 +1607,26 @@ describe('T — the real TOUR_STEPS integration', () => {
 describe('U — every button is toured', () => {
   // The buttons no step targets, each with the reason it
   // cannot be one. Anything else un-targeted fails the audit.
+  //
+  // Three of these arrived after the audit was written and were never
+  // added here, so U1 was reporting them as gaps on every run. Each is
+  // excluded for what it is, not to silence a failure:
+  //   confirmOk / confirmCancel belong to the delete confirmation, and the
+  //     steps that reach them (viewer-delete, select-delete, settings-remove)
+  //     are gated on `confirm: { kind: 'pulse' }` — the tour takes the click
+  //     and is meant to leave the dialog sitting there. A step pointing at
+  //     either button would have to dismiss the dialog to advance, which is
+  //     the one thing that step is written not to do.
+  //   welcomeCard / welcomeDismiss live in a panel that only renders once the
+  //     walkthrough has run to its last card (maybeShowWelcome gates on
+  //     walkthroughCompleted()). A visitor mid-tour has not finished it, so the
+  //     panel is hidden and the buttons are not in the document to highlight.
   const EXCLUDED = {
     tokenSubmit: 'signing in needs a real repo token — a visitor cannot perform it',
+    confirmOk: 'delete confirmation — its steps are gated on pulse and leave the dialog open',
+    confirmCancel: 'delete confirmation — its steps are gated on pulse and leave the dialog open',
+    welcomeCard: 'welcome panel renders only after the walkthrough completes',
+    welcomeDismiss: 'welcome panel renders only after the walkthrough completes',
   };
 
   test('U1 — every static button is a tour step or an explicit exclusion', () => {
