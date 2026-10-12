@@ -236,11 +236,24 @@ describe('C — every message is drawn in Penguin\'s shape', () => {
   // arrow.
   const start = src.indexOf('const errWhy =');
   assert.notStrictEqual(start, -1, 'errWhy is missing from app.js');
-  const end = src.indexOf('\n};', start);
-  assert.notStrictEqual(end, -1, 'errWhy has no top-level closing brace');
-  const expr = src.slice(start + 'const errWhy = '.length, end + 2).trim()
-    .replace(/;$/, '');
-  assert.match(expr, /^\(err\)\s*=>\s*\{/, 'the slice must be the whole declaration');
+  const head = src.slice(start + 'const errWhy = '.length);
+  assert.match(head, /^\(err\)\s*=>\s*\{/, 'errWhy must be an arrow function with a block body');
+  /* Count braces to find the real end of the declaration. Searching for a
+     textual `\n};` worked only because errWhy happens to sit at column 0;
+     if it were ever indented — or if a nested object literal appeared in the
+     body — that search would cut the function in half and vm would be handed
+     a truncated arrow. Comments are already gone from `src`, so `{`/`}` here
+     are code. */
+  let depth = 0, end = -1;
+  for (let i = head.indexOf('{'); i < head.length; i++) {
+    if (head[i] === '{') depth++;
+    else if (head[i] === '}') {
+      depth--;
+      if (depth === 0) { end = i + 1; break; }
+    }
+  }
+  assert.notStrictEqual(end, -1, 'could not find the end of errWhy');
+  const expr = head.slice(0, end).trim();
   assert.equal((expr.match(/\{/g) || []).length, (expr.match(/\}/g) || []).length,
     'the slice must be brace-balanced');
   const why = vm.runInNewContext('(' + expr + ')');

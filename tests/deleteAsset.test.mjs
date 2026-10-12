@@ -36,9 +36,22 @@ const code = (src) => src
 const body = (name) => {
   const start = source.indexOf(`function ${name}`);
   assert.notStrictEqual(start, -1, `${name} is missing from app.js`);
+  /* Find the signature's closing paren by counting depth, not by scanning
+     for the next ')'. The obvious `indexOf(')')` is wrong twice over: a
+     default argument can contain one (`opts = f(x)`), and an EMPTY
+     parameter list — batchDeleteSelected() — leaves source[sigEnd-1] as the
+     '(' itself, which sent the old escape-guard skipping to a ')' deep in
+     the body and sliced the wrong 490 characters. */
   const paren = source.indexOf('(', start);
-  let sigEnd = source.indexOf(')', paren);
-  while (source[sigEnd - 1] === '(') sigEnd = source.indexOf(')', sigEnd + 1);
+  let parenDepth = 0, sigEnd = -1;
+  for (let i = paren; i < source.length; i++) {
+    if (source[i] === '(') parenDepth++;
+    else if (source[i] === ')') {
+      parenDepth--;
+      if (parenDepth === 0) { sigEnd = i; break; }
+    }
+  }
+  assert.notStrictEqual(sigEnd, -1, `could not find the end of ${name}()'s signature`);
   let depth = 0, began = false, mode = 'code';
   for (let i = source.indexOf('{', sigEnd); i < source.length; i++) {
     const c = source[i], next = source[i + 1];
@@ -110,13 +123,15 @@ describe('A deleted photo stays deleted', () => {
   test('the batch path goes through the same helper', () => {
     // It already deleted every member. The point is that the two paths
     // cannot drift apart again.
-    const src = code(source);
-    const start = src.indexOf('function batchDeleteSelected');
-    assert.notStrictEqual(start, -1, 'batchDelete is missing from app.js');
-    const batch = src.slice(start, src.indexOf('\nfunction ', start + 1) === -1
-      ? src.length : src.indexOf('\nfunction ', start + 1));
+    //
+    // Uses the same brace-counting body() as every other test here. A
+    // slice-to-next-`function` would stop at the first *nested* function
+    // declaration in the body and quietly assert against half the code.
+    const batch = code(body('batchDeleteSelected'));
     assert.match(batch, /assetItemsFor\(path\)/,
       'the batch must resolve assets the same way, not keep its own copy of the rule');
+    assert.doesNotMatch(batch, /state\.assets\.find\(/,
+      'the batch must not keep a private copy of the grouping rule');
   });
 
   test('the local state change prunes both structures', () => {

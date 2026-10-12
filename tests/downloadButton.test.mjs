@@ -229,9 +229,14 @@ describe('B3 — activation sequence with D-derived timings', () => {
     assert.equal(btn.el.classList.contains('is-error'), false);
   });
 
-  test('the failure reaches onDownloadError with the Error, when one is supplied', async () => {
+  test('the failure reaches onDownloadError with the original message intact', async () => {
     // Without this the only signal was opacity: 0.55 for half a second,
     // which a visitor cannot read as "that did not save".
+    //
+    // Deliberately NOT `seen[0] instanceof Error`: the throw is built in
+    // this realm and the component runs in a vm context, so a realm-bound
+    // instanceof is false across the boundary. The duck-typed path is the
+    // one under test, and `.message` is what the caller actually reads.
     const { X, setFetch, advance, flush } = setup();
     const seen = [];
     setFetch(async () => { throw new Error('offline'); });
@@ -240,11 +245,32 @@ describe('B3 — activation sequence with D-derived timings', () => {
     advance(625);
     await flush(); await flush();
     assert.equal(seen.length, 1);
-    assert.ok(seen[0] instanceof Error);
-    assert.equal(seen[0].message, 'offline');
+    assert.equal(seen[0].message, 'offline',
+      'the reason must survive as written, not re-wrapped as "Error: offline"');
+    // Same object, not a copy: duck-typing passes it through untouched.
+    assert.equal(seen[0].name, 'Error');
   });
 
-  test('a non-Error throw still reaches onDownloadError as an Error', async () => {
+  test('a cross-realm Error keeps its message — the realm-safe path', async () => {
+    // The regression this locks: `err instanceof Error` is false for an
+    // Error from another realm, so the old check re-wrapped it and the
+    // caller got "Error: offline" instead of "offline". Anything carrying
+    // a non-empty .message must pass through whatever its prototype chain.
+    const { X, setFetch, advance, flush } = setup();
+    const seen = [];
+    const foreign = Object.create({});           // no Error.prototype anywhere
+    foreign.message = 'cross-realm failure';
+    setFetch(async () => { throw foreign; });
+    const btn = X.createDownloadButton({ ...baseProps(), onDownloadError: (e) => seen.push(e) });
+    btn.el.dispatch('click');
+    advance(625);
+    await flush(); await flush();
+    assert.equal(seen.length, 1);
+    assert.equal(seen[0], foreign, 'an object with a real message is passed through as-is');
+    assert.equal(seen[0].message, 'cross-realm failure');
+  });
+
+  test('a non-Error throw still reaches onDownloadError with a usable message', async () => {
     // fetch rejecting with a string, or a thrown token, must not become
     // `undefined` in the caller's message.
     const { X, setFetch, advance, flush } = setup();
@@ -255,8 +281,23 @@ describe('B3 — activation sequence with D-derived timings', () => {
     advance(625);
     await flush(); await flush();
     assert.equal(seen.length, 1);
-    assert.ok(seen[0] instanceof Error);
     assert.equal(seen[0].message, 'nope');
+    assert.equal(seen[0].name, 'Error', 'it is wrapped so the caller can read it as one');
+  });
+
+  test('a message-less rejection still yields a non-empty message', async () => {
+    // The invariant that matters: whatever failed, the caller's
+    // `Could not download X: ${err.message}` is never left with a blank.
+    const { X, setFetch, advance, flush } = setup();
+    const seen = [];
+    setFetch(async () => { throw new Error('   '); });
+    const btn = X.createDownloadButton({ ...baseProps(), onDownloadError: (e) => seen.push(e) });
+    btn.el.dispatch('click');
+    advance(625);
+    await flush(); await flush();
+    assert.equal(seen.length, 1);
+    assert.ok(seen[0].message.trim().length > 0,
+      'a whitespace-only message must be replaced, not passed through');
   });
 
   test('omitting onDownloadError is unchanged: no throw, state still resets', async () => {

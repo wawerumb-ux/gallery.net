@@ -102,11 +102,23 @@ function createDownloadButton(props) {
   }
 
   /* Error: muted state, and the caller's own channel if it wants one. The
-     success state is never played. The throw is caught above and arrives
-     here as an Error; passing it on is what lets the gallery say why. */
+     success state is never played.
+
+     The handler always receives an Error with a usable message, but it is
+     chosen by duck-typing rather than `instanceof Error`. That check is
+     realm-bound: an Error built in another realm — a test harness's vm
+     context, an iframe, a worker — is not an instance of *this* Error, so
+     `instanceof` would quietly re-wrap it and hand the caller
+     "Error: offline" where the real reason was "offline". A fetch can also
+     reject with a bare string, and a DOMException carries no `message` at
+     all. Reading `.message` is what actually decides whether there is
+     something to report. */
   function fail(err) {
     a.classList.add('is-error');
-    if (props.onDownloadError) props.onDownloadError(err instanceof Error ? err : new Error(String(err)));
+    if (props.onDownloadError) {
+      const hasMessage = err && typeof err.message === 'string' && err.message.trim();
+      props.onDownloadError(hasMessage ? err : new Error(String(err)));
+    }
     setTimeout(() => { a.classList.remove('is-error'); busy = false; }, D.long);
   }
 
