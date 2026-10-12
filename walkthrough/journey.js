@@ -55,6 +55,8 @@
   var state = 0;
   var cards = [];
   var busy = false;
+  // Presses that arrived while the cards were mid-crossfade. See step().
+  var queued = 0;
 
   /* ── The video ──────────────────────────────────────────────────
      Markup carries preload="metadata" and the autoplay attributes;
@@ -270,6 +272,9 @@
          could still leave. With that link gone the same bug leaves them
          no route into the archive at all. */
       busy = false;
+      // Nothing waited, so a press queued before this branch must not be
+      // stranded behind a flag that is already clear.
+      flushQueued();
       return;
     }
 
@@ -293,6 +298,7 @@
       setTimeout(function () {
         if (outgoing) outgoing.classList.remove('is-on', 'is-out');
         busy = false;
+        flushQueued();
       }, Math.max(IN_MS, OUT_MS));
     }, HOLD_MS);
   }
@@ -332,8 +338,44 @@
     // The outgoing card's cleanup timer inside swap() releases busy.
   }
 
+  /* Spend whatever arrived while the cards were busy, once they are free.
+     A backlog of five taps is one move, not five: they all arrived inside
+     a single 380ms window, so the visitor meant "go" and the fastest
+     honest reading of five taps is one step, not a lurch through four
+     cards they never saw. step() clamps at either end, so an overshoot
+     parks on the last card instead of wrapping. */
+  function flushQueued() {
+    if (!queued) return;
+    var pending = queued;
+    queued = 0;
+    // Sign and magnitude are kept rather than the count: three taps and
+    // one tap of three notches both mean "forward", and a queue that
+    // alternated would otherwise cancel itself into a no-op.
+    step(pending > 0 ? 1 : -1);
+  }
+
+  /* A press that arrives mid-crossfade is remembered, not dropped.
+
+     `busy` exists so two crossfades never overlap, and it has to: the
+     outgoing and incoming cards are mid-animation, and starting a third
+     from that state leaves both stranded. But the lockout was being used
+     as a filter on input rather than as a guard on animation, and that
+     threw away a real press. Two taps 150ms apart advanced one stage,
+     and a thumb is not a metronome — on a phone, where there is no
+     wheel and no arrow keys, a visitor walking the journey taps faster
+     than 380ms and silently loses stages. The card they land on is then
+     not the card they asked for, which reads as "the click points at the
+     wrong image" rather than as a dropped event.
+
+     So the intent is kept and replayed by flushQueued() the moment the
+     cards are free. The deltas accumulate, so two quick taps still move
+     two stages, and the clamp below still stops at either end. */
   function step(delta) {
-    if (busy) return;
+    // Bounded: a burst of synthetic events (or a stuck finger dragging
+    // across the page, which some touchscreens emit as repeated clicks)
+    // must not build an unbounded backlog. Three is more than any real
+    // press can reach inside one crossfade.
+    if (busy) { queued = Math.max(-3, Math.min(3, queued + delta)); return; }
     var next = state + delta;
     if (next < 0 || next > N - 1) return;
     // The stage and the footage move together, so the card can never
@@ -349,6 +391,9 @@
     // Takes control too: without it the footage would keep its own clock
     // and carry the card straight back out of the first stage.
     takeControl();
+    // A press still waiting from before the reset must not land after it:
+    // the visitor asked to start over, not to start over and go on.
+    queued = 0;
     scrubTo(0);
     if (state === 0) return;
     // The wheel interrupts a transition freely; a reset does not have to
