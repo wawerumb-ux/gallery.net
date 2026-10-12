@@ -2370,6 +2370,10 @@ function openTagModal(path, pretty) {
   ).join('');
   el('tagActivity').value = (md && md.activity) || '';
   el('tagRename').value = path.split('/').pop();
+  // Save is disabled while a write is in flight; a dialog opened at any
+  // other moment must find it armed.
+  const saveBtn = el('tagSave');
+  if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save'; }
   overlayPush('tagModalOverlay', closeTagModal);
   el('tagModalOverlay').hidden = false;
 }
@@ -2426,7 +2430,12 @@ async function renamePhoto(path, newName) {
   return { ok: true };
 }
 
+/* A save in flight. One at a time: without this, a second press on Save
+   re-enters the function and writes the same metadata twice. */
+let tagSaving = false;
+
 async function saveTagModal() {
+  if (tagSaving) return;
   const path = state.taggingPath;
   const phase = el('tagStage').value;
   const activity = el('tagActivity').value.trim();
@@ -2435,36 +2444,72 @@ async function saveTagModal() {
   else delete state.metadata[path];
   overlayClose('tagModalOverlay');
 
+  /* Say the wait is happening, and say it before the first await.
+
+     Every other admin action opens with a progress toast — 'Uploading
+     0/N…', 'Moving 0/N…', 'Deleting 0/N…' — and classify was the only one
+     that closed its dialog and then went quiet. A real write is a GitHub
+     Contents PUT: a tree read, a blob write and a commit, and with
+     githubFetch's 10s timeout and three attempts a stalling one can sit
+     here for half a minute. Measured against a 4s mock, the dialog was
+     closed and the screen showed nothing from +355ms to +3070ms, which
+     reads as a dropped click rather than a save in progress. Sticky, so
+     it stays until the real outcome replaces it. */
+  tagSaving = true;
+  // The guard above is what makes a double save impossible; disabling the
+  // button is what makes it visible. openTagModal() puts it back, so a
+  // save that throws mid-flight cannot leave the next dialog's Save dead.
+  const saveBtn = el('tagSave');
+  if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Saving…'; }
+  const savingId = showToast('Saving classification…', true);
+
   let renamedLive = false;
   let renameMsg = '';
-  if (newName) {
-    const r = await renamePhoto(path, newName);
-    if (r.ok) {
-      renamedLive = !DEMO_MODE;
-      renameMsg = renamedLive ? 'renamed.' : 'renamed (demo).';
-    } else if (r.error && r.error !== 'same name') {
-      renameMsg = `NOT renamed (${r.error}).`;
+  try {
+    if (newName) {
+      const r = await renamePhoto(path, newName);
+      if (r.ok) {
+        renamedLive = !DEMO_MODE;
+        renameMsg = renamedLive ? 'renamed.' : 'renamed (demo).';
+      } else if (r.error && r.error !== 'same name') {
+        renameMsg = `NOT renamed (${r.error}).`;
+      }
     }
-  }
 
-  if (renamedLive) {
+    if (renamedLive) {
+      try {
+        await persistMetadata();
+        await loadTree(true);
+        showToast(`Saved classification — ${renameMsg}`, { type: 'success' });
+      } catch (err) {
+        reportTagSaveFailed(err, savingId);
+      }
+      return;
+    }
+
+    render();
     try {
       await persistMetadata();
-      await loadTree(true);
-      showToast(`Saved classification — ${renameMsg}`, { type: 'success' });
+      showToast(renameMsg ? `Saved classification — ${renameMsg}` : 'Saved classification.', { type: 'success' });
     } catch (err) {
-      showToast(`Metadata not saved: ${err.message}`, { type: 'error' });
+      reportTagSaveFailed(err, savingId);
     }
-    return;
+  } finally {
+    tagSaving = false;
+    if (saveBtn) { saveBtn.disabled = false; saveBtn.textContent = 'Save'; }
   }
+}
 
-  render();
-  try {
-    await persistMetadata();
-    showToast(renameMsg ? `Saved classification — ${renameMsg}` : 'Saved classification.', { type: 'success' });
-  } catch (err) {
-    showToast(`Metadata not saved: ${err.message}`, { type: 'error' });
-  }
+/* A failed write is the one message that must not be missed, so it is
+   sticky rather than a 3.2s toast. showToast dismisses whatever is on
+   screen before it shows the next one, so an ordinary error toast could
+   be replaced by an unrelated message — or simply expire — while the
+   visitor was still looking at the dialog that had just closed. */
+function reportTagSaveFailed(err, savingId) {
+  // Replace the pending message in place rather than dismissing and
+  // re-showing, so there is never a gap with nothing on screen.
+  if (savingId != null) dismissToast();
+  showToast(`Classification NOT saved: ${err.message}`, { type: 'error', sticky: true });
 }
 
 /* ── Admin → Sort: pick photos right on the gallery, then move them all into
