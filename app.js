@@ -300,6 +300,13 @@ const state = {
   pendingUploads: null, // { files: File[], context: folderName|null }
   metadata: {},  // fullRepoPath -> { phase, activity, visual? } (manual overrides)
   _metaHash: null, // last persisted metadata JSON, to avoid no-op writes
+  // The sha of gallery.json as last seen. GitHub's Contents API needs the
+  // current sha to update an existing path, and without one it rejects the
+  // PUT with 422 — so an uncached save was three round trips (PUT rejected,
+  // GET to read the sha, PUT again). Holding it makes the happy path one.
+  // A stale value answers 409, and githubPut already re-reads and retries,
+  // so a cache that has gone out of date costs a round trip, not a failure.
+  _metaSha: null,
   taggingPath: null,
 };
 
@@ -1001,6 +1008,11 @@ async function init() {
    Missing or malformed file simply starts empty. */
 async function loadMetadata(auth = false) {
   state.metadata = {};
+  // The sha belongs to the file on the branch, not to what we just read,
+  // so a failed load must not leave a stale one behind to poison the next
+  // write. githubPut recovers from a bad sha (409 or 422 both re-read), but
+  // the cache is only an optimisation when it is honest.
+  state._metaSha = null;
   if (DEMO_MODE) return;
   const headers = {};
   if (auth && state.token) headers.Authorization = `Bearer ${state.token}`;
@@ -1011,6 +1023,34 @@ async function loadMetadata(auth = false) {
     state.metadata = data && typeof data === 'object' ? data : {};
   } catch (err) {
     console.warn('No gallery.json metadata yet — starting clean.', err && err.message);
+    return;
+  }
+  /* A raw.githubusercontent read carries no sha — that host serves bytes, not
+     git objects — so learning it costs one more request, and it is only
+     worth spending for an admin who is about to write. Asking now means
+     every classify after this one is a single PUT instead of three
+     round trips; asking lazily on first save would put the same request
+     in front of the visitor's first click instead, where a stall is
+     felt rather than absorbed during sign-in. */
+  if (auth && state.token) await refreshMetaSha();
+}
+
+/* Read just the sha of gallery.json. Failure is not an error worth
+   surfacing: the write path works without it, only slower, and this is an
+   optimisation. */
+async function refreshMetaSha() {
+  if (DEMO_MODE || !state.token) return null;
+  try {
+    const res = await githubFetch(contentsUrl('gallery.json'), {
+      headers: { Authorization: `Bearer ${state.token}` },
+    });
+    if (!res.ok) return null;
+    const data = await res.json().catch(() => null);
+    if (data && data.sha) state._metaSha = data.sha;
+    return state._metaSha;
+  } catch (err) {
+    console.warn('Could not read the gallery.json sha — writes will re-read it.', err && err.message);
+    return null;
   }
 }
 
@@ -1021,7 +1061,12 @@ async function persistMetadata() {
   const json = JSON.stringify(state.metadata, null, 2);
   if (state._metaHash === json) return;
   const encoded = btoa(unescape(encodeURIComponent(json)));
-  await githubPut('gallery.json', encoded, 'Update photo classification metadata via gallery admin');
+  const sha = state._metaSha || undefined;
+  const written = await githubPut('gallery.json', encoded,
+    'Update photo classification metadata via gallery admin', sha ? { sha } : {});
+  // Keep the cache pointed at what is now on the branch: GitHub returns the
+  // new blob sha on a successful PUT, so the next save is again one request.
+  if (written && written.sha) state._metaSha = written.sha;
   state._metaHash = json;
 }
 
@@ -3364,7 +3409,16 @@ function contentsUrl(path) {
    caller opts out (overwrite:false — a "don't clobber" create), an
    acknowledged success is re-fetched for its sha and the write is retried.
    This is what makes gallery.json metadata edits work on a repo that already
-   has the file committed (e.g. via the classify modal or upload metadata). */
+   has the file committed (e.g. via the classify modal or upload metadata).
+
+   A caller that already knows the sha may pass it (opts.sha) and skip both
+   the rejected PUT and the read: that is what turns a metadata save from
+   three round trips into one. The recovery below is unchanged and still
+   covers a sha that has since gone stale — GitHub answers 409 for that,
+   which falls into the same re-read-and-retry path.
+
+   Returns the sha of the file as it now stands, or null for a plain create
+   whose response carried none. */
 async function githubPut(path, base64Content, message, opts = {}) {
   const overwrite = opts.overwrite !== false;
   async function attempt(sha) {
@@ -3374,10 +3428,15 @@ async function githubPut(path, base64Content, message, opts = {}) {
       body: JSON.stringify({ message, content: base64Content, branch: CONFIG.branch, ...(sha ? { sha } : {}) }),
     });
   }
-  let res = await attempt();
+  let res = opts.sha ? await attempt(opts.sha) : await attempt();
   if (!res.ok) {
     const err0 = await res.json().catch(() => ({}));
-    const needsSha = /sha wasn't supplied|sha was supposed to be a string|"sha" wasn't supplied/i.test(err0.message || '');
+    const message0 = err0.message || '';
+    // "sha wasn't supplied" means we arrived without one; "is at X but
+    // expected Y" (409) means the one we held has been superseded. Both are
+    // answered by reading the file again and trying once with what it says.
+    const needsSha = /sha wasn't supplied|sha was supposed to be a string|"sha" wasn't supplied/i.test(message0)
+      || res.status === 409;
     if (needsSha && overwrite) {
       const cur = await githubFetch(contentsUrl(path), {
         headers: { Authorization: `Bearer ${state.token}` },
@@ -3392,6 +3451,11 @@ async function githubPut(path, base64Content, message, opts = {}) {
     const err = await res.json().catch(() => ({}));
     throw new Error(err.message || `Upload failed (${res.status})`);
   }
+  // A successful PUT answers with the new content's sha; that is the value
+  // the next write needs, so it is handed back rather than re-read.
+  const written = await res.json().catch(() => null);
+  const sha = written && written.content && written.content.sha;
+  return sha ? { sha } : null;
 }
 
 async function githubDelete(path, sha, message) {
