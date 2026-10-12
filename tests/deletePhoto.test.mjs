@@ -129,7 +129,10 @@ describe('A failed delete cannot be misread as a success', () => {
   });
 
   test('it carries the underlying reason', () => {
-    assert.match(report, /err\.message/,
+    // errWhy(err), not err.message directly: the reason still has to reach
+    // the visitor, and it has to survive a rejection that carries no
+    // message — an empty one would render no toast at all.
+    assert.match(report, /NOT deleted: \$\{errWhy\(err\)\}/,
       'the GitHub reason must reach the visitor');
   });
 

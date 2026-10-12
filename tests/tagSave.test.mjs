@@ -115,7 +115,10 @@ describe('A failed classification save cannot be missed', () => {
   });
 
   test('it carries the underlying reason', () => {
-    assert.match(report, /err\.message/,
+    // errWhy(err), not err.message directly: the reason still has to reach
+    // the visitor, and it has to survive a rejection that carries no
+    // message — an empty one would render no toast at all.
+    assert.match(report, /NOT saved: \$\{errWhy\(err\)\}/,
       'the GitHub error must reach the visitor, not just "it failed"');
   });
 

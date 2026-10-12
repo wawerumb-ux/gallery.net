@@ -40,6 +40,24 @@ const APP = new URL('../app.js', import.meta.url);
 const CSS = new URL('../style.css', import.meta.url);
 const app = await readFile(APP, 'utf8');
 const css = await readFile(CSS, 'utf8');
+/* The library is imported here, at module scope, because that is the only
+   place top-level `await` is legal. Inside a describe() callback or a
+   non-async test body it is a syntax error, and the whole file — 40-odd
+   other tests included — fails to parse. */
+const dlb = await import('../hcg-toast.js');
+
+const sameDeep = (a, b, msg) => assert.deepStrictEqual(a, b, msg);
+
+/* Strip comments before pattern-matching against code. Several of the
+   rules these tests protect are written in the comments beside the code,
+   and this file's own note about lib.show not existing would otherwise
+   trip the very assertion that forbids calling it.
+   Declared before its callers: `const` has no hoisting, so building `src`
+   from a function defined further down throws a TDZ ReferenceError. */
+const code = (s) => s
+  .replace(/\/\*[\s\S]*?\*\//g, ' ')
+  .replace(/^\s*\/\/.*$/gm, ' ');
+
 /* `src` and `cssCode` are what the assertions read: the same files with
    their comments removed, so a note in the margin can neither satisfy an
    assertion nor trip one. `app`/`css` stay raw because several slice
@@ -47,21 +65,24 @@ const css = await readFile(CSS, 'utf8');
 const src = code(app);
 const cssCode = code(css);
 
-const sameDeep = (a, b, msg) => assert.deepStrictEqual(a, b, msg);
-
-/* Strip comments before pattern-matching against code. Several of the
-   rules these tests protect are written in the comments beside the code,
-   and this file's own note about lib.show not existing would otherwise
-   trip the very assertion that forbids calling it. */
-const code = (src) => src
-  .replace(/\/\*[\s\S]*?\*\//g, ' ')
-  .replace(/^\s*\/\/.*$/gm, ' ');
-
 /* Slice app.js between two markers, comments removed.
    Markers are matched against the raw source — several of them are
    themselves comment text — and only the slice handed to an assertion has
-   the prose taken out. */
-const sliceCode = (from, to) => code(app.slice(app.indexOf(from), to ? app.indexOf(to) : undefined));
+   the prose taken out.
+
+   The end marker is searched FROM the start marker, not from the top of
+   the file. Searching from 0 finds the first `};` anywhere, which for a
+   marker deep in the file sits at a much smaller index than the start —
+   and slice(a, b) with b < a is empty, so the assertion below would have
+   been handed '' and passed a vacuous doesNotMatch. */
+const sliceCode = (from, to) => {
+  const a = app.indexOf(from);
+  assert.notStrictEqual(a, -1, `start marker not found in app.js: ${from}`);
+  const b = to ? app.indexOf(to, a + from.length) : app.length;
+  assert.notStrictEqual(b, -1, `end marker not found after the start: ${to}`);
+  assert.ok(b > a, `end marker must come after the start: ${from} … ${to}`);
+  return code(app.slice(a, b));
+};
 
 describe('A — the sound is only ever heard on purpose', () => {
   test('A1 — no AudioContext is built before a gesture', () => {
@@ -207,14 +228,13 @@ describe('C — every message is drawn in Penguin\'s shape', () => {
     // four typed helpers hang off it, but `.show` does not — that name only
     // exists on the instance from `toast.create()`. Calling `lib.show(...)`
     // throws on every message and nothing ever reaches the screen.
-    const lib = await import('../hcg-toast.js');
     const api = globalThis.toast;
     assert.equal(typeof api, 'function', 'the global must be callable');
     assert.equal(api.show, undefined,
       'the global does NOT expose show() — if this ever changes, call it again');
     assert.equal(typeof api.success, 'function');
     assert.equal(typeof api.create, 'function');
-    assert.equal(typeof lib, 'object');
+    assert.equal(typeof dlb, 'object');
 
     // ...and the wrapper must therefore invoke the global itself.
     const show = sliceCode('function showToast');
@@ -332,11 +352,15 @@ describe('E — the colour follows the action', () => {
   test('E3 — an explicit type outranks the sticky default', () => {
     // The batches raise sticky *errors* mid-run — a file that 403s has to
     // come out red, not orange, or a failed read reads as still-working.
+    // The whole match is the evidence: each one names `type: 'error'` on
+    // the same option object as `sticky: true`, which is exactly what
+    // makes the explicit type outrank the sticky default in showToast.
     const errs = [...src.matchAll(/\{[^}]*type: 'error'[^}]*sticky: true/g)];
     assert.ok(errs.length >= 3,
       'the batches raise sticky errors; none found, so the default cannot be trusted');
-    for (const [, opts] of errs) {
-      assert.match(opts, /type: 'error'/, 'a sticky error must keep naming its type');
+    for (const m of errs) {
+      assert.match(m[0], /type: 'error'/,
+        'a sticky error must keep naming its type rather than taking the pending default');
     }
   });
 
@@ -422,16 +446,23 @@ describe('F — long reads and writes report a number', () => {
   test('F8 — the stylesheet gives the strip room and the labels somewhere to sit', () => {
     assert.match(cssCode, /\.hcg-toast-item--progress \{ padding-bottom: 31px; \}/,
       'a bar needs somewhere to sit that is not the message');
-    const bar = css.slice(css.indexOf('.toast-progress {'));
-    assert.match(bar, /\.toast-progress \{[\s\S]*?position: absolute;/);
-    assert.match(bar, /\.toast-progress \{[\s\S]*?bottom: 0;/);
+    const bar = cssCode.slice(cssCode.indexOf('.toast-progress {'));
+    assert.match(bar, /\.toast-progress \{[\S\s]*?position: absolute;/);
+    assert.match(bar, /\.toast-progress \{[\S\s]*?bottom: 0;/);
     assert.match(bar, /\.toast-progress-count \{ left: 0; \}/);
     assert.match(bar, /\.toast-progress-pct \{ right: 0; \}/);
     // The labels sit on the fill at one end of the run and the track at
     // the other, which is why --toast-fill is a darker step than the tint.
-    for (const v of ['info', 'success', 'error', 'warning']) {
-      const at = css.indexOf(`.hcg-toast-item--${v === 'warning' ? 'warning,' : v} {`);
-      const rule = css.slice(at, css.indexOf('}', at));
+    //
+    // Matched on the comment-stripped copy and anchored to the newline that
+    // opens the block: warning shares one selector list with pending, so
+    // `.hcg-toast-item--warning {` does not exist and indexOf returned -1,
+    // slicing from -1 handed this the tail of the file.
+    for (const v of ['info', 'success', 'error', 'warning', 'pending']) {
+      const at = cssCode.search(new RegExp(`\\.hcg-toast-item--${v}[\\s\\S]*?\\{`));
+      assert.notStrictEqual(at, -1, `no rule found for the ${v} variant`);
+      const rule = cssCode.slice(at, cssCode.indexOf('}', at));
+      assert.match(rule, /--toast-tint:/, `${v} must declare --toast-tint`);
       assert.match(rule, /--toast-fill: #[0-9a-f]{6};/,
         `${v} needs a deep fill for the white label to clear 4.5:1`);
     }
