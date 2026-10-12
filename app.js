@@ -2671,8 +2671,8 @@ async function batchDeleteSelected() {
   showPending('Deleting photos', 0, paths.length);
   for (let i = 0; i < paths.length; i++) {
     const path = paths[i];
-    const asset = state.assets.find(a => a.canonical.path === path);
-    const items = asset ? [asset.canonical, ...asset.variants] : [];
+    // The whole asset, same as the single-photo path — see assetItemsFor.
+    const items = assetItemsFor(path);
     try {
       for (const item of items) {
         await githubDelete(item.path, item.sha, `Remove ${item.name} via gallery admin`);
@@ -3432,16 +3432,58 @@ function reportDeleteFailed(err, deletingId) {
 /* The part that talks to the repo. Everything that decides whether the
    photo actually goes still lives here and in applyImageDelete below —
    demo mode, the GitHub call, the local state update, the re-render and
-   both toasts are unchanged from when this ran as one inline function. */
+   both toasts are unchanged from when this ran as one inline function.
+
+   Every member of the asset is deleted, not just the original — see
+   assetItemsFor below. Each is attempted even if an earlier one fails,
+   because abandoning the rest strands the variants, and the first real
+   reason is the one reported. */
 function deleteImageRequest(path, sha, prettyLabel) {
   if (DEMO_MODE) return Promise.resolve();
-  return githubDelete(path, sha, `Remove ${prettyLabel} via gallery admin`);
+  const items = assetItemsFor(path, sha);
+  return (async () => {
+    let firstError = null;
+    for (const item of items) {
+      try {
+        await githubDelete(item.path, item.sha, `Remove ${prettyLabel} via gallery admin`);
+      } catch (err) {
+        if (!firstError) firstError = err;
+      }
+    }
+    if (firstError) throw firstError;
+  })();
+}
+
+/* The whole asset, not the one file the visitor tapped.
+
+   A photo in this repo is usually three files — the original plus its
+   `-480` / `-800` webp variants — and buildAssets collapses them into ONE
+   card, keyed on the original (variantScore gives a non-variant name 0,
+   so it always wins canonical, and the variants are unioned in by shared
+   base name and folder). So deleting only the original leaves the
+   variants behind, and because they still share that base name they
+   group into a fresh asset on the next tree load. The photo vanishes,
+   the toast says Deleted, and it walks back onto the wall on the next
+   refresh — which is exactly what it did.
+
+   The batch delete got this right from the start; only the single-photo
+   path deleted one file. */
+function assetItemsFor(path, sha) {
+  const asset = (state.assets || []).find(a => a.canonical.path === path);
+  if (asset) return asset.items;
+  return [{ path, sha, name: prettyName(path.split('/').pop()) }];
 }
 
 function applyImageDelete(path) {
+  const paths = new Set(assetItemsFor(path).map(i => i.path));
   for (const folder of state.order) {
-    state.folders[folder] = state.folders[folder].filter(f => f.path !== path);
+    state.folders[folder] = state.folders[folder].filter(f => !paths.has(f.path));
   }
+  // state.assets is what every other admin flow resolves an asset
+  // through — move, rename, remove-phase, the viewer's variant picker —
+  // and it is rebuilt only by a full tree load. A delete that skipped it
+  // left a dead asset in place for all of them.
+  state.assets = (state.assets || []).filter(a => !paths.has(a.canonical.path));
 }
 
 function contentsUrl(path) {
