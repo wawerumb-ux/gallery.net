@@ -219,18 +219,29 @@
   </div>
 </div>
 
-<!-- Admin sign-in -->
+<!-- Admin sign-in: a field and its two buttons, and nothing else.
+     Both prose paragraphs that used to sit around it are gone — the
+     instruction above the input and the storage note below the buttons.
+     What they said still has to be findable, so it lives in two places
+     that answer rather than announce:
+       · the placeholder, github_pat_..., says what to paste
+       · app.js rejects a token without push permission with "This
+         token does not have write access to the repo." — which is the
+         case a visitor would actually hit, and now the only one
+       · the tour's sign-in step hints "The sign-in box takes a
+         repo-scoped token."
+     What is genuinely no longer said anywhere is the reassurance that
+     the token stays in session storage. That was a privacy note, not an
+     instruction, and nothing replaces it. -->
 <div class="modal-overlay" id="adminModalOverlay" hidden>
   <div class="modal" role="dialog" aria-modal="true" aria-labelledby="adminModalTitle">
     <h2 id="adminModalTitle">Admin sign-in</h2>
-    <p class="modal-copy">Enter a GitHub personal access token scoped only to this repository, with contents read-and-write permission.</p>
     <input type="password" id="tokenInput" class="text-input" placeholder="github_pat_..." autocomplete="off">
     <p class="modal-error" id="tokenError" hidden></p>
     <div class="modal-actions">
       <button class="btn btn-ghost" id="tokenCancel" data-tour-target="admin-modal-cancel">Cancel</button>
       <button class="btn btn-primary" id="tokenSubmit">Sign in</button>
     </div>
-    <p class="modal-note">The token stays only in this browser tab's session storage. It's never written to the repo and never sent anywhere but api.github.com.</p>
   </div>
 </div>
 
