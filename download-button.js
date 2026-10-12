@@ -9,8 +9,15 @@
        variant?: 'primary' | 'ghost'       // default 'primary'
        onDownloadStart?: () => void
        onDownloadComplete?: () => void
+       onDownloadError?: (error: Error) => void
        className?: string
      }
+
+   onDownloadError is additive and optional: without it the control behaves
+   exactly as before (muted is-error, then reset). With it the failure is
+   reported through the caller's own channel — the gallery raises an error
+   toast from it, because `opacity: 0.55` for half a second is not
+   something a visitor reads as "that did not save".
 
    Every timing derives from D in oneui.js (SPEED_MULTIPLIER × 1.25).
    No icon library, no motion library: inline SVG + One UI easing.
@@ -82,7 +89,7 @@ function createDownloadButton(props) {
       setTimeout(() => URL.revokeObjectURL(url), 10000);
       succeed();
     } catch (err) {
-      fail();
+      fail(err);
     }
   }
 
@@ -94,9 +101,12 @@ function createDownloadButton(props) {
     setTimeout(() => { a.classList.remove('is-success'); busy = false; }, D.long);
   }
 
-  /* Error: muted state only. The success state is never played. */
-  function fail() {
+  /* Error: muted state, and the caller's own channel if it wants one. The
+     success state is never played. The throw is caught above and arrives
+     here as an Error; passing it on is what lets the gallery say why. */
+  function fail(err) {
     a.classList.add('is-error');
+    if (props.onDownloadError) props.onDownloadError(err instanceof Error ? err : new Error(String(err)));
     setTimeout(() => { a.classList.remove('is-error'); busy = false; }, D.long);
   }
 

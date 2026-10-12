@@ -2047,6 +2047,12 @@ function wireStaticEvents() {
     variant: 'ghost',
     className: 'dlb-viewer',
     onDownloadComplete: () => showToast(`Saved ${viewerDownloadName}`, { type: 'success' }),
+    // A failed fetch used to be the muted is-error state alone: 0.55
+    // opacity for half a second, then reset. Nothing said the photo had
+    // not saved, and a visitor who had just watched it fail could not
+    // tell that from the button simply finishing its animation.
+    onDownloadError: (err) => showToast(`Could not download ${viewerDownloadName}: ${errWhy(err)}`,
+      { type: 'error', sticky: true }),
   });
   el('lightboxDownloadSlot').appendChild(viewerDownload.el);
   el('lightboxTag').addEventListener('click', viewerTag);
@@ -2379,7 +2385,7 @@ async function performUploads() {
       } catch (err) {
         failed++;
         failedNames.push(file.name);
-        const why = (err && err.message) ? err.message : 'unknown error';
+        const why = errWhy(err);
         if (!failedReasons.includes(why)) failedReasons.push(why);
       }
       done++;
@@ -2403,7 +2409,7 @@ async function performUploads() {
   try {
     await persistMetadata();
   } catch (err) {
-    showToast(`Photos added, but classification metadata not saved: ${err.message}`, { type: 'error' });
+    showToast(`Photos added, but classification metadata not saved: ${errWhy(err)}`, { type: 'error' });
   }
   await loadTree(true);
 }
@@ -2565,7 +2571,7 @@ function reportTagSaveFailed(err, savingId) {
   // Replace the pending message in place rather than dismissing and
   // re-showing, so there is never a gap with nothing on screen.
   if (savingId != null) dismissToast();
-  showToast(`Classification NOT saved: ${err.message}`, { type: 'error', sticky: true });
+  showToast(`Classification NOT saved: ${errWhy(err)}`, { type: 'error', sticky: true });
 }
 
 /* ── Admin → Sort: pick photos right on the gallery, then move them all into
@@ -2857,7 +2863,7 @@ async function renamePhase() {
   try {
     await persistMetadata();
   } catch (err) {
-    showToast(`Photos renamed, but metadata not saved: ${err.message}`, { type: 'error' });
+    showToast(`Photos renamed, but metadata not saved: ${errWhy(err)}`, { type: 'error' });
   }
   showToast(failed ? `Renamed "${from}" to "${to}"${failureSuffix(failedNames)}.` : `Renamed "${from}" to "${to}".`,
     { type: failed ? 'warning' : 'success' });
@@ -2919,7 +2925,7 @@ async function removePhase() {
         await githubDelete(item.path, item.sha, `Remove phase ${folder} via gallery admin`);
       } catch (err) {
         failed++;
-        showToast(`Failed: ${item.name} — ${err.message}`, { type: 'error', sticky: true });
+        showToast(`Failed: ${item.name} — ${errWhy(err)}`, { type: 'error', sticky: true });
       }
       // After the try rather than inside it: the bar reports requests
       // finished, and a failed one is finished too.
@@ -2930,7 +2936,7 @@ async function removePhase() {
   try {
     await persistMetadata();
   } catch (err) {
-    showToast(`Photos removed, but metadata not saved: ${err.message}`, { type: 'error' });
+    showToast(`Photos removed, but metadata not saved: ${errWhy(err)}`, { type: 'error' });
   }
   showToast(failed ? `Removed "${folder}" (${failed} files failed).` : `Removed "${folder}".`,
     { type: failed ? 'warning' : 'success', undo: failed ? null : undoLastChange });
@@ -3052,7 +3058,7 @@ async function undoLastChange() {
     const tgt = await treePathMap(parent.sha);
     await applyRestore(planRestore(cur, tgt), 'Undo');
   } catch (err) {
-    showToast(`Could not undo: ${err.message}`, { type: 'error' });
+    showToast(`Could not undo: ${errWhy(err)}`, { type: 'error' });
   }
 }
 
@@ -3079,7 +3085,7 @@ async function revertAllChanges() {
     const tgt = await treePathMap(baseline.sha);
     await applyRestore(planRestore(cur, tgt), 'Revert all');
   } catch (err) {
-    showToast(`Could not revert all: ${err.message}`, { type: 'error' });
+    showToast(`Could not revert all: ${errWhy(err)}`, { type: 'error' });
   }
 }
 
@@ -3426,7 +3432,7 @@ async function deleteImage(path, sha, prettyLabel, opts = {}) {
    restore puts the photo back on screen either way. */
 function reportDeleteFailed(err, deletingId) {
   if (deletingId != null) dismissToast();
-  showToast(`NOT deleted: ${err.message}`, { type: 'error', sticky: true });
+  showToast(`NOT deleted: ${errWhy(err)}`, { type: 'error', sticky: true });
 }
 
 /* The part that talks to the repo. Everything that decides whether the
@@ -3918,6 +3924,26 @@ function sanitizeFilename(name) {
 const cssSafe = (s) => s.replace(/[^a-zA-Z0-9_-]/g, '_');
 const escapeHtml = (s) => s.replace(/[&<>]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
 const escapeAttr = (s) => escapeHtml(s).replace(/"/g, '&quot;');
+
+/* Why something failed, as a string that is never empty.
+   Every failure toast interpolated `${err.message}` directly, and that is
+   not a safe assumption: a rejected fetch, a thrown string, or an Error
+   constructed with no argument all reach a catch with a message of
+   undefined or ''. hcg-toast drops a falsy message outright (hcg-toast.js
+   returns null before it builds anything), so `Could not undo: ` would
+   have produced no message at all — the one outcome a failure toast
+   exists to prevent.
+
+   The fallbacks are ordered by how much they actually tell the reader: a
+   real message, then the thrown value's own text, then 'unknown error'.
+   The middle step is skipped when it would only stringify to
+   '[object Object]', which names nothing. */
+const errWhy = (err) => {
+  if (err && typeof err.message === 'string' && err.message.trim()) return err.message;
+  if (err === null || err === undefined) return 'unknown error';
+  const text = String(err);
+  return (text && text !== '[object Object]') ? text : 'unknown error';
+};
 
 /* ── Notifications ─────────────────────────────────────────────────
    Every message in the gallery goes through showToast, which is a

@@ -100,7 +100,7 @@
 /* The authored tour. The `order` fields are the authored sequence;
    boot.js renumbers the audience-filtered list before the engine
    walks it, so the on-screen "N / total" is always right for both
-   audiences (11 steps for visitors, 54 for signed-in admins). */
+   audiences (15 steps for visitors, 45 for signed-in admins). */
 const TOUR_STEPS = [
   /* ── Segment 1: the shared path (every visitor) ─────────── */
 

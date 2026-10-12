@@ -264,14 +264,22 @@ completed tour never restarts on its own.
 
 The tour has two audiences. Everyone walks the shared path: the photo wall,
 the viewer's arrows, the Albums tab, an album, and the ⋮ menu — including
-where admins sign in (11 steps). A user who is already signed in as admin when
-the tour starts walks **every admin control** instead (54 steps): add photos
+where admins sign in (15 steps). A user who is already signed in as admin when
+the tour starts walks **every admin control** instead (45 steps): add photos
 from the menu and from the + button, the upload dialog, search (type, scope,
 clear), new album, select → mark → move → delete, album settings (rename,
 remove, undo, revert), the per-album ⋮ menu, the viewer's download, classify
 (save and cancel), viewer delete, and sign out. Sign in *before* starting the
 tour to see that walk. Admin steps are filtered out for visitors — the tour
 never renders a step the signed-out user cannot perform.
+
+Four buttons are deliberately not tour steps, and `tour/tour.test.mjs`
+names each: **Delete** and **Cancel** in the delete confirmation (the
+steps that reach them are gated on `confirm: { kind: 'pulse' }` and are
+written to leave that dialog sitting open), and the two in the welcome
+panel (it renders only once the walkthrough has run to its last card, so a
+visitor mid-tour has no such buttons in the document). **Sign in** is the
+fifth: signing in needs a real repo token, which a visitor cannot supply.
 
 Every button the tour clicks is either guarded by the app (it changes nothing:
 an empty-field toast, a `confirm()` the user cancels, or a real no-op) or is
@@ -284,8 +292,9 @@ Run the tour's test suite with `node --test` (Node 18+; same
 `node:test` + `vm`-sandbox harness as `tests/`). It covers gating, action
 detection (including synthetic-event rejection), the confirm/unlock
 hand-off, escapes, persistence, reduced-motion, a11y, the speed multiplier,
-the audience filter, and the full 56-step authored tour end to end — plus a
-coverage audit that fails if any button in `index.html` loses its tour step.
+the audience filter, and the full 60-step authored tour end to end — plus a
+coverage audit that fails if any button in `index.html` loses its tour step
+without appearing in that suite's `EXCLUDED` map.
 
 ## Testing it before you have a repo
 

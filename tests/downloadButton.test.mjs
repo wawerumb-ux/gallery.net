@@ -229,6 +229,51 @@ describe('B3 — activation sequence with D-derived timings', () => {
     assert.equal(btn.el.classList.contains('is-error'), false);
   });
 
+  test('the failure reaches onDownloadError with the Error, when one is supplied', async () => {
+    // Without this the only signal was opacity: 0.55 for half a second,
+    // which a visitor cannot read as "that did not save".
+    const { X, setFetch, advance, flush } = setup();
+    const seen = [];
+    setFetch(async () => { throw new Error('offline'); });
+    const btn = X.createDownloadButton({ ...baseProps(), onDownloadError: (e) => seen.push(e) });
+    btn.el.dispatch('click');
+    advance(625);
+    await flush(); await flush();
+    assert.equal(seen.length, 1);
+    assert.ok(seen[0] instanceof Error);
+    assert.equal(seen[0].message, 'offline');
+  });
+
+  test('a non-Error throw still reaches onDownloadError as an Error', async () => {
+    // fetch rejecting with a string, or a thrown token, must not become
+    // `undefined` in the caller's message.
+    const { X, setFetch, advance, flush } = setup();
+    const seen = [];
+    setFetch(async () => { throw 'nope'; });
+    const btn = X.createDownloadButton({ ...baseProps(), onDownloadError: (e) => seen.push(e) });
+    btn.el.dispatch('click');
+    advance(625);
+    await flush(); await flush();
+    assert.equal(seen.length, 1);
+    assert.ok(seen[0] instanceof Error);
+    assert.equal(seen[0].message, 'nope');
+  });
+
+  test('omitting onDownloadError is unchanged: no throw, state still resets', async () => {
+    // The prop is additive. baseProps() has no onDownloadError and every
+    // other test in this file relies on that path.
+    const { X, setFetch, advance, flush } = setup();
+    setFetch(async () => { throw new Error('offline'); });
+    const btn = X.createDownloadButton(baseProps());
+    btn.el.dispatch('click');
+    advance(625);
+    await flush(); await flush();
+    assert.equal(btn.el.classList.contains('is-error'), true);
+    advance(625);
+    assert.equal(btn.el.classList.contains('is-error'), false);
+    assert.equal(btn.el.classList.contains('is-success'), false);
+  });
+
   test('HTTP error status is an error, not a success', async () => {
     const { X, setFetch, advance, flush } = setup();
     setFetch(async () => ({ ok: false, status: 404, blob: async () => ({}) }));

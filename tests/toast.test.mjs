@@ -34,6 +34,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert';
 import { readFile } from 'node:fs/promises';
+import vm from 'node:vm';
 
 const APP = new URL('../app.js', import.meta.url);
 const CSS = new URL('../style.css', import.meta.url);
@@ -224,7 +225,68 @@ describe('C — every message is drawn in Penguin\'s shape', () => {
       'a fifth type cannot go through the four named helpers either');
   });
 
-  test('C7 — the timing is Penguin\'s, and Undo buys itself more', () => {
+  test('C8 — a failure always produces a message the library will render', () => {
+  // hcg-toast returns null on a falsy message before it builds anything,
+  // so `${err.message}` on an Error with no message — a rejected fetch, a
+  // thrown string, `new Error()` — yields `Could not undo: ` and the one
+  // toast that exists to report a failure renders nothing at all.
+  // Slice the declaration out and evaluate it. Brace-bodied, so the end is
+  // the declaration's own closing `};` at column 0 — not the first `;` in
+  // the file, which would land inside the function and hand vm a truncated
+  // arrow.
+  const start = src.indexOf('const errWhy =');
+  assert.notStrictEqual(start, -1, 'errWhy is missing from app.js');
+  const end = src.indexOf('\n};', start);
+  assert.notStrictEqual(end, -1, 'errWhy has no top-level closing brace');
+  const expr = src.slice(start + 'const errWhy = '.length, end + 2).trim()
+    .replace(/;$/, '');
+  assert.match(expr, /^\(err\)\s*=>\s*\{/, 'the slice must be the whole declaration');
+  assert.equal((expr.match(/\{/g) || []).length, (expr.match(/\}/g) || []).length,
+    'the slice must be brace-balanced');
+  const why = vm.runInNewContext('(' + expr + ')');
+  // The real message, always.
+  assert.equal(why(new Error('boom')), 'boom');
+  // An Error with no usable message stringifies to itself, which is at
+  // least not empty: String(new Error('')) is 'Error', and a whitespace
+  // message still appears inside Error.prototype.toString.
+  assert.equal(why(new Error('')), 'Error');
+  assert.equal(why(new Error('   ')), 'Error:    ');
+  // A thrown value with its own text keeps it.
+  assert.equal(why('offline'), 'offline');
+  assert.equal(why(404), '404');
+  // Nothing, or something that would stringify to nothing useful.
+  assert.equal(why({}), 'unknown error');
+  assert.equal(why({ message: 42 }), 'unknown error');
+  assert.equal(why([]), 'unknown error');
+  assert.equal(why(null), 'unknown error');
+  assert.equal(why(undefined), 'unknown error');
+  // The invariant the whole thing exists for: nothing reaches the library
+  // as an empty or whitespace-only message, because it would render nothing.
+  for (const v of [new Error(''), {}, { message: '  ' }, [], null, undefined, '', 'x', 0]) {
+    assert.ok(why(v).trim().length > 0, `${JSON.stringify(v)} produced an empty reason`);
+  }
+});
+
+test('C9 — no failure toast interpolates err.message directly', () => {
+  const lines = src.split('\n');
+  const offenders = lines
+    .map((l, i) => [i + 1, l])
+    .filter(([, l]) => /showToast\(/.test(l) && /\$\{\s*err\.message\s*\}/.test(l));
+  sameDeep(offenders, [], 'these route around errWhy and can render nothing');
+});
+
+test('C10 — errWhy is exported to the vm harness, or it is unreachable', () => {
+  // It is a top-level const in app.js, which runs inside an IIFE, so the
+  // tests can only reach it by slicing the source — which C8 does. What
+  // matters here is that it exists at all and is not shadowed.
+  assert.match(src, /^const errWhy = \(err\) => /m);
+  assert.equal((src.match(/^const errWhy = /gm) || []).length, 1);
+  // ...and the pre-existing inline guard was replaced by it, not duplicated.
+  assert.doesNotMatch(src, /const why = \(err && err\.message\)/);
+  assert.match(src, /const why = errWhy\(err\);/);
+});
+
+test('C7 — the timing is Penguin\'s, and Undo buys itself more', () => {
     assert.match(src, /const TOAST_MS = 8000;/);
     assert.match(src, /const TOAST_UNDO_MS = 10000;/);
     assert.match(src, /showProgress: false/,
