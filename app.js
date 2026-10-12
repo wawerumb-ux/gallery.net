@@ -3370,6 +3370,18 @@ async function deleteImage(path, sha, prettyLabel, opts = {}) {
     },
   });
   if (!ok || !request) return;
+  /* Say the delete is happening, and say it before the await.
+
+     The swallow plays while the dialog is up, so by the time this runs the
+     photo has already been eaten and the dialog has closed — and the
+     request may not have come back yet. Measured against a 4s mock, the
+     dialog was accepted at +5557ms and nothing appeared on screen until
+     +9473ms: three and a half seconds in which a deletion looks like it
+     was dropped. Deleting is destructive and this is the one action in the
+     app with an Undo behind it, so a wait that cannot be interpreted is
+     the worst place to have one. Sticky, so it holds until the outcome
+     replaces it. */
+  const deletingId = showToast(`Deleting ${prettyLabel}…`, true);
   // The local state change is last: re-rendering mid-swallow pulls the
   // photo out of the bin before it arrives, which is the one thing this
   // effect must not do.
@@ -3380,9 +3392,21 @@ async function deleteImage(path, sha, prettyLabel, opts = {}) {
     showToast(DEMO_MODE ? `Deleted ${prettyLabel} (demo).` : `Deleted ${prettyLabel}.`,
       { type: 'success', undo: DEMO_MODE ? null : undoLastChange });
   } catch (err) {
-    showToast(err.message, { type: 'error' });
+    reportDeleteFailed(err, deletingId);
     if (opts.restore) opts.restore();
   }
+}
+
+/* A failed delete is destructive and undoable-but-not-automatically: the
+   photo is still in the repo, but the visitor has just watched it get
+   eaten and has to be told plainly that it was not removed, and given the
+   reason. The message is sticky for the same reason the classify one is —
+   showToast() dismisses whatever is on screen before showing the next, so
+   an ordinary 3.2s toast can be replaced or expire unread — and the
+   restore puts the photo back on screen either way. */
+function reportDeleteFailed(err, deletingId) {
+  if (deletingId != null) dismissToast();
+  showToast(`NOT deleted: ${err.message}`, { type: 'error', sticky: true });
 }
 
 /* The part that talks to the repo. Everything that decides whether the
