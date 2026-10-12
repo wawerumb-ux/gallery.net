@@ -4154,10 +4154,17 @@ function showToast(msg, opts = {}) {
   const duration = o.sticky ? 0 : (undo ? TOAST_UNDO_MS : TOAST_MS);
 
   dismissToast();
-  // lib.show() rather than the typed helpers: `pending` is not one of the
-  // library's four, and show() takes the type as an option anyway — the
-  // helpers are only sugar over it.
-  const id = lib.show(msg, {
+  // The library's global is a *callable*, not an object with a .show on
+  // it: `toast(message, options)`. Its four typed helpers and the
+  // lifecycle methods hang off that function, but `show` does not — that
+  // name only exists on the instance you get from `toast.create()`. So
+  // `lib.show(...)` throws on every message and the notification never
+  // reaches the screen at all.
+  //
+  // Calling it bare is also the only way a fifth type can exist: the
+  // helpers force their own type, whereas `type` as an option is just
+  // another field for show() to read.
+  const id = lib(msg, {
     type,
     duration,
     closable: true,

@@ -39,19 +39,39 @@ const APP = new URL('../app.js', import.meta.url);
 const CSS = new URL('../style.css', import.meta.url);
 const app = await readFile(APP, 'utf8');
 const css = await readFile(CSS, 'utf8');
+/* `src` and `cssCode` are what the assertions read: the same files with
+   their comments removed, so a note in the margin can neither satisfy an
+   assertion nor trip one. `app`/`css` stay raw because several slice
+   markers are themselves comment text. */
+const src = code(app);
+const cssCode = code(css);
 
 const sameDeep = (a, b, msg) => assert.deepStrictEqual(a, b, msg);
+
+/* Strip comments before pattern-matching against code. Several of the
+   rules these tests protect are written in the comments beside the code,
+   and this file's own note about lib.show not existing would otherwise
+   trip the very assertion that forbids calling it. */
+const code = (src) => src
+  .replace(/\/\*[\s\S]*?\*\//g, ' ')
+  .replace(/^\s*\/\/.*$/gm, ' ');
+
+/* Slice app.js between two markers, comments removed.
+   Markers are matched against the raw source — several of them are
+   themselves comment text — and only the slice handed to an assertion has
+   the prose taken out. */
+const sliceCode = (from, to) => code(app.slice(app.indexOf(from), to ? app.indexOf(to) : undefined));
 
 describe('A — the sound is only ever heard on purpose', () => {
   test('A1 — no AudioContext is built before a gesture', () => {
     // The unlock is a one-shot listener on the page, not on the toast:
     // a visitor who has scrolled, tapped or tabbed has unlocked it.
-    assert.match(app, /window\.addEventListener\('pointerdown', unlock, \{ once: true, capture: true \}\)/);
-    assert.match(app, /window\.addEventListener\('keydown', unlock, \{ once: true, capture: true \}\)/);
+    assert.match(src, /window\.addEventListener\('pointerdown', unlock, \{ once: true, capture: true \}\)/);
+    assert.match(src, /window\.addEventListener\('keydown', unlock, \{ once: true, capture: true \}\)/);
   });
 
   test('A2 — playToastDing returns before it touches an AudioContext', () => {
-    const ding = app.slice(app.indexOf('function playToastDing'), app.indexOf('function setToastSound'));
+    const ding = sliceCode('function playToastDing', 'function setToastSound');
     const guard = ding.indexOf('if (!toastSoundOn || !toastUnlocked) return;');
     const build = ding.indexOf('new AudioCtx()');
     assert.notStrictEqual(guard, -1, 'playToastDing must gate on the flag and the unlock');
@@ -63,13 +83,13 @@ describe('A — the sound is only ever heard on purpose', () => {
   test('A3 — a suspended context is left alone rather than resumed', () => {
     // resume() on a context nobody has unlocked is the thing that trips
     // the autoplay warning; the honest answer is to stay quiet.
-    assert.match(app, /if \(toastAudio\.state === 'suspended'\) return;/);
-    assert.doesNotMatch(app, /toastAudio\.resume\(/,
+    assert.match(src, /if \(toastAudio\.state === 'suspended'\) return;/);
+    assert.doesNotMatch(src, /toastAudio\.resume\(/,
       'the ding must not resume the context to get around the gate');
   });
 
   test('A4 — a sticky progress line is silent', () => {
-    const show = app.slice(app.indexOf('function showToast'));
+    const show = sliceCode('function showToast');
     const sound = /if \(!o\.sticky\) playToastDing\(\);/.test(show);
     assert.ok(sound,
       'the batch loops raise one sticky line per photo — only a timed message may sound');
@@ -84,7 +104,7 @@ describe('A — the sound is only ever heard on purpose', () => {
   test('A5 — the sound is synthesised, not fetched', () => {
     // A file would mean a network request and a licence for one
     // oscillator, and the archive has to keep working offline.
-    const ding = app.slice(app.indexOf('function playToastDing'), app.indexOf('function setToastSound'));
+    const ding = sliceCode('function playToastDing', 'function setToastSound');
     assert.doesNotMatch(ding, /new Audio\(|https?:\/\//,
       'the ding must be synthesised — no audio file, no CDN');
     assert.match(ding, /createOscillator\(\)/);
@@ -94,20 +114,20 @@ describe('A — the sound is only ever heard on purpose', () => {
 
 describe('B — the switch is offered, remembered, and honest', () => {
   test('B1 — it defaults to on and persists under gallery.toastSound', () => {
-    assert.match(app, /const TOAST_SOUND_KEY = 'gallery\.toastSound';/);
+    assert.match(src, /const TOAST_SOUND_KEY = 'gallery\.toastSound';/);
     // Anything that is not an explicit "off" is on — a half-written or
     // stale value must not mute the archive by accident.
-    assert.match(app, /localStorage\.getItem\(TOAST_SOUND_KEY\) !== 'off'/);
+    assert.match(src, /localStorage\.getItem\(TOAST_SOUND_KEY\) !== 'off'/);
   });
 
   test('B2 — a storage that throws does not take the notification with it', () => {
-    const read = app.slice(app.indexOf('function storedToastSound'), app.indexOf('let toastSoundOn'));
+    const read = sliceCode('function storedToastSound', 'let toastSoundOn');
     assert.match(read, /try \{[\s\S]*\} catch \(_\) \{\s*return true;/,
       'localStorage can throw in private mode; the default must still answer');
   });
 
   test('B3 — the ⋮ menu offers it to everyone, not just the admin', () => {
-    const menu = app.slice(app.indexOf('function mainMenu'), app.indexOf('function albumMenu'));
+    const menu = sliceCode('function mainMenu', 'function albumMenu');
     assert.match(menu, /label: toastSoundOn \? 'Notification sound on' : 'Notification sound off'/,
       'the row must say what tapping it will do, not what it did last time');
     assert.match(menu, /onTap: \(\) => setToastSound\(!toastSoundOn\)/);
@@ -117,7 +137,7 @@ describe('B — the switch is offered, remembered, and honest', () => {
   });
 
   test('B4 — turning it back on plays the ding, so the row confirms itself', () => {
-    const set = app.slice(app.indexOf('function setToastSound'), app.indexOf('let toastId'));
+    const set = sliceCode('function setToastSound', 'let toastId');
     assert.match(set, /if \(toastSoundOn\) playToastDing\(\);/);
     assert.match(set, /localStorage\.setItem\(TOAST_SOUND_KEY, toastSoundOn \? 'on' : 'off'\)/);
   });
@@ -126,9 +146,9 @@ describe('B — the switch is offered, remembered, and honest', () => {
 describe('C — every message is drawn in Penguin\'s shape', () => {
   test('C1 — each type the call sites use has its own glyph', () => {
     // Every `type:` literal the app raises, by the only key that matters.
-    const used = new Set([...app.matchAll(/type:\s*'([a-z]+)'/g)].map(m => m[1]));
+    const used = new Set([...src.matchAll(/type:\s*'([a-z]+)'/g)].map(m => m[1]));
     assert.ok(used.size > 0, 'no typed notifications found — the audit found nothing');
-    const defined = new Set([...app.matchAll(/^\s{2}(\w+): TOAST_GLYPH\(/gm)].map(m => m[1]));
+    const defined = new Set([...src.matchAll(/^\s{2}(\w+): TOAST_GLYPH\(/gm)].map(m => m[1]));
     for (const t of ['info', 'success', 'warning', 'error', 'pending']) {
       assert.ok(defined.has(t), `the library type '${t}' has no glyph`);
     }
@@ -139,25 +159,25 @@ describe('C — every message is drawn in Penguin\'s shape', () => {
   });
 
   test('C2 — the glyphs are inline SVG, not the library\'s text characters', () => {
-    assert.match(app, /<svg viewBox="0 0 20 20" fill="currentColor"/);
+    assert.match(src, /<svg viewBox="0 0 20 20" fill="currentColor"/);
     // The library's own glyphs are ℹ ✓ ⚠ ✕, and a toast that renders
     // one of those is back to the old look.
-    const glyphs = app.slice(app.indexOf('const TOAST_GLYPHS'), app.indexOf('const TOAST_CLOSE_GLYPH'));
+    const glyphs = sliceCode('const TOAST_GLYPHS', 'const TOAST_CLOSE_GLYPH');
     for (const ch of ['\u2139', '\u2713', '\u26a0', '\u2715']) {
       assert.ok(!glyphs.includes(ch), `the Penguin set must not fall back to ${ch}`);
     }
   });
 
   test('C3 — the dismissal is a stroked cross, not &times;', () => {
-    assert.match(app, /const TOAST_CLOSE_GLYPH = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"/);
-    assert.match(app, /const TOAST_CLOSE_GLYPH = '<svg[^']*M6 18L18 6M6 6l12 12/);
-    const decorate = app.slice(app.indexOf('function decorateToast'), app.indexOf('/* A message, optionally carrying'));
+    assert.match(src, /const TOAST_CLOSE_GLYPH = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"/);
+    assert.match(src, /const TOAST_CLOSE_GLYPH = '<svg[^']*M6 18L18 6M6 6l12 12/);
+    const decorate = sliceCode('function decorateToast', '/* A message, optionally carrying');
     assert.match(decorate, /close\.innerHTML = TOAST_CLOSE_GLYPH/,
       'the library renders `&times;`; decorateToast has to put the real mark in');
   });
 
   test('C4 — Undo is placed in the body, not beside it', () => {
-    const decorate = app.slice(app.indexOf('function decorateToast'), app.indexOf('/* A message, optionally carrying'));
+    const decorate = sliceCode('function decorateToast', '/* A message, optionally carrying');
     assert.match(decorate, /item\.querySelector\('\.hcg-toast-body'\) \|\| item\)\.appendChild\(btn\)/,
       'Undo belongs under the message, in the body column');
     assert.doesNotMatch(decorate, /insertBefore/,
@@ -167,7 +187,7 @@ describe('C — every message is drawn in Penguin\'s shape', () => {
   test('C5 — decorateToast runs for every message, not only the undoable ones', () => {
     // The dismiss cross is swapped in there too, so guarding the call on
     // `undo` would leave every ordinary message with a `&times;`.
-    const show = app.slice(app.indexOf('function showToast'));
+    const show = sliceCode('function showToast');
     assert.match(show, /^\s*decorateToast\(id, undo\);/m);
     assert.doesNotMatch(show, /if \(undo\) decorateToast/);
   });
@@ -175,28 +195,41 @@ describe('C — every message is drawn in Penguin\'s shape', () => {
   test('C6 — the library is still configured the same way round', () => {
     // The Penguin look is skin. The plumbing stays one toast at a time,
     // because the batch loops replace rather than stack.
-    assert.match(app, /const TOAST_POSITION = 'top-center';/);
-    assert.match(app, /const TOAST_MAX = 3;/);
-    assert.match(app, /lib\.dismissAll\(\);/,
+    assert.match(src, /const TOAST_POSITION = 'top-center';/);
+    assert.match(src, /const TOAST_MAX = 3;/);
+    assert.match(src, /lib\.dismissAll\(\);/,
       'a replacing toast must remove the last one outright');
   });
 
-  test('C6b — it goes through lib.show(), not the four typed helpers', () => {
-    // `pending` is not one of the library's four. show() takes the type as
-    // an option and builds the variant class from it, which is the only
-    // way a fifth type can exist; the helpers are sugar over it.
-    const show = app.slice(app.indexOf('function showToast'));
-    assert.match(show, /lib\.show\(msg, \{\s*type,/);
+  test('C6b — it calls the library bare, which is the only way `pending` exists', () => {
+    // The library's global is a *callable*: `toast(message, options)`. Its
+    // four typed helpers hang off it, but `.show` does not — that name only
+    // exists on the instance from `toast.create()`. Calling `lib.show(...)`
+    // throws on every message and nothing ever reaches the screen.
+    const lib = await import('../hcg-toast.js');
+    const api = globalThis.toast;
+    assert.equal(typeof api, 'function', 'the global must be callable');
+    assert.equal(api.show, undefined,
+      'the global does NOT expose show() — if this ever changes, call it again');
+    assert.equal(typeof api.success, 'function');
+    assert.equal(typeof api.create, 'function');
+    assert.equal(typeof lib, 'object');
+
+    // ...and the wrapper must therefore invoke the global itself.
+    const show = sliceCode('function showToast');
+    assert.match(show, /const id = lib\(msg, \{\s*type,/);
+    assert.doesNotMatch(show, /lib\.show\(/,
+      'lib.show is not a function — this throws before anything is rendered');
     assert.doesNotMatch(show, /lib\[type\]\(/,
-      'a fifth type cannot go through the four named helpers');
+      'a fifth type cannot go through the four named helpers either');
   });
 
   test('C7 — the timing is Penguin\'s, and Undo buys itself more', () => {
-    assert.match(app, /const TOAST_MS = 8000;/);
-    assert.match(app, /const TOAST_UNDO_MS = 10000;/);
-    assert.match(app, /showProgress: false/,
+    assert.match(src, /const TOAST_MS = 8000;/);
+    assert.match(src, /const TOAST_UNDO_MS = 10000;/);
+    assert.match(src, /showProgress: false/,
       'Penguin has no countdown bar on a notification');
-    assert.match(app, /pauseOnHover: true/);
+    assert.match(src, /pauseOnHover: true/);
   });
 });
 
@@ -217,14 +250,14 @@ describe('E — the colour follows the action', () => {
   test('E2 — a sticky line with no type of its own is pending', () => {
     // Every sticky message in this app is a batch saying what it is
     // doing, so the default has to be the colour that means "still going".
-    const show = app.slice(app.indexOf('function showToast'));
+    const show = sliceCode('function showToast');
     assert.match(show, /const type = o\.type \|\| \(o\.sticky \? 'pending' : 'info'\);/);
   });
 
   test('E3 — an explicit type outranks the sticky default', () => {
     // The batches raise sticky *errors* mid-run — a file that 403s has to
     // come out red, not orange, or a failed read reads as still-working.
-    const errs = [...app.matchAll(/\{[^}]*type: 'error'[^}]*sticky: true/g)];
+    const errs = [...src.matchAll(/\{[^}]*type: 'error'[^}]*sticky: true/g)];
     assert.ok(errs.length >= 3,
       'the batches raise sticky errors; none found, so the default cannot be trusted');
     for (const [, opts] of errs) {
@@ -236,7 +269,7 @@ describe('E — the colour follows the action', () => {
     // Nothing in the notification set animates to imply progress; the bar
     // does. A spinning glyph would also sit frozen under reduced-motion
     // while still claiming to be working.
-    const glyph = app.slice(app.indexOf('pending: TOAST_GLYPH'), app.indexOf('};', app.indexOf('pending: TOAST_GLYPH')));
+    const glyph = sliceCode('pending: TOAST_GLYPH', '};');
     assert.doesNotMatch(glyph, /animation|@keyframes/);
     assert.match(glyph, /<path d="M10 18a8 8 0 1 0 0-16/);
   });
@@ -244,14 +277,14 @@ describe('E — the colour follows the action', () => {
 
 describe('F — long reads and writes report a number', () => {
   test('F1 — showPending says what the app is doing, with a bar under it', () => {
-    const fn = app.slice(app.indexOf('function showPending'), app.indexOf('/* A message, optionally carrying'));
+    const fn = sliceCode('function showPending', '/* A message, optionally carrying');
     assert.match(fn, /showToast\(action, \{ type: 'pending', sticky: true, progress: \{ done, total \} \}\)/);
   });
 
   test('F2 — the bar is built onto the live item, so it dies with it', () => {
     // No separate timer, no node of its own: the item carries it and
     // dismissAll() takes both away together.
-    const fn = app.slice(app.indexOf('function renderToastProgress'), app.indexOf('function showPending'));
+    const fn = sliceCode('function renderToastProgress', 'function showPending');
     assert.match(fn, /item\.classList\.add\('hcg-toast-item--progress'\);/);
     assert.match(fn, /item\.appendChild\(bar\);/);
     assert.match(fn, /item\.querySelector\('\.toast-progress'\)/,
@@ -259,7 +292,7 @@ describe('F — long reads and writes report a number', () => {
   });
 
   test('F3 — both labels live inside the strip', () => {
-    const fn = app.slice(app.indexOf('function renderToastProgress'), app.indexOf('function showPending'));
+    const fn = sliceCode('function renderToastProgress', 'function showPending');
     assert.match(fn, /<div class="toast-progress-fill"><\/div>/);
     assert.match(fn, /<span class="toast-progress-count"><\/span>/);
     assert.match(fn, /<span class="toast-progress-pct"><\/span>/);
@@ -271,14 +304,14 @@ describe('F — long reads and writes report a number', () => {
   test('F4 — done is clamped to total, so the bar cannot overflow its track', () => {
     // A batch that over-counts — a skipped file still advancing the
     // counter — must not render a fill wider than 100%.
-    const fn = app.slice(app.indexOf('function renderToastProgress'), app.indexOf('function showPending'));
+    const fn = sliceCode('function renderToastProgress', 'function showPending');
     assert.match(fn, /const n = Math\.max\(0, Math\.min\(done, total\)\);/);
     assert.match(fn, /bar\.style\.setProperty\('--toast-progress', ratio\.toFixed\(4\)\);/);
     assert.match(fn, /pct\.textContent = `\$\{Math\.round\(ratio \* 100\)\}%`;/);
   });
 
   test('F5 — no usable total sweeps and admits it, instead of claiming 0%', () => {
-    const fn = app.slice(app.indexOf('function renderToastProgress'), app.indexOf('function showPending'));
+    const fn = sliceCode('function renderToastProgress', 'function showPending');
     assert.match(fn, /if \(!Number\.isFinite\(total\) \|\| total <= 0\) \{/);
     assert.match(fn, /bar\.classList\.add\('toast-progress--indeterminate'\);/);
     assert.match(fn, /pct\.textContent = 'Working…';/);
@@ -299,8 +332,8 @@ describe('F — long reads and writes report a number', () => {
       ['label', 'total'],
     ]) {
       const a = new RegExp(`showPending\\('?${action}'?, 0, ${total.replace('.', '\\.')}\\);`);
-      assert.match(app, a, `${action} must open its bar at zero`);
-      assert.match(app, new RegExp(`showPending\\('?${action}'?, (\\+\\+)?[a-z]+, ${total.replace('.', '\\.')}\\);`),
+      assert.match(src, a, `${action} must open its bar at zero`);
+      assert.match(src, new RegExp(`showPending\\('?${action}'?, (\\+\\+)?[a-z]+, ${total.replace('.', '\\.')}\\);`),
         `${action} must advance its bar inside the loop`);
     }
   });
@@ -308,11 +341,11 @@ describe('F — long reads and writes report a number', () => {
   test('F7 — the phase-removal bar counts files, not photos', () => {
     // One asset is its canonical plus its generated variants, so counting
     // assets would sit at 100% for most of the work.
-    assert.match(app, /const files = affected\.reduce\(\(n, a\) => n \+ 1 \+ a\.variants\.length, 0\);/);
+    assert.match(src, /const files = affected\.reduce\(\(n, a\) => n \+ 1 \+ a\.variants\.length, 0\);/);
   });
 
   test('F8 — the stylesheet gives the strip room and the labels somewhere to sit', () => {
-    assert.match(css, /\.hcg-toast-item--progress \{ padding-bottom: 31px; \}/,
+    assert.match(cssCode, /\.hcg-toast-item--progress \{ padding-bottom: 31px; \}/,
       'a bar needs somewhere to sit that is not the message');
     const bar = css.slice(css.indexOf('.toast-progress {'));
     assert.match(bar, /\.toast-progress \{[\s\S]*?position: absolute;/);
@@ -341,12 +374,12 @@ describe('D — the stylesheet paints it', () => {
       // warning and pending share one rule, so the selector list is
       // matched up to the brace rather than assumed to be a lone class.
       const rule = new RegExp(`\\.hcg-toast-item--${type}[^{]*\\{[^}]*--toast-tint:`);
-      assert.match(css, rule, `${type} must declare --toast-tint`);
-      assert.match(css, new RegExp(`\\.hcg-toast-item--${type}[^{]*\\{[^}]*--toast-fill:`),
+      assert.match(cssCode, rule, `${type} must declare --toast-tint`);
+      assert.match(cssCode, new RegExp(`\\.hcg-toast-item--${type}[^{]*\\{[^}]*--toast-fill:`),
         `${type} must declare --toast-fill, or its bar label has nothing to sit on`);
-      assert.match(css, new RegExp(`\\.hcg-toast-item--${type}[^{]*\\{[^}]*background-image: linear-gradient\\(`),
+      assert.match(cssCode, new RegExp(`\\.hcg-toast-item--${type}[^{]*\\{[^}]*background-image: linear-gradient\\(`),
         `${type} must wash itself in its own colour`);
-      assert.match(css, new RegExp(`\\.hcg-toast-item--${type}[^{]*\\.hcg-toast-icon \\{`),
+      assert.match(cssCode, new RegExp(`\\.hcg-toast-item--${type}[^{]*\\.hcg-toast-icon \\{`),
         `${type} must plate its icon in its own colour`);
     }
   });
@@ -357,7 +390,7 @@ describe('D — the stylesheet paints it', () => {
     const block = css.slice(css.indexOf('Notifications (hcg-toast, Penguin'));
     assert.match(block, /--hcg-toast-border: transparent;/,
       'the border variable is where the library reads the card border from');
-    assert.match(css, /\.hcg-toast-item \{[^}]*border-color: transparent;/,
+    assert.match(cssCode, /\.hcg-toast-item \{[^}]*border-color: transparent;/,
       'and the item must not re-tint it afterwards');
     // No rule may put a visible border back on the item or its parts.
     for (const sel of ['.hcg-toast-item {', '.hcg-toast-body', '.hcg-toast-icon {']) {
@@ -400,11 +433,11 @@ describe('D — the stylesheet paints it', () => {
   });
 
   test('D2 — the entrance rises 32px and the exit leaves sideways', () => {
-    assert.match(css, /\.hcg-toast-item \{[^}]*transform: translateY\(32px\);/);
-    assert.match(css, /\.hcg-toast-item--enter[^}]*transform: translateY\(0\);/);
-    assert.match(css, /@media \(min-width: 768px\) \{\s*\.hcg-toast-item--exit[^}]*transform: translateX\(96px\);/);
+    assert.match(cssCode, /\.hcg-toast-item \{[^}]*transform: translateY\(32px\);/);
+    assert.match(cssCode, /\.hcg-toast-item--enter[^}]*transform: translateY\(0\);/);
+    assert.match(cssCode, /@media \(min-width: 768px\) \{\s*\.hcg-toast-item--exit[^}]*transform: translateX\(96px\);/);
     // 300ms both ways is Penguin's transition, not the library's 250ms.
-    assert.match(css, /transition: opacity 300ms ease-out, transform 300ms ease-out;/);
+    assert.match(cssCode, /transition: opacity 300ms ease-out, transform 300ms ease-out;/);
   });
 
   test('D3 — the phone anchors to the top, clearing the tab bar', () => {
