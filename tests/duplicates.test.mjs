@@ -7,6 +7,7 @@ import { dirname, join } from 'node:path';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const code = fs.readFileSync(join(here, '..', 'app.js'), 'utf8');
+const navCode = fs.readFileSync(join(here, '..', 'nav.js'), 'utf8');
 
 const stubEl = () => ({
   hidden: true, textContent: '', innerHTML: '', value: '', style: {}, dataset: {},
@@ -55,6 +56,14 @@ function loadAppPure() {
      module's declared public surface, hung off window.__gallery. Reaching
      through that surface is the point: if a name leaves it, this throws and
      the suite says which one. */
+  // nav.js first, in its own pass, as index.html orders the scripts: it
+  // installs the popstate listener, and app.js subscribes to it while
+  // that file is still evaluating. In a browser `window` IS the global
+  // object, so nav.js's assignment lands where a bare `GalleryNav`
+  // resolves; this harness gives the vm a global distinct from its
+  // `window`, so bridge the one reference app.js reads.
+  vm.runInContext(navCode, ctx, { filename: 'nav.js' });
+  ctx.GalleryNav = ctx.window.GalleryNav;
   vm.runInContext(code, ctx, { filename: 'app.js' });
   const api = sandbox2.window.__gallery;
   if (!api) throw new Error('app.js did not expose window.__gallery');

@@ -1813,25 +1813,30 @@ function animateCount(node, target) {
   })(start);
 }
 
-/* ── Browser back: overlays & section jumps ─────────────────────
-   Opening the lightbox or a modal — or clicking a phase in the
-   sidebar — pushes a history entry, so the back button (and the
-   mobile back gesture / edge swipe) returns to what was visible
-   before instead of leaving the site. Explicit closes unwind their
-   entry; the popstate listener does the actual hiding so the DOM
-   and the URL history always agree. Direct closing is the file://
-   fallback, where pushState is unreliable. */
+/* ── Browser back: overlays ──────────────────────────────────────
+   Opening the lightbox or a modal pushes a history entry, so the back
+   button (and the mobile back gesture / edge swipe) returns to what was
+   visible before instead of leaving the site.
+
+   The stack belongs to nav.js, which also carries the guided tour's
+   per-step entries — one stack, so one listener and one state shape. A
+   tour step already in progress rides along on the overlay entry
+   (`tourStep`/`tourId`), because a dialog opened mid-step is still that
+   step: backing out of it returns to the step, not out of the tour.
+
+   Explicit closes unwind their own entry and the popstate does the
+   actual hiding, so the DOM and the history stack never disagree. Direct
+   closing is the file:// fallback, where pushState is unreliable. */
 const overlayRegistry = {};
 const overlayStack = [];
-let suppressPopstate = false;
 
 function overlayPush(id, closeFn) {
   overlayRegistry[id] = closeFn;
-  if (location.protocol === 'file:') return;
-  try {
-    history.pushState({ 'gallery-overlay': id }, '');
-    overlayStack.push(id);
-  } catch (_) {}
+  overlayStack.push(id);
+  const cur = GalleryNav.current || {};
+  GalleryNav.push(Object.assign(
+    { overlay: id },
+    cur.tour ? { tour: true, tourStep: cur.tourStep, tourId: cur.tourId } : null));
 }
 
 function overlayHide(id) {
@@ -1844,23 +1849,18 @@ function overlayClose(id) {
   const i = overlayStack.lastIndexOf(id);
   if (i !== -1) {
     overlayStack.splice(i, 1);
-    if (location.protocol !== 'file:') {
-      suppressPopstate = true;
-      // Closing an overlay pops a history entry, which is a popstate —
-      // the same event the guided tour reads as "the user left". Say
-      // so before popping: the tour ignores our pops. (It cannot read
-      // suppressPopstate itself — our own listener consumes and
-      // clears that flag before any later listener runs.)
-      try { window.dispatchEvent(new CustomEvent('gallery:history-pop')); } catch (_) {}
-      try { history.go(-1); } catch (_) {}
-    }
+    GalleryNav.back();
   }
 }
 
-window.addEventListener('popstate', (e) => {
-  if (suppressPopstate) { suppressPopstate = false; return; }
+/* One subscription, not a popstate listener of our own: nav.js owns the
+   event so the tour and the gallery cannot disagree about what a pop
+   meant. `ours` is true when the pop unwinds an explicit close, whose DOM
+   work overlayClose has already done. */
+GalleryNav.subscribe((state, ours) => {
+  if (ours) return;
   const id = overlayStack.pop();
-  if (id) return overlayHide(id);
+  if (id) overlayHide(id);
 });
 
 /* ── Confirming a destructive action ────────────────────────────────

@@ -18,6 +18,7 @@ import vm from 'node:vm';
 
 const APP = new URL('../app.js', import.meta.url);
 const code = await readFile(APP, 'utf8');
+const navCode = await readFile(new URL('../nav.js', import.meta.url), 'utf8');
 
 const stubEl = () => ({
   hidden: true, textContent: '', innerHTML: '', value: '', style: {}, dataset: {},
@@ -76,6 +77,14 @@ async function boot({ externalCommit = false } = {}) {
     sessionStorage: { getItem: () => null, setItem() {}, removeItem() {} },
     fetch: fetchMock, location: { search: '', href: '' },
   };
+  // nav.js first, in its own pass, as index.html orders the scripts: it
+  // installs the popstate listener, and app.js subscribes to it while
+  // that file is still evaluating. In a browser `window` IS the global
+  // object, so nav.js's assignment lands where a bare `GalleryNav`
+  // resolves; this harness gives the vm a global distinct from its
+  // `window`, so bridge the one reference app.js reads.
+  vm.runInContext(navCode, vm.createContext(sandbox), { filename: 'nav.js' });
+  sandbox.GalleryNav = sandbox.window.GalleryNav;
   vm.runInContext(code, vm.createContext(sandbox), { filename: 'app.js' });
   const api = sandbox.window.__gallery;
   api.state.token = 'test-token';

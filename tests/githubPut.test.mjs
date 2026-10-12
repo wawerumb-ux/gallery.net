@@ -7,6 +7,7 @@ import { dirname, join } from 'node:path';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const code = fs.readFileSync(join(here, '..', 'app.js'), 'utf8');
+const navCode = fs.readFileSync(join(here, '..', 'nav.js'), 'utf8');
 
 /* Stateful mock of api.github.com Contents API:
    - repo already contains gallery.json (sha known)
@@ -80,6 +81,14 @@ async function setup() {
       json: async () => r.json,
     };
   };
+  // nav.js first, in its own pass, as index.html orders the scripts: it
+  // installs the popstate listener, and app.js subscribes to it while
+  // that file is still evaluating. In a browser `window` IS the global
+  // object, so nav.js's assignment lands where a bare `GalleryNav`
+  // resolves; this harness gives the vm a global distinct from its
+  // `window`, so bridge the one reference app.js reads.
+  vm.runInContext(navCode, vm.createContext(sandbox), { filename: 'nav.js' });
+  sandbox.GalleryNav = sandbox.window.GalleryNav;
   vm.runInContext(code, vm.createContext(sandbox), { filename: 'app.js' });
   const api = sandbox.window.__gallery;
   if (!api) throw new Error('app.js did not expose window.__gallery');

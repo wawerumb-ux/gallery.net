@@ -19,7 +19,6 @@
    ──────────────────────────────────────────────────────────────────── */
 
 const TOUR_STORAGE_KEY = 'walkthrough.tourState';
-const TOUR_HISTORY_FLAG = 'guidedTour';   // the marker the tour pushes on its entry
 const ACTION_DEBOUNCE_MS = 200;   // spec: rapid-duplicate guard window (functional, not motion)
 const TARGET_WAIT_MS = 10000;     // operational grace for async-rendered targets
 /* Spec holds are mapped onto D tokens (the download-button.js
@@ -149,9 +148,9 @@ function createGuidedTour(config) {
   let settleTimer = null;
   let phaseTimer = null;
   let ended = false;
-  // True between the gallery announcing a history pop and the
-  // popstate it causes. See onPopState.
-  let overlayPop = false;
+  // The nav subscription's teardown, held so unbindGlobal can drop it.
+  // The tour no longer registers a popstate listener of its own.
+  let unsubscribeNav = null;
 
   /* ── Persistence ─────────────────────────────────────────── */
 
@@ -761,6 +760,10 @@ function createGuidedTour(config) {
       if (ended) return;
       teardownStep();
       if (nextIndex < steps.length) {
+        // A forward move is a history entry, not a local variable: this
+        // is what makes the back button walk the tour backwards, and what
+        // makes a step shareable as #step-<id> (invariant 1).
+        GalleryNav.push(stepEntry(nextIndex));
         renderStep(nextIndex);
       } else {
         setPhase('complete');
@@ -823,22 +826,46 @@ function createGuidedTour(config) {
      which produces the very same popstate a real back-press does —
      closing the viewer with its Back button, or dismissing any
      dialog. Those are not the user leaving, and treating them as one
-     ended the tour at its first "close something" step. Two guards:
+     ended the tour at its first "close something" step.
 
-       1. the gallery announces its pops (gallery:history-pop) just
-          before making them — ordering-safe, since its own
-          suppressPopstate flag is consumed by its own listener before
-          any later listener runs;
-       2. a pop that lands back on the tour's own history entry is
-          unwinding an overlay the gallery pushed after the tour
-          began, not carrying the user away. */
-  function onGalleryHistoryPop() { overlayPop = true; }
+     Both cases used to need a guard the other party had to remember to
+     set: the gallery announced its pops over a CustomEvent, and the tour
+     also treated "landed back on my own entry" as safe. Neither was
+     necessary, because the entry itself already says what it is. */
+  /* The tour owns no popstate listener — nav.js has exactly one, and the
+     gallery subscribes to it too. What arrives here is the entry the
+     browser moved to, read from history.state rather than from a closure,
+     which would be stale by definition at this point.
 
-  function onPopState() {
+     Three cases, told apart by the entry itself rather than by a flag
+     each owner has to remember to set:
+
+       tourId present  → the user backed or went forward between steps.
+                         Render that step.
+       overlay present → a dialog opened during this step was closed. The
+                         step has not changed; the gallery's own
+                         subscriber has already hidden the dialog.
+       neither         → the user went back past the tour's first entry.
+                         Let them leave. Backing out is not a trap.
+
+     `ended` and `ours` below are belt and braces, and both are
+     unreachable today: every step change goes through GalleryNav.push, so
+     a pop landing on a step entry names the step already being shown and
+     the equality check below returns regardless; and exitTour calls
+     unbindGlobal, which drops this subscription, so nothing arrives after
+     the tour ends. They are kept because the failures they prevent — a
+     finished tour resurrecting itself, or a dialog close dragging the
+     visitor back a step — are severe enough that a future refactor should
+     have to delete them deliberately rather than by accident. */
+  function onNavPop(state, ours) {
     if (ended) return;
-    if (overlayPop) { overlayPop = false; return; }
-    if (window.history && window.history.state &&
-        window.history.state[TOUR_HISTORY_FLAG]) return;
+    if (ours) return;
+    if (state && state.overlay) return;
+    if (state && state.tourId) {
+      const i = steps.findIndex((s) => s.id === state.tourId);
+      if (i >= 0 && i !== index) return renderStep(i);
+      return;
+    }
     exitTour();
   }
 
@@ -884,16 +911,14 @@ function createGuidedTour(config) {
     // Capture phase: during a tour, Escape belongs to the escape
     // menu and must not also close gallery overlays underneath.
     window.addEventListener('keydown', onKeyDown, true);
-    window.addEventListener('popstate', onPopState);
-    window.addEventListener('gallery:history-pop', onGalleryHistoryPop);
+    unsubscribeNav = GalleryNav.subscribe(onNavPop);
     window.addEventListener('resize', onAnchor, { passive: true });
     window.addEventListener('scroll', onAnchor, { passive: true, capture: true });
   }
 
   function unbindGlobal() {
     window.removeEventListener('keydown', onKeyDown, true);
-    window.removeEventListener('popstate', onPopState);
-    window.removeEventListener('gallery:history-pop', onGalleryHistoryPop);
+    if (unsubscribeNav) { unsubscribeNav(); unsubscribeNav = null; }
     window.removeEventListener('resize', onAnchor);
     window.removeEventListener('scroll', onAnchor, true);
     if (anchorObserver) { anchorObserver.disconnect(); anchorObserver = null; }
@@ -948,11 +973,16 @@ function createGuidedTour(config) {
 
   function start(opts) {
     if (phase !== 'idle' || ended) return false;
+    // A deep link wins: #step-<id> names the step to open, and a refresh
+    // on step 7 comes back to step 7 because the hash is still there and
+    // the entry is seeded at that step rather than at step 0.
+    const linked = GalleryNav.stepFromHash();
+    const linkedAt = linked ? steps.findIndex(s => s.id === linked) : -1;
     const saved = loadState();
     const resume = opts && opts.resume && saved && saved.currentStepId && !saved.finished;
-    const startAt = resume
-      ? Math.max(0, steps.findIndex(s => s.id === saved.currentStepId))
-      : 0;
+    const startAt = linkedAt >= 0 ? linkedAt
+      : resume ? Math.max(0, steps.findIndex(s => s.id === saved.currentStepId))
+        : 0;
     if (resume) {
       saveState({ escapedAt: null });
     } else {
@@ -960,10 +990,20 @@ function createGuidedTour(config) {
     }
     buildOverlay();
     bindGlobal();
-    // A history entry makes browser-back exit the tour entirely.
-    try { window.history.pushState({ [TOUR_HISTORY_FLAG]: true }, ''); } catch (_) {}
+    // Seed, never push: the entry the visitor arrived on is the one that
+    // becomes this step, so backing out of step 0 leaves the site rather
+    // than reloading it (invariant 5, trap 6).
+    GalleryNav.seed(stepEntry(startAt));
     renderStep(startAt);
     return true;
+  }
+
+  /* The history entry for a step: everything needed to render it, and
+     nothing that varies per step left in a closure (invariant 2). */
+  function stepEntry(i) {
+    const s = steps[i];
+    if (!s) return { tour: true, tourStep: 0, tourId: null };
+    return { tour: true, tourStep: i, tourId: s.id };
   }
 
   return {

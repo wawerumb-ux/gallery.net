@@ -22,6 +22,7 @@ import { dirname, join } from 'node:path';
 const here = dirname(fileURLToPath(import.meta.url));
 const oneuiSrc = fs.readFileSync(join(here, '..', 'oneui.js'), 'utf8');
 const tourSrc = fs.readFileSync(join(here, 'tour.js'), 'utf8');
+const navSrc = fs.readFileSync(join(here, '..', 'nav.js'), 'utf8');
 const stepsSrc = fs.readFileSync(join(here, 'steps.js'), 'utf8');
 
 /* ── Selector matching (the tiny subset the engine uses:
@@ -177,13 +178,14 @@ function makeEl(tag, opts = {}) {
 
 /* ── Sandbox harness ──────────────────────────────────────── */
 
-function setup({ reducedMotion = false, multiplierPatch = null, seedState = null } = {}) {
+function setup({ reducedMotion = false, multiplierPatch = null, seedState = null, hash = '' } = {}) {
   const RealDate = Date;
   let fakeNow = 1000; // starts above ACTION_DEBOUNCE_MS so the first success is never debounced
   const timers = [];
   const warns = [];
   const navigations = [];
   const pushStates = [];
+  const historyUrls = [];
   const winListeners = {};
   const ioInstances = [];
   const roInstances = [];
@@ -419,19 +421,56 @@ function setup({ reducedMotion = false, multiplierPatch = null, seedState = null
     addEventListener: () => {},
   };
 
-  // A tiny history stack: pushState records state, and the tour reads
-  // history.state to tell "the user left" from "the gallery unwound
-  // an overlay". Declared before `window`, which closes over it.
-  // Real history starts at the page it loaded on (state null); the tour
-  // pushes its own entry on top, which is where the cursor then sits.
-  const historyStack = [null];
+  // A history stack with a real cursor. Declared before `window`, which
+  // closes over it.
+  //
+  // Two entries, not one, because arriving at the tour IS a navigation:
+  // boot.js sets location.href to the gallery with ?tour=1, so the browser
+  // holds the page the visitor came from at index 0 and the gallery at
+  // index 1. The tour then seeds index 1 in place. Backing out of step 0
+  // therefore has somewhere real to land, which is what lets the tour
+  // tell "left the tour" from "went back a step" without inventing a
+  // flag — and it is why a single-entry stack could never have modelled
+  // the escape correctly.
+  const historyStack = [null, null];
+  let cursor = 1;
+  const firePop = (ours) => {
+    (winListeners.popstate || []).slice().forEach(fn => fn({ state: historyStack[cursor] || null }, ours));
+  };
+  // A real pushState/replaceState also move the address bar. The tour
+  // reads location.hash to honour a deep link, so the stub has to keep it
+  // in step or the second read of a hash would see the stale value.
+  const location = { pathname: '/', search: '?tour=1', hash };
+  function applyUrl(url) {
+    if (url == null) return;
+    historyUrls.push(url);
+    const h = String(url).indexOf('#');
+    location.hash = h === -1 ? '' : String(url).slice(h);
+  }
   const history = {
-    get state() { return historyStack[historyStack.length - 1] || null; },
-    pushState: (s) => { pushStates.push(s); historyStack.push(s); },
-    // Test affordances: `back()` steps the cursor down and fires
-    // popstate, exactly as a browser back-press does.
-    back() { historyStack.pop(); (winListeners.popstate || []).slice().forEach(fn => fn({})); },
-    landOn(i) { historyStack.length = i + 1; },
+    get state() { return historyStack[cursor] || null; },
+    pushState: (s, _t, url) => {
+      pushStates.push(s);
+      historyStack.length = cursor + 1;
+      historyStack.push(s);
+      cursor = historyStack.length - 1;
+      applyUrl(url);
+    },
+    // replaceState overwrites the entry under the cursor — it must not
+    // grow the stack, or seeding a step would look like a navigation.
+    replaceState: (s, _t, url) => {
+      historyStack[cursor] = s;
+      applyUrl(url);
+    },
+    // Test affordances: `back()` moves the cursor down and fires
+    // popstate with the entry it landed on, exactly as a browser
+    // back-press does. `forward()` is the other direction — the tour has
+    // to render the step it lands on, not ignore it.
+    back() { if (cursor > 0) { cursor--; firePop(false); } },
+    forward() { if (cursor < historyStack.length - 1) { cursor++; firePop(false); } },
+    landOn(i) { cursor = i; historyStack.length = i + 1; },
+    get length() { return historyStack.length; },
+    get cursor() { return cursor; },
   };
 
   const window = {
@@ -452,7 +491,9 @@ function setup({ reducedMotion = false, multiplierPatch = null, seedState = null
     // an overlay". popstate fires without changing it unless the test
     // moves the cursor, which is what a real back-press does.
     history,
-    location: { pathname: '/', search: '?tour=1', assign: (url) => navigations.push(url) },
+    // `hash` matters: the tour reads it to open a deep-linked step, and
+    // nav.js writes it on every commit, exactly as a browser would.
+    location: Object.assign(location, { assign: (url) => navigations.push(url) }),
   };
 
   // localStorage sits alongside the DOM stubs; `history` is declared above.
@@ -488,9 +529,14 @@ function setup({ reducedMotion = false, multiplierPatch = null, seedState = null
 
   const src = (multiplierPatch
     ? oneuiSrc.replace('SPEED_MULTIPLIER = 1.25', `SPEED_MULTIPLIER = ${multiplierPatch}`)
-    : oneuiSrc) + '\n' + tourSrc + '\n' + stepsSrc
+    : oneuiSrc) + '\n' + navSrc + '\n' + tourSrc + '\n' + stepsSrc
     + '\n;globalThis.__T = { createGuidedTour, TOUR_STEPS, selectTourSteps, parseTourState, shouldAutoStartTour, TOUR_STORAGE_KEY, TOUR_TRANSITIONS, D, SPEED_MULTIPLIER, ONE_UI_EASING, TOAST_HOLD, CHECKMARK_HOLD };';
   vm.runInContext(src, vm.createContext(sandbox), { filename: 'tour.js' });
+  // In a browser `window` IS the global object, so nav.js's assignment
+  // lands where a bare `GalleryNav` resolves. The harness gives the vm a
+  // global distinct from its `window`, so bridge the one reference the
+  // tour reads rather than changing production code for the harness.
+  sandbox.GalleryNav = window.GalleryNav;
 
   return {
     X: sandbox.__T,
@@ -498,6 +544,7 @@ function setup({ reducedMotion = false, multiplierPatch = null, seedState = null
     warns,
     navigations,
     pushStates,
+    historyUrls,
     store,
     window,
     history,
@@ -1438,18 +1485,35 @@ describe('T — the real TOUR_STEPS integration', () => {
     assert.equal(saved.currentStepId, null);
   });
 
-  test('T2 — the tour pushes a history entry so back exits it', () => {
+  test('T2 — every step is its own history entry, seeded with replaceState', () => {
     const h = setup();
-    const tour = h.X.createGuidedTour({ steps: h.X.TOUR_STEPS });
+    const tour = h.X.createGuidedTour({ steps: tourOf(
+      clickStep('s1', 1, 'tab-albums'),
+      clickStep('s2', 2, 'album-cover'),
+      clickStep('s3', 3, 'viewer-close'),
+    ) });
     tour.start();
-    sameDeep(h.pushStates, [{ guidedTour: true }]);
+    // Step 0 is seeded onto the entry the visitor arrived on — replaceState,
+    // never pushState, or the arrival page would be duplicated and the
+    // first back-press would reload the site instead of leaving it.
+    sameDeep(h.pushStates, []);
+    assert.equal(h.history.state.galleryNav, true);
+    assert.equal(h.history.state.tourId, 's1');
+
+    h.advance(h.X.D.base);
+    h.tabAlbums.dispatch('click');
+    h.advance(h.X.D.base + h.X.D.short + h.X.D.base + h.X.D.base);
+    assert.equal(tour.getCurrentStepId(), 's2');
+    // The advance pushed an entry, and it carries everything needed to
+    // render that step. Nothing that varies per step lives in a closure.
+    assert.equal(h.pushStates.length, 1);
+    assert.equal(h.pushStates[0].tourId, 's2');
+    assert.equal(h.pushStates[0].tourStep, 1);
   });
 
-  test('T2b — the gallery unwinding an overlay is NOT the user leaving', () => {
-    // Regression: the gallery closes overlays by popping a history
-    // entry, so closing the viewer with its Back button fires a
-    // popstate. The tour used to read that as "back pressed" and tore
-    // itself down — which ended the visitor walk at step 4 of 11.
+  test('T2a — the URL changes on every step push', () => {
+    // A pushState with an unchanged URL can be collapsed by some browsers,
+    // which would silently merge two steps into one history entry.
     const h = setup();
     const tour = h.X.createGuidedTour({ steps: tourOf(
       clickStep('s1', 1, 'tab-albums'),
@@ -1457,10 +1521,102 @@ describe('T — the real TOUR_STEPS integration', () => {
     ) });
     tour.start();
     h.advance(h.X.D.base);
-    // The gallery pushes its overlay entry, then closes it: announce,
-    // then pop.
-    h.window.dispatchEvent('gallery:history-pop');
+    h.tabAlbums.dispatch('click');
+    h.advance(h.X.D.base + h.X.D.short + h.X.D.base + h.X.D.base);
+    assert.ok(h.historyUrls.length >= 2, 'the seed and the push both set a URL');
+    assert.ok(h.historyUrls.some((u) => /#step-s1$/.test(u)), 'step 1 is addressable');
+    assert.ok(h.historyUrls.some((u) => /#step-s2$/.test(u)), 'step 2 is addressable');
+  });
+
+  test('T2a2 — the stack grows by exactly one per step', () => {
+    const h = setup();
+    const tour = h.X.createGuidedTour({ steps: tourOf(
+      clickStep('s1', 1, 'tab-albums'),
+      clickStep('s2', 2, 'album-cover'),
+      clickStep('s3', 3, 'viewer-close'),
+    ) });
+    tour.start();
+    const seeded = h.history.length;
+    h.advance(h.X.D.base);
+    h.tabAlbums.dispatch('click');
+    h.advance(h.X.D.base + h.X.D.short + h.X.D.base + h.X.D.base);
+    h.albumCover.dispatch('click');
+    h.advance(h.X.D.base + h.X.D.short + h.X.D.base + h.X.D.base);
+    assert.equal(tour.getCurrentStepId(), 's3');
+    assert.equal(h.history.length, seeded + 2, 'two advances, two entries — seeding pushed none');
+  });
+
+  test('T2a3 — back walks the tour backwards and re-renders that step', () => {
+    const h = setup();
+    const tour = h.X.createGuidedTour({ steps: tourOf(
+      clickStep('s1', 1, 'tab-albums'),
+      clickStep('s2', 2, 'album-cover'),
+    ) });
+    tour.start();
+    h.advance(h.X.D.base);
+    h.tabAlbums.dispatch('click');
+    h.advance(h.X.D.base + h.X.D.short + h.X.D.base + h.X.D.base);
+    assert.equal(tour.getCurrentStepId(), 's2');
+
+    // Alt+Left / Cmd+[ / the mobile edge swipe all arrive here as one
+    // popstate, so this single case covers every one of them.
     h.history.back();
+    assert.equal(tour.getCurrentStepId(), 's1', 'back must land on the previous step');
+    assert.notEqual(tour.getPhase(), 'complete', 'back within the tour is not an exit');
+    assert.equal(h.document.querySelectorAll('.tour-root').length, 1, 'the tour is still up');
+  });
+
+  test('T2a4 — forward returns to the step it left', () => {
+    const h = setup();
+    const tour = h.X.createGuidedTour({ steps: tourOf(
+      clickStep('s1', 1, 'tab-albums'),
+      clickStep('s2', 2, 'album-cover'),
+    ) });
+    tour.start();
+    h.advance(h.X.D.base);
+    h.tabAlbums.dispatch('click');
+    h.advance(h.X.D.base + h.X.D.short + h.X.D.base + h.X.D.base);
+    h.history.back();
+    assert.equal(tour.getCurrentStepId(), 's1');
+    h.history.forward();
+    assert.equal(tour.getCurrentStepId(), 's2', 'Alt+Right / Cmd+] must re-render the step');
+    assert.notEqual(tour.getPhase(), 'complete');
+  });
+
+  test('T2a5 — a deep link seeds that step, not step 0', () => {
+    const h = setup({ hash: '#step-s2' });
+    const tour = h.X.createGuidedTour({ steps: tourOf(
+      clickStep('s1', 1, 'tab-albums'),
+      clickStep('s2', 2, 'album-cover'),
+    ) });
+    tour.start();
+    h.advance(h.X.D.base);
+    assert.equal(tour.getCurrentStepId(), 's2', 'the URL named the step to open');
+    assert.equal(h.history.state.tourId, 's2');
+    // Backing out of it leaves, because it was seeded, not pushed.
+    h.history.back();
+    assert.equal(tour.getPhase(), 'complete');
+  });
+
+  test('T2b — the gallery unwinding an overlay is NOT the user leaving', () => {
+    // Regression: the gallery closes overlays by popping a history
+    // entry, so closing the viewer with its Back button fires a
+    // popstate. The tour used to read that as "back pressed" and tore
+    // itself down — which ended the visitor walk at step 4 of 11.
+    // It is now told apart by the entry itself: the overlay's entry
+    // carries the tour step, so the pop names a step and is a step
+    // change at worst, never a departure.
+    const h = setup();
+    const tour = h.X.createGuidedTour({ steps: tourOf(
+      clickStep('s1', 1, 'tab-albums'),
+      clickStep('s2', 2, 'album-cover'),
+    ) });
+    tour.start();
+    h.advance(h.X.D.base);
+    // The gallery opens a dialog: it pushes its own entry, carrying the
+    // tour step that was current. Then it closes it, which pops.
+    h.window.GalleryNav.push({ overlay: 'viewer', tour: true, tourStep: 0, tourId: 's1' });
+    h.window.GalleryNav.back();
     assert.equal(tour.getPhase(), 'waiting', 'an overlay close must not exit the tour');
     assert.notEqual(tour.getCurrentStepId(), null);
     assert.equal(h.document.querySelectorAll('.tour-root').length, 1, 'the overlay stays up');
@@ -1470,27 +1626,115 @@ describe('T — the real TOUR_STEPS integration', () => {
     assert.equal(tour.getCurrentStepId(), 's2');
   });
 
-  test('T2c — a pop landing on the tour entry is not an exit either', () => {
-    // Covers an overlay opened before the announcement path: the pop
-    // lands on the tour's own entry, so the user has not left.
+  /* The three cases below all need the same thing to be true: the tour has
+     MOVED since the entry was written. Without that, the step-equality
+     check below already returns, and the guard is never consulted — which
+     is why an earlier version of this suite passed with the guards
+     deleted. */
+
+  test('T2d1 — our own pop onto an older step does not drag the tour back', () => {
+    // A dialog is opened during step s1. The visitor completes s1 inside
+    // it — the tour is now on s2 — and only then dismisses the dialog,
+    // which pops onto the entry for s1. That pop is ours, and it names a
+    // step the tour has already left: honouring it would walk the visitor
+    // backwards out of the step they just finished.
+    const h = setup();
+    const tour = h.X.createGuidedTour({ steps: tourOf(
+      clickStep('s1', 1, 'tab-albums'),
+      clickStep('s2', 2, 'album-cover'),
+    ) });
+    tour.start();
+    h.advance(h.X.D.base);
+    h.window.GalleryNav.push({ overlay: 'viewer', tour: true, tourStep: 0, tourId: 's1' });
+    // The action happens inside the dialog, so the tour moves on.
+    h.tabAlbums.dispatch('click');
+    h.advance(h.X.D.base + h.X.D.short + h.X.D.base + h.X.D.base);
+    assert.equal(tour.getCurrentStepId(), 's2');
+    // Now the dialog closes.
+    h.window.GalleryNav.back();
+    assert.equal(tour.getCurrentStepId(), 's2',
+      'closing a dialog must not undo the step completed inside it');
+    assert.notEqual(tour.getPhase(), 'complete', 'and the tour is still up');
+  });
+
+  test('T2d2 — a user pop onto an overlay entry does not move the step', () => {
+    // Same shape, but the pop is the visitor's own (forward, or a
+    // re-opened entry), not ours. An overlay entry says an overlay is on
+    // screen; it says nothing about which step is current, and the step
+    // it was opened from is not necessarily the one being shown now.
+    const h = setup();
+    const tour = h.X.createGuidedTour({ steps: tourOf(
+      clickStep('s1', 1, 'tab-albums'),
+      clickStep('s2', 2, 'album-cover'),
+    ) });
+    tour.start();
+    h.advance(h.X.D.base);
+    h.tabAlbums.dispatch('click');
+    h.advance(h.X.D.base + h.X.D.short + h.X.D.base + h.X.D.base);
+    assert.equal(tour.getCurrentStepId(), 's2');
+    // An overlay opened back at s1, then the visitor pressed forward onto
+    // its entry.
+    h.history.pushState({ overlay: 'viewer', tour: true, tourStep: 0, tourId: 's1' }, '', '/#step-s1');
+    h.history.back();
+    h.history.forward();
+    assert.equal(tour.getCurrentStepId(), 's2',
+      'an overlay entry must not yank the tour back to the step it was opened from');
+  });
+
+  test('T2d3 — a pop after the tour has ended is inert', () => {
+    // The tour unsubscribes when it ends, but a pop already in flight in
+    // the same turn — or one that arrives from a dialog closing as the
+    // tour completes — must not start it again. `ended` is the last
+    // thing standing between a finished tour and a fresh one.
+    const h = setup();
+    const tour = h.X.createGuidedTour({ steps: tourOf(
+      clickStep('s1', 1, 'tab-albums'),
+      clickStep('s2', 2, 'album-cover'),
+    ) });
+    tour.start();
+    h.advance(h.X.D.base);
+    h.tabAlbums.dispatch('click');
+    h.advance(h.X.D.base + h.X.D.short + h.X.D.base + h.X.D.base);
+    h.albumCover.dispatch('click');
+    h.advance(h.X.D.base + h.X.D.short + h.X.D.base + h.X.D.base);
+    assert.equal(tour.getPhase(), 'complete');
+    const finishedAt = h.document.querySelectorAll('.tour-root').length;
+
+    // Back onto a step entry, after the tour is done.
+    h.history.back();
+    assert.equal(tour.getPhase(), 'complete', 'a late pop must not revive the tour');
+    assert.equal(h.document.querySelectorAll('.tour-root').length, finishedAt);
+    const saved = h.X.parseTourState(h.store.get('walkthrough.tourState'));
+    assert.equal(saved.finished, true);
+  });
+
+  test('T2c — a pop landing on an overlay entry is not an exit either', () => {
+    // A dialog opened during a step pushes its own entry carrying the
+    // step's fields. Closing it pops back onto that entry: the overlay is
+    // gone, the step has not changed, and the tour stays up.
     const h = setup();
     const tour = h.X.createGuidedTour({ steps: tourOf(clickStep('s1', 1, 'tab-albums')) });
     tour.start();
     h.advance(h.X.D.base);
-    h.window.dispatchEvent('popstate'); // cursor still on the tour entry
+    h.history.pushState({ overlay: 'confirmOverlay', tour: true, tourStep: 0, tourId: 's1' }, '', '/');
     assert.equal(tour.getPhase(), 'waiting');
+    h.history.back(); // back onto the step entry
+    assert.equal(tour.getPhase(), 'waiting', 'closing a dialog is not leaving the tour');
+    assert.equal(tour.getCurrentStepId(), 's1');
     assert.equal(h.document.querySelectorAll('.tour-root').length, 1);
   });
 
-  test('T2d — a genuine back-press still exits the tour', () => {
-    // The guard must not blunt the real escape hatch: stepping below
-    // the tour's own entry is the user leaving.
+  test('T2d — back past the first step exits, and is recorded as an escape', () => {
+    // Step 0 is seeded, not pushed, so the entry below it is the page the
+    // visitor arrived on. Reaching it is them leaving — the tour must not
+    // trap them (trap 10), and the departure must be recorded as escaped
+    // rather than completion.
     const h = setup();
     const tour = h.X.createGuidedTour({ steps: tourOf(clickStep('s1', 1, 'tab-albums')) });
     tour.start();
     h.advance(h.X.D.base);
-    assert.equal(h.history.state && h.history.state.guidedTour, true);
-    h.history.back(); // now below the tour entry
+    assert.equal(h.history.state.tourId, 's1');
+    h.history.back(); // below the seeded entry: the arrival page
     assert.equal(tour.getPhase(), 'complete');
     const saved = h.X.parseTourState(h.store.get('walkthrough.tourState'));
     assert.equal(saved.finished, true);
