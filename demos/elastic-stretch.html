@@ -23,14 +23,14 @@
                       above 1, which is what puts the bounce in each
                       segment rather than only between letters.
 
-     candy-cycle     5.4s infinite, per letter, staggered -0.6s.
+     candy-cycle     5.4s infinite, per glyph, staggered -0.54s.
                       Colour drifts through the candy palette. The
                       negative delay is not the 0.06s letter stagger:
-                      that spreads letters across 0.48s of a 2.4s
-                      transform, which is far too small a window to
-                      separate nine hues. 5.4s / 9 = 0.6s puts each
-                      letter on its own point in the colour cycle, so
-                      all nine read as different at any instant.
+                      that spreads the glyphs across 0.48s of a 2.4s
+                      transform, far too small a window to separate ten
+                      hues. 5.4s / 10 = 0.54s puts each glyph on its own
+                      point in the cycle, so all ten read as different
+                      at any instant.
 
    Nothing here animates layout. The letters are transform- and
    colour-only; the SVG coils do not move at all.
@@ -181,7 +181,7 @@ body {
   color: var(--c1);
   animation:
     elastic-stretch 2.4s var(--elastic) calc(var(--i) * var(--letter-stagger)) infinite,
-    candy-cycle var(--colour-span) linear calc(var(--i) * -0.6s) infinite;
+    candy-cycle var(--colour-span) linear calc(var(--i) * -0.54s) infinite;
   will-change: transform, color;
 }
 
@@ -210,6 +210,10 @@ body {
      its own stop rather than being skipped. */
   87%      { color: var(--c5); }
 }
+
+/* The space between the two words takes an index so the stagger counts
+   it, and no glyph of its own. */
+.ltr--gap { white-space: pre; }
 
 .caption {
   position: relative;
@@ -287,8 +291,8 @@ body {
 
   <div class="card">
     <!-- One heading, one accessible name, nine visual letters. -->
-    <h1 class="word" aria-label="SvgAnimate">
-      <span class="ltr" style="--i:0" aria-hidden="true">S</span><span class="ltr" style="--i:1" aria-hidden="true">v</span><span class="ltr" style="--i:2" aria-hidden="true">g</span><span class="ltr" style="--i:3" aria-hidden="true">A</span><span class="ltr" style="--i:4" aria-hidden="true">n</span><span class="ltr" style="--i:5" aria-hidden="true">i</span><span class="ltr" style="--i:6" aria-hidden="true">m</span><span class="ltr" style="--i:7" aria-hidden="true">a</span><span class="ltr" style="--i:8" aria-hidden="true">t</span><span class="ltr" style="--i:9" aria-hidden="true">e</span>
+    <h1 class="word" aria-label="Start here">
+      <span class="ltr" style="--i:0" aria-hidden="true">S</span><span class="ltr" style="--i:1" aria-hidden="true">t</span><span class="ltr" style="--i:2" aria-hidden="true">a</span><span class="ltr" style="--i:3" aria-hidden="true">r</span><span class="ltr" style="--i:4" aria-hidden="true">t</span><span class="ltr ltr--gap" style="--i:5" aria-hidden="true"> </span><span class="ltr" style="--i:6" aria-hidden="true">h</span><span class="ltr" style="--i:7" aria-hidden="true">e</span><span class="ltr" style="--i:8" aria-hidden="true">r</span><span class="ltr" style="--i:9" aria-hidden="true">e</span>
     </h1>
   </div>
 

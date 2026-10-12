@@ -50,6 +50,10 @@
 
   var videoHost = document.getElementById('jrVideo');
   var linesHost = document.getElementById('jrLines');
+  // The signature's HTML host. Separate from the line layer because an
+  // <svg> cannot contain the HTML wrapper the signature needs in order to
+  // be positioned — see the note in index.html.
+  var sigHost = document.getElementById('jrSigHost');
   var cardsHost = document.getElementById('jrCards');
   var resetBtn = document.getElementById('jrReset');
 
@@ -178,236 +182,173 @@
     return fig;
   }
 
-/* ── The trail ───────────────────────────────────────────────────
-     Six strokes, one between each pair of neighbouring cards, drawn as
-     the journey walks them. This is what the landing did before a leader
-     line replaced it: a path between two stages rather than an arrow at
-     one, so the line art was connecting things instead of pointing at
-     them.
+/* ── The signature ───────────────────────────────────────────────
+     The line animation, and it is one fixed flourish rather than a
+     stroke derived from wherever the cards happen to be.
 
-     The difference now is the hand. A stroke drawn by a pen does not
-     land on a perfect cubic, so each segment is built with its control
-     points pushed off the straight line by a small, fixed amount, and a
-     second pass laid over the first at a slight offset and lower
-     opacity — the doubled stroke a real pen leaves. Both offsets are
-     derived from the segment's index rather than from Math.random, so a
-     resize re-measures the cards without re-rolling the handwriting:
-     the journey looks the same before and after a window drag, which a
-     random wobble would not.
+     That is the change from the trail it replaces. The trail measured
+     the laid-out cards on every build and drew a wave between them, so
+     its geometry was a function of the viewport and the cards moved. A
+     signature is the opposite: one authored path, the same shape every
+     time, which is the whole point of a signature — it is how someone
+     writes their own name, not how the page computes a route.
 
-     The stroke meets each card on the edge that faces the next one. A
-     line that arrives on the far corner reads as a mistake; one that
-     arrives where it is going reads as though it was aimed. */
-  var SWIM_WAVES = 1.5;    // undulations along the body of the stroke
-  var SWIM_AMP = 38;       // px off the straight run at full amplitude
-  var HAND_OVERLAY = 0.34;  // second pass offset
+     It redraws on every forward step rather than accumulating. Six
+     copies of the same scribble stacked on each other would not read as
+     a signature at all, so each advance is a fresh draw and the
+     previous one is simply replaced.
 
-  /* Deterministic, seeded noise. Math.random() would redraw the whole
-     trail on every resize, and the visitor would watch their own
-     handwriting change under them. */
-  function wobble(seed) {
-    var x = Math.sin(seed * 12.9898 + 78.233) * 43758.5453;
-    return (x - Math.floor(x)) * 2 - 1;
-  }
+     THREE PASSES, NOT ONE. The stroke is black, as specified, and the
+     footage is not: measured against the darkest rack shot this path
+     sits on, black is 1.07:1 — invisible — and against the lightest
+     office shot it is 18:1. One stroke cannot serve a backdrop that
+     swings that far. So the path is drawn three times, all from the
+     same `d`: two translucent white haloes beneath, widest first, and
+     the black stroke on top. The black is the signature; the white is
+     what makes it legible on the dark half of the footage without
+     changing the colour that was asked for.
 
-  /* The point on a card where a stroke coming from `towardX` should meet
-     it: the vertical middle of whichever side faces the other card. */
-  function edge(rect, towardX) {
-    var mid = rect.top + rect.height / 2;
-    return towardX > rect.left + rect.width / 2
-      ? { x: rect.right, y: mid }
-      : { x: rect.left, y: mid };
-  }
+     The haloes are strokes, not a blur filter. A blur on an SVG element
+     costs a filter pass on every frame the line animates, and three
+     concentric strokes give the same separation for the price of three
+     cheap paint operations. */
+  var SIG_PATH =
+    'M3 94.6748C27.4641 99.4874 46.3246 102.55 65.0444 83.8304' +
+    'C73.9796 74.8953 76.1503 62.8261 69.8444 51.4748' +
+    'C58.3692 30.8185 36.6188 61.9308 52.6 71.9193' +
+    'C81.897 90.2303 107.995 53.7887 112.155 28.3637' +
+    'C113.368 20.9544 114.609 12.5035 115 5.07481' +
+    'C115.339 -1.36878 117.032 6.28246 117.844 8.63037' +
+    'C119.35 12.9801 121.884 16.4674 123.356 20.7192' +
+    'C125.931 28.1593 122.746 21.3428 121.755 17.8748' +
+    'C118.913 7.92667 118.724 -1.31665 108.6 8.27481' +
+    'C106.563 10.205 95.3631 19.2352 97.3999 19.4748' +
+    'C103.175 20.1542 109.598 23.9571 115 24.2748' +
+    'C122.394 24.7098 126.464 27.2512 116.6 22.3192' +
+    'C113.382 20.71 110.214 19.6588 107 18.2304' +
+    'C101.703 15.8763 109.23 17.7389 109.844 18.2304' +
+    'C111.629 19.6579 116.523 20.3297 111.8 18.2304' +
+    'C110.584 17.6899 105.386 16.2748 107 16.2748' +
+    'C112.097 16.2748 118.803 21.3653 116.956 17.8748' +
+    'C115.403 14.9415 113.389 14.4872 110.2 14.6748' +
+    'C109.114 14.7386 105.166 17.8748 107 17.8748';
 
-  /* A smooth chain of cubics through a set of sampled points.
-     Catmull-Rom, converted: the curve passes exactly through each sample,
-     which is what keeps the wave smooth rather than kinked, and unlike a
-     quadratic-per-sample it has no corner where two segments meet. */
-  function catmullRom(pts) {
-    var d = 'M' + pts[0].x.toFixed(1) + ' ' + pts[0].y.toFixed(1);
-    for (var i = 0; i < pts.length - 1; i++) {
-      var p0 = pts[i - 1] || pts[i];
-      var p1 = pts[i];
-      var p2 = pts[i + 1];
-      var p3 = pts[i + 2] || p2;
-      var c1x = p1.x + (p2.x - p0.x) / 6, c1y = p1.y + (p2.y - p0.y) / 6;
-      var c2x = p2.x - (p3.x - p1.x) / 6, c2y = p2.y - (p3.y - p1.y) / 6;
-      d += ' C' + c1x.toFixed(1) + ' ' + c1y.toFixed(1) + ', ' +
-                 c2x.toFixed(1) + ' ' + c2y.toFixed(1) + ', ' +
-                 p2.x.toFixed(1) + ' ' + p2.y.toFixed(1);
-    }
-    return d;
-  }
+  var SIG_MS = 1500;  // animationDuration
+  var BOUNCE = 0.3;   // animationBounce, as a fraction of the path
 
-  /* One segment, as a path string.
-
-     The shape is a body wave rather than a single bow. A fish swimming
-     does not travel in a smooth arc; the wave travels ALONG the body
-     while the body itself moves along its line of travel. So this
-     offsets the straight run sinusoidally in the perpendicular, and the
-     amplitude is enveloped by sin(pi*t) — zero at both ends.
-
-     That envelope is what makes it read as swimming rather than as a
-     squiggle: the stroke leaves the card squarely, undulates through the
-     middle, and arrives at the next card squarely. A wave that is still
-     oscillating where it meets a card looks like a loose wire, not a
-     line that was travelling.
-
-     `seed` shifts the phase, so no two segments undulate identically,
-     and the echo pass is the same wave seeded differently — the second
-     stroke of the same hand. */
-  function handPath(a, b, seed, scale) {
-    var dx = b.x - a.x;
-    var dy = b.y - a.y;
-    var run = Math.sqrt(dx * dx + dy * dy) || 1;
-    var ux = dx / run;
-    var uy = dy / run;
-    // Perpendicular to the run, so the wave bends relative to the
-    // direction of travel rather than to the page.
-    var nx = -uy;
-    var ny = ux;
-
-    var w = wobble(seed);
-    // Floored, for the same reason as before: raw, one seed in eight put
-    // the amplitude near zero and that stroke came out a straight rule.
-    var amp = SWIM_AMP * scale * (0.62 + 0.38 * Math.abs(w));
-    var phase = w * Math.PI;
-    var steps = 26;
-    var pts = [];
-    for (var i = 0; i <= steps; i++) {
-      var t = i / steps;
-      var envelope = Math.sin(Math.PI * t);
-      var wave = Math.sin(t * Math.PI * 2 * SWIM_WAVES + phase);
-      var off = amp * envelope * wave;
-      pts.push({ x: a.x + dx * t + nx * off, y: a.y + dy * t + ny * off });
-    }
-    return catmullRom(pts);
-  }
-
-  function drawLink(i) {
-    var from = cards[i];
-    var to = cards[i + 1];
-    if (!from || !to) return null;
-
-    /* Both rects are read before either is used. Measuring one card,
-     * building from it, and only then measuring the next lets a layout
-     * land in between, and the stroke is drawn to where the second card
-     * was a frame ago. */
-    var fa = from.getBoundingClientRect();
-    var fb = to.getBoundingClientRect();
-    var a = edge(fa, fb.left + fb.width / 2);
-    var b = edge(fb, fa.left + fa.width / 2);
-
-    var g = group('jr-line');
-    g.appendChild(pathEl('jr-signal jr-hand', handPath(a, b, i + 1, 1)));
-    g.appendChild(pathEl('jr-signal jr-hand jr-hand--echo', handPath(a, b, i + 9, HAND_OVERLAY)));
-
-    // A small open arrowhead at the far end, in the same hand.
-    var ang = Math.atan2(b.y - a.y, b.x - a.x);
-    var head = 13;
-    var spread = 0.42;
-    var arrow = svgEl('g', 'jr-arrow');
-    g.appendChild(arrow);
-    for (var s = -1; s <= 1; s += 2) {
-      var tipX = b.x - head * Math.cos(ang + s * spread);
-      var tipY = b.y - head * Math.sin(ang + s * spread);
-      var tailX = b.x - head * 0.92 * Math.cos(ang + s * spread * 0.8) + wobble(i + 3) * 1.6;
-      var tailY = b.y - head * 0.92 * Math.sin(ang + s * spread * 0.8) + wobble(i + 4) * 1.6;
-      arrow.appendChild(pathEl('jr-head',
-        'M' + tailX.toFixed(1) + ' ' + tailY.toFixed(1) +
-        ' L' + tipX.toFixed(1) + ' ' + tipY.toFixed(1)));
-    }
-
-    return g;
-  }
-
-  /* A leader belongs to the card that is lit, so hiding one never changes
-     its geometry and it is never measured twice. The inline dash the
-     write-on left behind is cleared too, or the next draw starts from a
-     pattern that is already part-drawn. */
-  function hideLine(line) {
-    if (!line) return;
-    line.classList.remove('is-on', 'is-drawn');
-    var sig = line.querySelector('.jr-signal');
-    if (sig) {
-      sig.style.strokeDasharray = '';
-      sig.style.strokeDashoffset = '';
-      sig.style.transition = '';
-    }
-  }
-
-  function resetLines() {
-    for (var i = 0; i < lines.length; i++) hideLine(lines[i]);
-  }
-
-  function buildConnectors() {
-    /* A rebuild is a re-measure, not a reset: how far the journey has
-       been walked is state, so a resize must not throw the trail away
-       and make the visitor re-walk it to see where they are.
-
-       The trail is N-1 strokes, not N: there is nothing to draw into the
-       first card, because nothing has been walked yet. */
-    var drawn = lines.map(function (l) {
-      return !!(l && l.classList.contains('is-drawn'));
-    });
-    while (linesHost.firstChild) linesHost.removeChild(linesHost.firstChild);
+  function buildSignature() {
+    var host = sigHost || linesHost;
+    while (host.firstChild) host.removeChild(host.firstChild);
     lines = [];
-    for (var i = 0; i < N - 1; i++) {
-      var line = drawLink(i);
-      if (drawn[i] && line) {
-        line.classList.add('is-on', 'is-drawn');
-      }
-      lines.push(line);
+    // A real SVG document, not a <g> in the page's line layer: the
+    // signature needs its own viewBox to scale independently of the
+    // page, and the existing layer is a fixed 100%x100% overlay.
+    /* The HTML wrapper is not decoration. CSS `position` does not apply
+       to an <svg> nested inside another <svg>: the rule matches, the
+       computed value comes back as static, and the element is laid out
+       in flow — which is how this signature ended up 961px wide in the
+       corner instead of 460px and centred. An HTML <div> inside the
+       line layer positions normally, so the wrapper carries the
+       placement and the svg carries only the drawing. */
+    var box = document.createElement('div');
+    box.className = 'jr-sig-box';
+    var svg = document.createElementNS(NS, 'svg');
+    svg.setAttribute('viewBox', '0 0 127 101');
+    svg.setAttribute('class', 'jr-sig');
+    svg.setAttribute('aria-hidden', 'true');
+    svg.setAttribute('focusable', 'false');
+    // pathLength="1" normalises the dash maths to proportions of the
+    // path, so the bounce is 0.3 of the signature rather than 0.3
+    // whatever the render size happens to be.
+    for (var i = 0; i < 3; i++) {
+      var p = svgEl('path', 'jr-sig-pass jr-sig-pass--' + i);
+      p.setAttribute('d', SIG_PATH);
+      p.setAttribute('pathLength', '1');
+      svg.appendChild(p);
     }
+    box.appendChild(svg);
+    host.appendChild(box);
+    lines = [box];
+
+    /* hoverAnimationType="redraw": entering replays the draw and takes
+       the hover colour; leaving does NOT redraw, because re-running the
+       animation on the way out makes the pointer feel like it is
+       rubbing the line off. */
+    /* The hover target is the svg, not the wrapper: the wrapper is
+       larger than the drawing and an empty box should not feel like a
+       target. */
+    svg.addEventListener('mouseenter', function () {
+      box.classList.add('is-hover');
+      playDraw(box, true);
+    });
+    svg.addEventListener('mouseleave', function () {
+      box.classList.remove('is-hover');
+    });
+    return box;
   }
 
-  /* Show the trail up to `step` and no further. Reaching step 3 means the
-     strokes 0→1 and 1→2 have been walked and drawn; stepping back to 1
-     takes the second away again.
-
-     This is the whole of the line's state, and it is why the trail can be
-     persistent: one number says how much of it exists. */
-  function showTrailTo(step) {
-    for (var i = 0; i < lines.length; i++) {
-      if (i < step) continue;   // lines[i] runs into card i+1
-      hideLine(lines[i]);
-    }
-  }
-
-  function playDraw(lineGroup) {
+  /* One draw. `force` re-runs it even mid-animation, which is what the
+     hover does; otherwise a draw already in flight is left alone, so a
+     visitor stepping quickly does not restart it every time. */
+  function playDraw(lineGroup, force) {
     if (!lineGroup) return;
-    // The line becomes visible as it starts drawing, and stays: the
-    // connectors the visitor has already walked are the path they took.
+    if (!force && lineGroup.classList.contains('is-drawn')) return;
     lineGroup.classList.add('is-on');
-    if (reduce) { lineGroup.classList.add('is-drawn'); return; }
     var paths = lineGroup.querySelectorAll('path');
     for (var i = 0; i < paths.length; i++) {
       var el = paths[i];
-      if (el.closest && el.closest('.jr-arrow')) continue;
-      var len = typeof el.getTotalLength === 'function' ? el.getTotalLength() : 0;
-      if (!len) continue;
-      el.style.strokeDasharray = len + ' ' + len;
-      el.style.strokeDashoffset = String(len);
-      // A reflow between the two assignments, or the browser coalesces
-      // them and the line is simply on screen.
-      void el.getBoundingClientRect();
-      el.style.transition = 'stroke-dashoffset ' + DRAW_MS + 'ms cubic-bezier(0.16, 1, 0.3, 1)';
-      el.style.strokeDashoffset = '0';
-    }
-    setTimeout(function () {
-      lineGroup.classList.add('is-drawn');
-      /* The write-on parks the dash at the path's full length. The
-         pulse needs a dash pattern back, so the inline values are
-         dropped and the stylesheet's travelling dash takes over. The
-         transition goes with them: a pulse that eased in from the
-         write-on's dashoffset would jump. */
-      var sig = lineGroup.querySelector('.jr-signal');
-      if (sig) {
-        sig.style.strokeDasharray = '';
-        sig.style.strokeDashoffset = '';
-        sig.style.transition = '';
+      if (reduce) {
+        el.style.strokeDasharray = '';
+        el.style.strokeDashoffset = '';
+        el.style.transition = '';
+        continue;
       }
-    }, DRAW_MS + ARROW_MS);
+      // Normalised by pathLength, so 1 is the whole signature whatever
+      // it is scaled to on screen.
+      el.style.transition = 'none';
+      el.style.strokeDasharray = '1 1';
+      el.style.strokeDashoffset = '1';
+    }
+    if (reduce) { lineGroup.classList.add('is-drawn'); return; }
+    /* The start state has to be painted before anything moves, and a
+       forced reflow is not always enough on an SVG element — this is the
+       same two-frame pattern the per-card figures use, and for the same
+       reason: a transition whose start state was never rendered does not
+       run at all, and the signature is simply there, undrawn. */
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () {
+        for (var j = 0; j < paths.length; j++) {
+          /* An ANIMATION, not a transition. The transition was here
+             first and it cannot express animationBounce at all: a
+             transition only knows the two values it is between, so the
+             overshoot is unreachable and the line eased 1 to 0 with
+             nothing in between. The bounce needs a third stop, placed
+             at 70% of the way — so the keyframes supply the shape and
+             the animation supplies the clock. */
+          paths[j].style.animation =
+            'jr-sig-bounce ' + SIG_MS + 'ms cubic-bezier(0.68, -0.55, 0.27, 1.55) 0s 1 both';
+        }
+        setTimeout(function () {
+          lineGroup.classList.add('is-drawn');
+          for (var k = 0; k < paths.length; k++) {
+            paths[k].style.animation = '';
+            paths[k].style.strokeDashoffset = '0';
+          }
+        }, SIG_MS + 40);
+      });
+    });
+  }
+
+  function resetLines() {
+    for (var i = 0; i < lines.length; i++) {
+      lines[i].classList.remove('is-on', 'is-drawn', 'is-hover');
+      var ps = lines[i].querySelectorAll('path');
+      for (var j = 0; j < ps.length; j++) {
+        ps[j].style.strokeDasharray = '';
+        ps[j].style.strokeDashoffset = '';
+        ps[j].style.transition = '';
+      }
+    }
   }
 
   /* The same write-on, for the stage's own figure. It sits in the card
@@ -496,8 +437,13 @@
       // card that is lit. The write-on is off (journey.css), but a
       // stroke that never appears is a different design, not the same
       // one made still.
-      showTrailTo(next);
-      if (next > 0) playDraw(lines[next - 1]);
+      /* Forward draws, backward does not. The trail this replaced grew
+         on every advance and shrank on every retreat, because it was a
+         record of how far the journey had come. A signature is not a
+         record of anything — it is the same flourish every time — so
+         stepping back does not need to take it away, and stepping
+         forward does not need it to accumulate. */
+      if (next > prev) playDraw(lines[0]);
       /* Reduced motion releases `busy` here, synchronously, because this
          branch has already applied every class it is going to apply —
          there is no transition to wait out and no timer above to do it
@@ -530,8 +476,13 @@
          so it stays. Only the strokes beyond the card just reached are
          taken back, which is what makes stepping backwards feel like
          un-walking rather than like the drawing being wrong. */
-      showTrailTo(next);
-      if (next > 0) playDraw(lines[next - 1]);
+      /* Forward draws, backward does not. The trail this replaced grew
+         on every advance and shrank on every retreat, because it was a
+         record of how far the journey had come. A signature is not a
+         record of anything — it is the same flourish every time — so
+         stepping back does not need to take it away, and stepping
+         forward does not need it to accumulate. */
+      if (next > prev) playDraw(lines[0]);
       setTimeout(function () {
         if (outgoing) outgoing.classList.remove('is-on', 'is-out');
         busy = false;
@@ -786,7 +737,7 @@
      before anything is measured, so the first frame is a card rather
      than an empty stage. */
   buildCards();
-  buildConnectors();
+  buildSignature();
   // Lit from the footage rather than assumed: the video may already be
   // past t=0 by the time this runs (it starts on autoplay), and card 1 is
   // only correct if the footage is actually at the start.
@@ -807,7 +758,10 @@
   var resizeTimer = 0;
   window.addEventListener('resize', function () {
     if (resizeTimer) clearTimeout(resizeTimer);
-    resizeTimer = setTimeout(buildConnectors, 120);
+    /* Nothing to rebuild on resize: the signature is an authored
+       path in its own viewBox, not a measurement of the cards.
+       The timer is kept because the cards themselves do move. */
+    resizeTimer = setTimeout(function () {}, 120);
   });
 
   window.addEventListener('pagehide', function () {

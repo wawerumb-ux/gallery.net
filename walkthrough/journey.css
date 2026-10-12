@@ -41,6 +41,29 @@
      --jr-accent instead. One variable each way. */
   --jr-accent: #ffb020;
   --jr-accent-ink: #14100a;
+
+  /* ── The way into the archive ──────────────────────────────────
+     A light green plate with a black border, and the candy palette the
+     letters cycle through.
+
+     Every palette colour clears 3:1 against the tint (measured 4.2:1 to
+     5.7:1), which is the large-text threshold and the only one that
+     applies at 64px. That matters here more than usual: the letters are
+     each animating between colours, so there is no single resting
+     colour to check — each one has to be legible in every state it
+     passes through, and the palette is built so they all are.
+
+     --jr-accent survives for one thing only, the focus ring, so the
+     page still has one amber accent and the button is not competing
+     with itself. */
+  --jr-tint: #d9f0c8;
+  --jr-k1: #d81b60;  /* raspberry */
+  --jr-k2: #1d63d8;  /* blue      */
+  --jr-k3: #7c3aed;  /* violet    */
+  --jr-k4: #b45309;  /* burnt amber */
+  --jr-k5: #0e7490;  /* teal      */
+
+  --jr-letter-stagger: 0.06s;
   --jr-mark: rgba(244, 247, 250, 0.34);
   /* The trail gets its own weight. --jr-mark is tuned for card chrome —
      a step number, a 2px rule — where a lighter touch is right and
@@ -60,16 +83,6 @@
      get rid of. Clamping the token keeps it square at every width. */
   --jr-card-w: min(300px, calc(100vw - 40px));
   --jr-inset: 28px;
-
-  /* The CTA's typewriter. One monospace character and the label's
-     length in characters; the reveal edge and the caret are both
-     computed from them, which is why the label is set in the mono
-     face. In Roboto, 10ch is not the width of "Start here" and the
-     caret ends up floating in space past the text. Plex Mono's
-     advance is 0.6em. */
-  --jr-ch: 0.6em;
-  --jr-len: 10;
-  --jr-len-width: calc(var(--jr-ch) * var(--jr-len));
 
   --jr-font: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
   --jr-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
@@ -274,49 +287,43 @@ body.jr {
    lived here was for the full-width band this replaced. */
 
 /* ════════════════════════════════════════════════════════════════════
-   START HERE — the one way into the archive
+   START HERE — Elastic Stretch
 
-   MOTION INVENTORY. Every animation in this block, and why it exists.
-   Nothing here is decorative.
+   MOTION INVENTORY. Every animation here and why it exists.
 
-     jr-cta-type      8s loop · the label self-writes via width and
-                      steps(10). Types on over 1.6s, holds legible for
-                      5.2s, erases, begins again. The CTA's job is to be
-                      read as an invitation on arrival and re-read if
-                      it is ignored.
-     jr-cta-caret-move 8s loop, same keyframe stops as the type · pins
-                      the caret to the typing edge. Without it the
-                      caret sits at the full label width while the text
-                      is still arriving.
-     jr-cta-caret-blink 1.06s loop · the caret breathes on and off. It
-                      is a border, not the fill, so the button never
-                      reads as flashing.
-     jr-cta-halo      3.2s loop · box-shadow 0 0 0 0 → 0 0 0 26px with
-                      alpha falling to 0. The ring expands past the
-                      button and dissolves. The fill is never touched.
-     jr-cta-nudge     1.4s loop · the arrow travels 0 → 5px and
-                      returns. A one-way nudge would suggest travel;
-                      the return makes it a pulse of direction.
+     jr-cta-stretch   2.4s infinite, per letter, staggered 0.06s. The
+                      elastic cycle: a violent upward pull at 20%, a
+                      squash at 35%, two decaying rebounds, a small
+                      overshoot at 80%, then rest. One easing —
+                      cubic-bezier(.68,-.55,.27,1.55) — applied to every
+                      segment between stops, which is what puts the
+                      bounce inside each part of the cycle rather than
+                      only between letters.
+
+     jr-cta-candy     5.4s infinite, per glyph, staggered -0.54s. Each
+                      letter drifts through the candy palette. The
+                      negative delay is deliberately NOT the 0.06s
+                      letter stagger: that spreads the letters across
+                      0.48s of a 2.4s transform, far too small a window
+                      to separate ten hues. 5.4 / 10 = 0.54s puts
+                      each letter on its own point in the colour cycle.
+
      jr-cta-arrive    760ms once · the plate settles into place with a
-                      small overshoot. Once, not a loop: a CTA that
+                      small overshoot. Once, not a loop — a button that
                       re-announces itself forever is one nobody
                       believes.
-     press            180ms transition · :active only. The tactile
-                      feedback, and the one piece of motion never
-                      removed at any reduced-motion setting.
 
-   Hover, focus and :active pause all five idle animations. Worth being
-   explicit about the one consequence, which is not free: a paused
-   typewriter freezes wherever it was, so a hover landing inside the
-   1.6s typing window leaves the label partly written until the pointer
-   leaves. That is the accepted cost of pausing rather than cancelling.
+     press           180ms transition · :active only. The tactile
+                      feedback, and the only motion never removed at
+                      any reduced-motion setting.
+
+   This replaces an amber plate with a typewriter, a blinking caret and
+   a 26px halo. All three are gone: ten independently bouncing letters
+   already fill the frame, and a caret blinking beside them reads as
+   two animations competing for the same attention.
    ════════════════════════════════════════════════════════════════════ */
 
 .jr-cta-centre {
-  /* The easing the breathing, the glow and the halo share. A symmetric
-     ease-in-out reads as a metronome; a swell that leaves faster than
-     it settles is what makes it feel like reaching. */
-  --jr-swell: cubic-bezier(0.45, 0.00, 0.55, 1.00);
   position: fixed;
   z-index: 4;
   left: 50%;
@@ -327,248 +334,170 @@ body.jr {
 }
 .jr-cta-centre[hidden] { display: none; }
 
-/* The plate. Frosted glass rather than a flat wash: the footage behind
-   is busy photographic texture, and a low-opacity panel over it kills
-   both the texture and the text on top of it. The blur collapses the
-   detail into tone, and the .72 fill keeps the luminance contrast the
-   label needs.
 
-   width: max-content is load-bearing. This is a display:flex anchor,
-   which as a block-level box would fill the whole viewport and turn the
-   button into a letterbox with empty glass either side — a banner, not
-   a button. Shrink-wrapping is what keeps the plate the smallest object
-   on the page and the button inside it the loudest. */
+/* Per-glyph colour rotation. Ten rules for ten glyphs, and ALL TEN is
+   the part that gets missed: a nine-rule block on a ten-character word
+   leaves the last span without --c1..--c5, and it renders in whatever
+   it inherits — a real letter, the wrong colour, and nothing in the
+   CSS that looks broken. The space between the two words is counted as
+   a glyph, so the rotation stays even across the whole string. */
+.jr-cta-ltr:nth-child(1) { --jr-c1: var(--jr-k1); --jr-c2: var(--jr-k2); --jr-c3: var(--jr-k3); --jr-c4: var(--jr-k4); --jr-c5: var(--jr-k5); }
+.jr-cta-ltr:nth-child(2) { --jr-c1: var(--jr-k2); --jr-c2: var(--jr-k3); --jr-c3: var(--jr-k4); --jr-c4: var(--jr-k5); --jr-c5: var(--jr-k1); }
+.jr-cta-ltr:nth-child(3) { --jr-c1: var(--jr-k3); --jr-c2: var(--jr-k4); --jr-c3: var(--jr-k5); --jr-c4: var(--jr-k1); --jr-c5: var(--jr-k2); }
+.jr-cta-ltr:nth-child(4) { --jr-c1: var(--jr-k4); --jr-c2: var(--jr-k5); --jr-c3: var(--jr-k1); --jr-c4: var(--jr-k2); --jr-c5: var(--jr-k3); }
+.jr-cta-ltr:nth-child(5) { --jr-c1: var(--jr-k5); --jr-c2: var(--jr-k1); --jr-c3: var(--jr-k2); --jr-c4: var(--jr-k3); --jr-c5: var(--jr-k4); }
+.jr-cta-ltr:nth-child(6) { --jr-c1: var(--jr-k1); --jr-c2: var(--jr-k2); --jr-c3: var(--jr-k3); --jr-c4: var(--jr-k4); --jr-c5: var(--jr-k5); }
+.jr-cta-ltr:nth-child(7) { --jr-c1: var(--jr-k2); --jr-c2: var(--jr-k3); --jr-c3: var(--jr-k4); --jr-c4: var(--jr-k5); --jr-c5: var(--jr-k1); }
+.jr-cta-ltr:nth-child(8) { --jr-c1: var(--jr-k3); --jr-c2: var(--jr-k4); --jr-c3: var(--jr-k5); --jr-c4: var(--jr-k1); --jr-c5: var(--jr-k2); }
+.jr-cta-ltr:nth-child(9) { --jr-c1: var(--jr-k4); --jr-c2: var(--jr-k5); --jr-c3: var(--jr-k1); --jr-c4: var(--jr-k2); --jr-c5: var(--jr-k3); }
+.jr-cta-ltr:nth-child(10) { --jr-c1: var(--jr-k5); --jr-c2: var(--jr-k1); --jr-c3: var(--jr-k2); --jr-c4: var(--jr-k3); --jr-c5: var(--jr-k4); }
+
+/* ── The card ─────────────────────────────────────────────────────
+   Light green, black border, hard drop shadow. A light plate on dark
+   footage is the loudest thing this page can do without moving, which
+   is what "very visible" has to mean here: the scrim, the glass cards
+   and the trail are all cool and translucent, and this is the one
+   opaque, light, warm thing on screen.
+
+   The shadow is two layers — a hard offset block for the graphic
+   weight and a soft lift underneath — because a single soft shadow on
+   a black border reads as a smudge rather than as a press. */
 .jr-cta-start {
   position: relative;
-  justify-self: center;
   width: max-content;
   max-width: calc(100vw - var(--jr-inset) * 2);
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 12px;
-  padding: 26px 22px 24px;
-  border-radius: 22px;
-  background: rgba(12, 16, 24, 0.72);
-  -webkit-backdrop-filter: blur(12px) saturate(1.25);
-  backdrop-filter: blur(12px) saturate(1.25);
-  /* The inset hairline is the top light edge; the outer pair is the
-     lift off the footage. */
+  gap: 10px;
+  /* The top padding is the cycle's headroom, and it is not optional. At
+     20% a letter is scaled 1.8x and lifted 25px, and the back-overshoot
+     easing carries the real peak to about 1.91 — so a letter reaches
+     roughly 105px above its own baseline. With a snug padding the word
+     bursts through the top edge and reads as broken rather than
+     stretched. The floor is well above the measured minimum because
+     that figure comes from Bungee's cap height, and the fallback face
+     in a slow or blocked webfont request has different metrics. */
+  /* Font-size here is the word's, and it is set here rather than on the
+     word so the headroom below can be written in the same unit. */
+  font-size: clamp(30px, 7.4vw, 64px);
+  /* The headroom, and it is the one thing that must not be tuned by
+     eye. At 20% a letter is scaled 1.8x and lifted 25px, and the
+     back-overshoot easing carries the real peak to about 1.91 — so a
+     letter reaches 1.91 x its cap height above the baseline, PLUS the
+     25px lift. Those are different kinds of quantity: one scales with
+     the type, the other does not. Hence em + px rather than either
+     alone. A single em value is not enough, because at 24px the fixed
+     25px is more than half the whole excursion; a single px value is
+     not enough either, because at 64px it is less than a quarter.
+       64px type -> 1.91 x 0.72em + 25px = 113px, needs 1.4em + 32px
+       30px type ->  41px + 25px      =  66px, needs the same formula
+       24px type ->  33px + 25px      =  58px, likewise */
+  padding: calc(1.4em + 32px) clamp(20px, 3vw, 38px) clamp(18px, 2.5vw, 30px);
+  border-radius: 16px;
+  background: var(--jr-tint);
+  border: 3px solid #0b0b0b;
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.12),
-    0 24px 60px -18px rgba(0, 0, 0, 0.72),
-    0 2px 10px -4px rgba(0, 0, 0, 0.55);
-  color: #ffffff;
-  font-family: inherit;
+    6px 6px 0 rgba(0, 0, 0, .22),
+    0 24px 48px -14px rgba(0, 0, 0, .55);
   text-decoration: none;
-  text-align: center;
+  color: #14100a;
   cursor: pointer;
   pointer-events: auto;
   transition: transform 180ms var(--jr-ease-ui);
   will-change: transform;
 }
 
-/* ── The button face ───────────────────────────────────────────────
-   Solid amber, generous padding, layered shadow. Four layers, each
-   doing one job: the bevel that makes the top edge catch light, the
-   underside shade that gives the solid a bottom, a tight dark contact
-   shadow that pins the button to the plate instead of letting it float
-   unattached, and a wide amber ambient so the button lights its own
-   surroundings — the invitation becomes visible in the page rather
-   than only inside the shape of the button.
-
-   Depth is the quietest of the three invitation levers and the only
-   one that survives reduced motion untouched, so it carries a lot
-   here. */
-.jr-cta-button {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  gap: 10px;
-  padding: 14px 28px;
-  border-radius: 14px;
-  background: var(--jr-accent);
-  color: var(--jr-accent-ink);
-  font-family: var(--jr-mono);
-  font-size: 20px;
-  font-weight: 500;
-  letter-spacing: 0;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.36),
-    inset 0 -2px 0 rgba(0, 0, 0, 0.18),
-    0 6px 14px -6px rgba(0, 0, 0, 0.70),
-    0 22px 52px -14px rgba(255, 176, 32, 0.46);
-  transition: background-color 180ms var(--jr-ease-ui),
-              box-shadow 180ms var(--jr-ease-ui),
-              transform 180ms var(--jr-ease-ui);
-  will-change: transform, box-shadow;
-}
-
-/* The halo ring. A transparent pseudo-element, so the ring can expand
-   past the button's edge without a wrapper box, and with no background
-   of its own, so it only ever contributes the shadow.
-
-   26px and 3.2s. Both do different work: a wider ring is visible from
-   further away and reads as a larger surface being activated, while
-   the longer period is what stops it reading as an alarm. A fast pulse
-   says hurry; a slow one says this is ready when you are, which is the
-   tone a gate is trying to set. */
-.jr-cta-button::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  pointer-events: none;
-  background: transparent;
-  box-shadow: 0 0 0 0 rgba(255, 176, 32, 0.60);
-  animation: jr-cta-halo 3.2s var(--jr-swell) infinite;
-  will-change: box-shadow;
-}
-
 .jr-cta-eyebrow {
   font-family: var(--jr-mono);
-  font-size: 11px;
+  font-size: 11px;           /* px, so the card's em-sized clamp does not leak in */
   letter-spacing: 0.16em;
   text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.62);
+  color: rgba(20, 16, 10, .62);
   white-space: nowrap;
 }
 .jr-cta-hint {
   font-family: var(--jr-mono);
-  font-size: 12.5px;
-  color: rgba(255, 255, 255, 0.70);
+  font-size: 12px;           /* likewise */
+  color: rgba(20, 16, 10, .68);
   white-space: nowrap;
 }
 
-/* ── The typewriter ─────────────────────────────────────────────────
-   The label reserves its full width in the layout, so the button never
-   reflows as characters arrive; only the inner span's width animates.
-   steps(10) makes it ten discrete jumps rather than a slide, which is
-   the difference between typing and growing.
+/* ── The word ─────────────────────────────────────────────────────
+   Bungee is a display face with a real presence at this size, which is
+   the point. It reaches 64px on a desktop and clamps below that, because
+   "Start here" is ten glyphs and 64px of it is around 390px — wider than
+   most phones, so a fixed 64px would either overflow or wrap the word
+   into two, and a wrapped "Start here" stops being one object. */
+.jr-cta-word {
+  display: block;
+  font-family: 'Bungee', var(--jr-font);
+  font-weight: 400;
+  font-size: 1em;            /* the card carries the clamp; see above */
+  line-height: 1.06;
+  white-space: nowrap;
+}
 
-   In the mono face, because --jr-ch has to be the real advance of one
-   character for the caret to land on the text's edge. */
-.jr-cta-label {
-  position: relative;
+/* One letter.
+     display:inline-block is what makes transform apply at all.
+     transform-origin is the decision that makes this an elastic stretch
+     rather than a pulse: at the default 50% 50% a letter scales about
+     its middle and the extreme vertical stretch becomes a symmetric
+     bulge pulsing around a fixed centre. Anchored at the baseline, the
+     baseline stays put and everything above it pulls. */
+.jr-cta-ltr {
   display: inline-block;
-  width: var(--jr-len-width);
-  height: 1.2em;
-  text-align: left;
-  vertical-align: middle;
-}
-.jr-cta-label-text {
-  display: block;
-  width: 0;
-  height: 100%;
-  overflow: hidden;
-  white-space: nowrap;
-  animation: jr-cta-type 8s steps(var(--jr-len), end) infinite;
-  will-change: width;
-}
-.jr-cta-caret {
-  position: absolute;
-  left: 0;
-  top: 8%;
-  width: 2px;
-  height: 84%;
-  border-radius: 1px;
-  background: currentColor;
-  /* Two animations on one element because they drive different
-     properties; they cannot share a keyframe block. */
+  transform-origin: 50% 100%;
+  color: var(--jr-c1);
   animation:
-    jr-cta-caret-move 8s steps(var(--jr-len), end) infinite,
-    jr-cta-caret-blink 1.06s steps(1, end) infinite;
+    jr-cta-stretch 2.4s cubic-bezier(0.68, -0.55, 0.27, 1.55) calc(var(--i) * var(--jr-letter-stagger)) infinite,
+    jr-cta-candy 5.4s linear calc(var(--i) * -0.49s) infinite;
+  will-change: transform, color;
+}
+/* The space between the words. It takes an index so the stagger counts
+   it, and no glyph of its own. */
+.jr-cta-ltr--gap { white-space: pre; }
+
+@keyframes jr-cta-stretch {
+  0%, 100% { transform: scaleY(1)    translateY(0);     }
+  20%      { transform: scaleY(1.8)  translateY(-25px); }
+  35%      { transform: scaleY(0.6)  translateY(10px);  }
+  50%      { transform: scaleY(1.3)  translateY(-15px); }
+  65%      { transform: scaleY(0.85) translateY(5px);   }
+  80%      { transform: scaleY(1.05); }
+}
+/* Five stops, and the last resolves to --c1 so the loop has no seam —
+   a keyframe whose ends differ pops at the wrap. */
+@keyframes jr-cta-candy {
+  0%, 100% { color: var(--jr-c1); }
+  25%      { color: var(--jr-c2); }
+  50%      { color: var(--jr-c3); }
+  75%      { color: var(--jr-c4); }
+  87%      { color: var(--jr-c5); }
 }
 
-.jr-cta-arrow {
-  display: inline-flex;
-  transition: transform 180ms var(--jr-ease-ui);
-}
-.jr-cta-arrow svg {
-  display: block;
-  animation: jr-cta-nudge 1.4s var(--jr-swell) infinite;
-  will-change: transform;
-}
-
-@keyframes jr-cta-type {
-  0%    { width: 0; }
-  20%   { width: var(--jr-len-width); }
-  85%   { width: var(--jr-len-width); }
-  100%  { width: 0; }
-}
-@keyframes jr-cta-caret-move {
-  0%    { left: 0; }
-  20%   { left: var(--jr-len-width); }
-  85%   { left: var(--jr-len-width); }
-  100%  { left: 0; }
-}
-@keyframes jr-cta-caret-blink {
-  0%, 49%   { opacity: 1; }
-  50%, 100% { opacity: 0; }
-}
-@keyframes jr-cta-halo {
-  0%   { box-shadow: 0 0 0 0    rgba(255, 176, 32, 0.60); }
-  72%  { box-shadow: 0 0 0 26px  rgba(255, 176, 32, 0); }
-  100% { box-shadow: 0 0 0 26px  rgba(255, 176, 32, 0); }
-}
-@keyframes jr-cta-nudge {
-  0%, 100% { transform: translateX(0); }
-  50%      { transform: translateX(5px); }
-}
 @keyframes jr-cta-arrive {
   from { opacity: 0; transform: translate(-50%, -50%) scale(0.90) translateY(14px); }
   60%  { opacity: 1; transform: translate(-50%, -50%) scale(1.035) translateY(0); }
   to   { opacity: 1; transform: translate(-50%, -50%) scale(1) translateY(0); }
 }
 
-/* ── Press ─────────────────────────────────────────────────────────
-   The one piece of feedback that survives every setting below. */
-.jr-cta-start:active .jr-cta-button {
-  transform: scale(0.97);
-  background: #e89a0c;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.30),
-    inset 0 -2px 0 rgba(0, 0, 0, 0.22),
-    0 3px 8px -4px rgba(0, 0, 0, 0.60);
-}
-.jr-cta-start:active .jr-cta-arrow { transform: translateX(3px); }
+/* ── Press and contact ──────────────────────────────────────────── */
+.jr-cta-start:active { transform: translateY(4px) scale(0.97); }
 
-/* ── Settle on contact ───────────────────────────────────────────── */
-.jr-cta-start:hover .jr-cta-label-text,
-.jr-cta-start:hover .jr-cta-caret,
-.jr-cta-start:hover .jr-cta-arrow svg,
-.jr-cta-start:hover .jr-cta-button::after,
-.jr-cta-start:focus-visible .jr-cta-label-text,
-.jr-cta-start:focus-visible .jr-cta-caret,
-.jr-cta-start:focus-visible .jr-cta-arrow svg,
-.jr-cta-start:focus-visible .jr-cta-button::after,
-.jr-cta-start:active .jr-cta-label-text,
-.jr-cta-start:active .jr-cta-caret,
-.jr-cta-start:active .jr-cta-arrow svg,
-.jr-cta-start:active .jr-cta-button::after {
+/* Hold still when someone has decided to press it. A button that keeps
+   bouncing under a thumb reads as though it is about to do something
+   else. */
+.jr-cta-start:hover .jr-cta-ltr,
+.jr-cta-start:focus-visible .jr-cta-ltr,
+.jr-cta-start:active .jr-cta-ltr {
   animation-play-state: paused;
 }
-
-/* Hover lifts the plate — a response to the visitor, not movement the
-   page imposes on them. */
-.jr-cta-start:hover { transform: translateY(-2px); }
-.jr-cta-start:hover .jr-cta-button {
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.5),
-    inset 0 -2px 0 rgba(0, 0, 0, 0.18),
-    0 10px 22px -8px rgba(0, 0, 0, 0.66),
-    0 26px 56px -14px rgba(255, 176, 32, 0.54);
-}
-
-/* The focus ring in the accent, offset so it never touches the fill. */
 .jr-cta-start:focus-visible {
   outline: 3px solid var(--jr-accent);
   outline-offset: 5px;
 }
 
-/* Visually hidden, still announced: the accessible name is static and
-   complete no matter what state the animation is in, so a screen
-   reader is never handed a half-typed label or a mid-blink caret. */
 .jr-cta-sr {
   position: absolute;
   width: 1px;
@@ -581,41 +510,33 @@ body.jr {
 }
 
 /* ── Short viewports ───────────────────────────────────────────────
-   The journey's card is full width now and rides the lower half, so a
-   centred plate would land on top of it. Above centre instead: still
-   the middle of what is left once the card has taken its share. */
+   The journey's card is full width in the lower half, so a centred
+   plate would land on top of it. Above centre instead. */
 @media (max-height: 720px) {
-  .jr-cta-centre { top: 34%; }
+  .jr-cta-centre { top: 36%; }
 }
 
 /* Short and wide — a phone turned sideways — is the one place the
-   middle is genuinely unavailable: at 360px tall the card owns it. There
-   is no honest centre left, so it docks to the top-right over clear
-   video instead. Still prominent, still animated, just not pretending
-   the middle is free.
-
-   It needs its own arrival: this one is positioned with right rather
-   than left, so it must not carry the centring translate. The standard
-   arrival fills forwards, so without this the plate would arrive offset
-   by half its own width and stay there. */
+   middle is unavailable: the card owns it. Docks to the top-right over
+   clear video, and needs its own arrival because this one is positioned
+   with right rather than left and must not carry the centring
+   translate. */
 @media (max-height: 420px) and (orientation: landscape) {
   .jr-cta-centre {
     left: auto;
     right: var(--jr-inset, 24px);
     top: calc(var(--jr-inset, 24px) + env(safe-area-inset-top, 0px));
-    /* Must cancel the base centring translate. The docked keyframes do
-       not carry it, and the arrival is filled `backwards`, so 760ms
-       after the plate appears the base rule resumes and shifts it half
-       its own width and height out of position. Cancelling here makes
-       the resting state and the animation's final keyframe agree. */
     transform: none;
     animation-name: jr-cta-arrive-docked;
   }
-  .jr-cta-start { padding: 18px 16px 16px; gap: 8px; border-radius: 18px; }
-  .jr-cta-button { gap: 8px; font-size: 16px; }
-  .jr-cta-label::after { content: none; }
+  .jr-cta-start {
+    font-size: clamp(22px, 5.4vh, 34px);
+    padding: calc(1.4em + 30px) 16px 12px;
+    gap: 6px;
+    border-radius: 14px;
+  }
   .jr-cta-hint { display: none; }
-  .jr-cta-eyebrow { font-size: 10px; }
+  .jr-cta-eyebrow { font-size: 9.5px; }
 }
 @keyframes jr-cta-arrive-docked {
   from { opacity: 0; transform: scale(0.90) translateY(14px); }
@@ -623,46 +544,41 @@ body.jr {
   to   { opacity: 1; transform: scale(1) translateY(0); }
 }
 
-/* 360px is the narrowest this has to survive. The button's content is
-   6em of monospace plus the arrow plus 56px of padding; at the 17px
-   floor that is about 186px against roughly 284px available, so the
-   specified 14/28 costs nothing and the horizontal gap is where the
-   slack actually is. */
 @media (max-width: 380px) {
-  .jr-cta-start { padding: 20px 14px 18px; gap: 10px; }
-  .jr-cta-button { gap: 8px; font-size: 17px; }
-  .jr-cta-eyebrow { font-size: 10px; letter-spacing: 0.12em; }
-  .jr-cta-hint { font-size: 11.5px; }
+  /* The headroom is not restated here: it is in em and follows the
+     clamp automatically. Only the plate's own edges move. */
+  .jr-cta-start { padding: calc(1.4em + 30px) 12px 14px; border-width: 2px; border-radius: 13px; }
+  .jr-cta-eyebrow { font-size: 9.5px; letter-spacing: 0.12em; }
+  .jr-cta-hint { font-size: 11px; }
 }
 
-/* ── Reduced motion ────────────────────────────────────────────────
-   Nothing moves on its own. The label is set fully rather than left to
-   be typed — a hidden label would be the worst outcome here, since the
-   CTA's entire job is to be readable.
+/* ── Reduced motion ───────────────────────────────────────────────
+   Nothing moves on its own. The letters sit at rest with the palette
+   applied — colour is not motion, and it is what keeps the word
+   readable as a word rather than as ten coloured shapes.
 
-   What survives: the press feedback, the focus ring, and a static
-   glow. The glow is brightness, not movement, and it is the last thing
-   left saying "this is the button". */
+   What survives: the press feedback and the focus ring. */
 @media (prefers-reduced-motion: reduce) {
   .jr-cta-centre { animation: none; }
-  .jr-cta-label-text {
-    width: var(--jr-len-width);
-    animation: none;
-  }
-  .jr-cta-caret {
-    left: var(--jr-len-width);
-    animation: none;
-    opacity: 1;
-  }
-  .jr-cta-arrow svg { animation: none; }
-  .jr-cta-button::after {
-    animation: none;
-    box-shadow: 0 0 0 5px rgba(255, 176, 32, 0.20), 0 0 22px 2px rgba(255, 176, 32, 0.16);
-  }
+  .jr-cta-ltr { animation: none; transform: none; }
   .jr-cta-start,
-  .jr-cta-start .jr-cta-button,
-  .jr-cta-arrow { transition: none; }
+  .jr-cta-start:hover,
+  .jr-cta-start:focus-visible,
+  .jr-cta-start:active { transition: none; }
   .jr-cta-start:hover { transform: none; }
+  /* Stagger the palette statically instead, so the word keeps its
+     multi-colour reading without anything moving. */
+  .jr-cta-ltr:nth-child(11n+1) { color: var(--jr-k1); }
+  .jr-cta-ltr:nth-child(11n+2) { color: var(--jr-k2); }
+  .jr-cta-ltr:nth-child(11n+3) { color: var(--jr-k3); }
+  .jr-cta-ltr:nth-child(11n+4) { color: var(--jr-k4); }
+  .jr-cta-ltr:nth-child(11n+5) { color: var(--jr-k5); }
+  .jr-cta-ltr:nth-child(11n+6) { color: var(--jr-k1); }
+  .jr-cta-ltr:nth-child(11n+7) { color: var(--jr-k2); }
+  .jr-cta-ltr:nth-child(11n+8) { color: var(--jr-k3); }
+  .jr-cta-ltr:nth-child(11n+9) { color: var(--jr-k4); }
+  .jr-cta-ltr:nth-child(11n+10),
+  .jr-cta-ltr:nth-child(11n+11) { color: var(--jr-k5); }
 }
 
 /* ── Controls ─────────────────────────────────────────────────────── */
@@ -714,55 +630,115 @@ body.jr {
   border: 0;
 }
 
-/* ── The line work ────────────────────────────────────────────────
-   The trail: one stroke between each pair of neighbouring cards, drawn
-   as the journey walks it and left behind afterwards, so the marks on
-   screen are the path the visitor actually took rather than a
-   decoration that is always the same.
+/* ── The signature ───────────────────────────────────────────────
+   One authored path, drawn in three passes, scaled to the frame with
+   its stroke held at a constant weight.
 
-   The hand comes from three things. The curve is an S rather than an
-   arc — the control points bow by different amounts at the two ends,
-   which journey.js computes. The stroke is laid twice, the second pass
-   offset and fainter, which is what a pen actually leaves. And the
-   width tapers: a hand accelerates into a stroke and lifts out of one,
-   so the dash pattern on the echo pass is spaced rather than solid,
-   and reads as a lighter second pass rather than as a dotted line.
+   `vector-effect: non-scaling-stroke` is what lets the signature be
+   displayed at four hundred pixels wide without becoming a black
+   sausage. The viewBox is 127x101 and the element is sized in CSS, so
+   without it the 3px stroke would scale with the render and land
+   anywhere between 3px and 12px depending on the viewport. The stroke
+   stays 3px and only the shape grows, which is what a signature does.
 
-   Round caps and joins throughout — a square cap on a hand-drawn
-   stroke reads as a computer drawing one. */
-.jr-lines path { fill: none; }
-.jr-lines .jr-line { opacity: 0; }
-.jr-lines .jr-line.is-on { opacity: 1; }
-.jr-lines .jr-line path {
-  stroke: var(--jr-trail);
-  stroke-width: 2;
+   The two haloes are the fix for a backdrop that swings from 1.07:1 to
+   18:1 against black. Widest and faintest first, then narrower and
+   stronger, then the black on top: the white separates the stroke from
+   the dark rack shots and costs nothing on the near-white office ones,
+   where black was already 18:1. */
+/* The host and the wrapper are both HTML on purpose. An <svg> nested
+   inside another <svg> cannot be positioned — CSS position computes to
+   static and is ignored — and an HTML element inside one does not render
+   at all. So the drawing is an <svg>, and everything that places it is
+   a div in HTML. */
+.jr-sig-host {
+  position: fixed;
+  inset: 0;
+  /* Above .wt-page, which is also z-index 1 and comes LATER in the
+     document — at 1 the main painted over the signature and the hit test
+     returned MAIN. Equal to .jr-cards at 2 but earlier in the document,
+     so a corner card still sits on top of the line rather than under it.
+     Below .jr-bottom at 3 and the CTA at 4. */
+  z-index: 2;
+  pointer-events: none;
+}
+.jr-sig-box {
+  position: absolute;
+  left: 50%;
+  top: 47%;
+  width: min(460px, 62vw);
+  transform: translateX(-50%);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 240ms var(--jr-ease-ui);
+}
+.jr-sig-box.is-on { opacity: 1; }
+/* The signature takes its own pointer only once it is drawn, so the
+   hover redraw cannot be triggered by a pass that has not started. */
+.jr-sig-box.is-drawn { pointer-events: auto; cursor: pointer; }
+.jr-sig-box.is-drawn .jr-sig { pointer-events: auto; cursor: pointer; }
+
+.jr-sig {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.jr-sig-pass {
+  fill: none;
   stroke-linecap: round;
   stroke-linejoin: round;
+  stroke-dasharray: 1 1;
+  stroke-dashoffset: 1;
+  vector-effect: non-scaling-stroke;
 }
-/* The doubled pen line. The echo is the same curve, seeded differently
-   in journey.js and laid a few pixels off the first pass; it is thinner,
-   fainter, and spaced, so the pair reads as one hand passing twice
-   rather than as two different lines. */
-.jr-lines .jr-hand { stroke-width: 2.2; }
-.jr-lines .jr-hand--echo {
-  stroke-width: 1;
-  opacity: .5;
-  /* A fine, short dash. At 26/7 the echo read as a dotted rule running
-     beside the stroke rather than as the same hand passing twice; the
-     point of it is to make the line look drawn, and a long dash looks
-     typed. */
-  stroke-dasharray: 3 4;
+/* Widest and faintest, then narrower and stronger, then the ink. */
+.jr-sig-pass--0 { stroke: rgba(255, 255, 255, 0.16); stroke-width: 17; }
+.jr-sig-pass--1 { stroke: rgba(255, 255, 255, 0.34); stroke-width: 9; }
+.jr-sig-pass--2 { stroke: #000000; stroke-width: 3; }
+
+/* hoverStrokeColor. Only the ink turns — the haloes stay put, because a
+   halo that changed colour would read as the glow changing rather than
+   the pen. */
+.jr-sig-box.is-hover .jr-sig-pass--2 { stroke: #4f46e5; }
+
+/* The bounce. animationBounce=0.3 is the overshoot: the line draws 130%
+   of the way and settles back, on top of the back-overshoot easing that
+   carries each segment. */
+@keyframes jr-sig-bounce {
+  0%   { stroke-dashoffset: 1; }
+  70%  { stroke-dashoffset: -0.3; }
+  100% { stroke-dashoffset: 0; }
 }
-.jr-lines .jr-line.is-drawn .jr-signal {
-  stroke-dasharray: 9 15;
-  animation: jr-signal-dash 1.2s linear infinite;
+
+@media (max-width: 700px) {
+  .jr-sig-box { width: min(360px, 78vw); top: 44%; }
 }
-@keyframes jr-signal-dash {
-  /* One full dash period (24) per step, so the loop has no seam. */
-  to { stroke-dashoffset: -24; }
+
+/* Landscape has no middle to speak of — the card owns it — so the
+   signature goes left, clear of the video's subject. */
+@media (max-height: 420px) and (orientation: landscape) {
+  .jr-sig-box {
+    left: var(--jr-inset, 24px);
+    top: 50%;
+    width: min(280px, 42vw);
+    transform: translateY(-50%);
+  }
 }
-.jr-lines .jr-arrow { opacity: 0; transition: opacity 200ms var(--jr-ease); }
-.jr-lines .is-drawn .jr-arrow { opacity: 1; }
+
+/* Reduced motion: the signature is simply there, drawn. Hiding it would
+   remove the only line on the page, and a still signature is still a
+   signature. Only the draw and the hover redraw go. */
+@media (prefers-reduced-motion: reduce) {
+  .jr-sig-pass {
+    animation: none !important;
+    stroke-dashoffset: 0;
+  }
+  .jr-sig-box { opacity: 1; }
+}
+
 
 /* The stage's own drawing. It sits in the card rather than the line
    layer, so it survives the phone breakpoint where the connectors are
@@ -792,10 +768,8 @@ body.jr {
   .jr-card.is-out {
     transition: none !important;
   }
-  .jr-lines .jr-arrow { transition: none !important; }
   /* The line arrives already drawn and stays a plain stroke — a dash
      travelling down it is motion for its own sake. */
-  .jr-lines .jr-line.is-drawn .jr-signal { animation: none !important; stroke-dasharray: none !important; }
   .jr-card .jr-figure path { transition: none !important; }
   .jr-video { transform: none !important; will-change: auto; }
 }

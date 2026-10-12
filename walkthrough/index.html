@@ -13,7 +13,7 @@
 <link rel="icon" type="image/png" href="../logo/favi.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Roboto:wght@400;500;600&family=IBM+Plex+Mono:wght@500&family=Bungee&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="./walkthrough.css">
 <link rel="stylesheet" href="./journey.css">
 </head>
@@ -40,6 +40,12 @@
 <!-- Depth plane 3 of 3 — the most responsive. journey.js appends into
      this element, one group per connector. -->
 <svg class="jr-lines" id="jrLines" aria-hidden="true" focusable="false"></svg>
+<!-- The signature's host. An HTML element on purpose: the signature is
+     drawn by an <svg>, but an <svg> nested inside another <svg> cannot
+     be positioned — CSS position computes to static and is ignored —
+     and an HTML wrapper inside one does not render at all. So the box
+     that places it lives here, in HTML, at the same depth plane. -->
+<div class="jr-sig-host" id="jrSigHost" aria-hidden="true"></div>
 <!-- Depth plane 2 of 3. Seven cards, one lit, each carrying its own line
      figure; journey.js builds them from stages.js so a stage is one
      object, not a page of markup. -->
@@ -74,25 +80,17 @@
      keyboard users, which is the same fault the removed link avoided. -->
 <div class="jr-cta-centre" id="jrCtaCentre" hidden aria-hidden="true">
   <a class="jr-cta-start" id="jrCtaStart" href="../index.html" tabindex="-1">
-    <!-- The accessible name is here, not in the visible label. The
-         visible one is mid-type for a second and a half every eight
-         seconds, and the caret is mid-blink; a screen reader reading
-         that would announce a half-written word. Everything below is
-         aria-hidden for that reason. -->
+    <!-- The accessible name is here, not in the visible letters. The
+         visible word is mid-stretch and mid-colour-change most of the
+         time, and a screen reader reading that would announce ten
+         letters at ten different sizes. Everything below is aria-hidden
+         for that reason. -->
     <span class="jr-cta-sr">Start here — open the photo archive</span>
     <span class="jr-cta-eyebrow" aria-hidden="true">The archive is ready</span>
-    <span class="jr-cta-button" aria-hidden="true">
-      <span class="jr-cta-label">
-        <span class="jr-cta-label-text">Start here</span>
-        <span class="jr-cta-caret"></span>
-      </span>
-      <span class="jr-cta-arrow">
-        <svg width="19" height="19" viewBox="0 0 20 20" fill="none" aria-hidden="true">
-          <path d="M3 10h13M11 5l5 5-5 5" stroke="currentColor" stroke-width="2"
-                stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
-      </span>
-    </span>
+    <!-- One span per glyph, including the space: it takes its own index
+         so the stagger counts it, which is what keeps the wave evenly
+         spaced across the word instead of bunching the second half. -->
+    <span class="jr-cta-word" aria-hidden="true"><span class="jr-cta-ltr" style="--i:0">S</span><span class="jr-cta-ltr" style="--i:1">t</span><span class="jr-cta-ltr" style="--i:2">a</span><span class="jr-cta-ltr" style="--i:3">r</span><span class="jr-cta-ltr" style="--i:4">t</span><span class="jr-cta-ltr jr-cta-ltr--gap" style="--i:5"> </span><span class="jr-cta-ltr" style="--i:6">h</span><span class="jr-cta-ltr" style="--i:7">e</span><span class="jr-cta-ltr" style="--i:8">r</span><span class="jr-cta-ltr" style="--i:9">e</span></span>
     <span class="jr-cta-hint" aria-hidden="true">316 photos, eight albums</span>
   </a>
 </div>
