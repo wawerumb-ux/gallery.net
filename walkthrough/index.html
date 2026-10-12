@@ -26,7 +26,7 @@
      way in, journey.js plays the journey, and the video is the content. -->
 <body class="wt" data-depth="1" data-journey>
 <div class="wt-ambient" id="wtAmbient" aria-hidden="true"></div>
-<!-- Depth plane 1 of 3 — the least responsive to the pointer. The scrim
+<!-- Depth plane 1 of 2 — the least responsive to the pointer. The scrim
      above the footage is what keeps a card legible over the near-white
      office shots as well as the near-black rack ones. -->
 <div class="jr-video" id="jrVideo" aria-hidden="true">
@@ -37,18 +37,15 @@
          autoplay muted loop playsinline preload="metadata"></video>
   <div class="jr-scrim"></div>
 </div>
-<!-- Depth plane 3 of 3 — the most responsive. journey.js appends into
-     this element, one group per connector. -->
-<svg class="jr-lines" id="jrLines" aria-hidden="true" focusable="false"></svg>
-<!-- The signature's host. An HTML element on purpose: the signature is
-     drawn by an <svg>, but an <svg> nested inside another <svg> cannot
-     be positioned — CSS position computes to static and is ignored —
-     and an HTML wrapper inside one does not render at all. So the box
-     that places it lives here, in HTML, at the same depth plane. -->
-<div class="jr-sig-host" id="jrSigHost" aria-hidden="true"></div>
-<!-- Depth plane 2 of 3. Seven cards, one lit, each carrying its own line
-     figure; journey.js builds them from stages.js so a stage is one
-     object, not a page of markup. -->
+<!-- Depth plane 2 of 2. Seven cards, one lit, each carrying its own
+     line figure; journey.js builds them from stages.js so a stage is
+     one object, not a page of markup.
+
+     There is no line layer. It held the connector trail first and the
+     signature after that, and both are gone — the page is cards, the
+     way in, and the footage. What replaced the trail's "where am I" job
+     is the card's own position in the four corners, which the stage
+     data sets; nothing is accumulating any more. -->
 <!-- The bottom group. Desktop dissolves it (display: contents) and each
      child takes its own corner; a phone keeps it as one fixed column, so
      the card, the two ways on and replay stack in flow and cannot

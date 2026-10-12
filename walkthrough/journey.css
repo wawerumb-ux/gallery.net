@@ -120,32 +120,22 @@ body.jr {
 }
 
 /* ── Depth planes ─────────────────────────────────────────────────
-   Three fixed layers, back to front: the video (least responsive to
-   the pointer), the hand-drawn lines, the cards. Each is promoted so
-   the parallax is a compositor translate and never a layout, and only
-   the video carries will-change — the cards and the lines are on top
-   of it and repaint with it anyway. */
+   Two fixed layers, back to front: the video (least responsive to the
+   pointer) and the cards. Each is promoted so the parallax is a
+   compositor translate and never a layout, and only the video carries
+   will-change — the cards are on top of it and repaint with it anyway.
+
+   There were three. The line layer went with the trail and the
+   signature, and with it the third plane of the parallax: DEPTH in
+   journey.js is video and cards now, and there is nothing left for the
+   page to draw. */
 .jr-video,
-.jr-lines,
 .jr-cards {
   position: fixed;
   inset: 0;
 }
 .jr-video { z-index: 0; will-change: transform; }
 .jr-cards { z-index: 2; pointer-events: none; }
-/* The line layer is an <svg>, which is a replaced element with a 300x150
-   intrinsic size — inset: 0 alone leaves it that size, and every stroke
-   drawn past the corner is clipped away. It is sized explicitly and
-   allowed to overflow, because a connector running from a card in the
-   far bottom-right to one in the far top-left leaves the box entirely. */
-.jr-lines {
-  z-index: 1;
-  pointer-events: none;
-  width: 100%;
-  height: 100%;
-  overflow: visible;
-}
-
 /* The video covers the viewport and is scaled past its edges so the
    parallax never exposes a border. */
 .jr-video-el {
@@ -630,116 +620,6 @@ body.jr {
   border: 0;
 }
 
-/* ── The signature ───────────────────────────────────────────────
-   One authored path, drawn in three passes, scaled to the frame with
-   its stroke held at a constant weight.
-
-   `vector-effect: non-scaling-stroke` is what lets the signature be
-   displayed at four hundred pixels wide without becoming a black
-   sausage. The viewBox is 127x101 and the element is sized in CSS, so
-   without it the 3px stroke would scale with the render and land
-   anywhere between 3px and 12px depending on the viewport. The stroke
-   stays 3px and only the shape grows, which is what a signature does.
-
-   The two haloes are the fix for a backdrop that swings from 1.07:1 to
-   18:1 against black. Widest and faintest first, then narrower and
-   stronger, then the black on top: the white separates the stroke from
-   the dark rack shots and costs nothing on the near-white office ones,
-   where black was already 18:1. */
-/* The host and the wrapper are both HTML on purpose. An <svg> nested
-   inside another <svg> cannot be positioned — CSS position computes to
-   static and is ignored — and an HTML element inside one does not render
-   at all. So the drawing is an <svg>, and everything that places it is
-   a div in HTML. */
-.jr-sig-host {
-  position: fixed;
-  inset: 0;
-  /* Above .wt-page, which is also z-index 1 and comes LATER in the
-     document — at 1 the main painted over the signature and the hit test
-     returned MAIN. Equal to .jr-cards at 2 but earlier in the document,
-     so a corner card still sits on top of the line rather than under it.
-     Below .jr-bottom at 3 and the CTA at 4. */
-  z-index: 2;
-  pointer-events: none;
-}
-.jr-sig-box {
-  position: absolute;
-  left: 50%;
-  top: 47%;
-  width: min(460px, 62vw);
-  transform: translateX(-50%);
-  pointer-events: none;
-  opacity: 0;
-  transition: opacity 240ms var(--jr-ease-ui);
-}
-.jr-sig-box.is-on { opacity: 1; }
-/* The signature takes its own pointer only once it is drawn, so the
-   hover redraw cannot be triggered by a pass that has not started. */
-.jr-sig-box.is-drawn { pointer-events: auto; cursor: pointer; }
-.jr-sig-box.is-drawn .jr-sig { pointer-events: auto; cursor: pointer; }
-
-.jr-sig {
-  display: block;
-  width: 100%;
-  height: auto;
-  overflow: visible;
-  pointer-events: none;
-}
-
-.jr-sig-pass {
-  fill: none;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-dasharray: 1 1;
-  stroke-dashoffset: 1;
-  vector-effect: non-scaling-stroke;
-}
-/* Widest and faintest, then narrower and stronger, then the ink. */
-.jr-sig-pass--0 { stroke: rgba(255, 255, 255, 0.16); stroke-width: 17; }
-.jr-sig-pass--1 { stroke: rgba(255, 255, 255, 0.34); stroke-width: 9; }
-.jr-sig-pass--2 { stroke: #000000; stroke-width: 3; }
-
-/* hoverStrokeColor. Only the ink turns — the haloes stay put, because a
-   halo that changed colour would read as the glow changing rather than
-   the pen. */
-.jr-sig-box.is-hover .jr-sig-pass--2 { stroke: #4f46e5; }
-
-/* The bounce. animationBounce=0.3 is the overshoot: the line draws 130%
-   of the way and settles back, on top of the back-overshoot easing that
-   carries each segment. */
-@keyframes jr-sig-bounce {
-  0%   { stroke-dashoffset: 1; }
-  70%  { stroke-dashoffset: -0.3; }
-  100% { stroke-dashoffset: 0; }
-}
-
-@media (max-width: 700px) {
-  .jr-sig-box { width: min(360px, 78vw); top: 44%; }
-}
-
-/* Landscape has no middle to speak of — the card owns it — so the
-   signature goes left, clear of the video's subject. */
-@media (max-height: 420px) and (orientation: landscape) {
-  .jr-sig-box {
-    left: var(--jr-inset, 24px);
-    top: 50%;
-    width: min(280px, 42vw);
-    transform: translateY(-50%);
-  }
-}
-
-/* Reduced motion: the signature is simply there, drawn. Hiding it would
-   remove the only line on the page, and a still signature is still a
-   signature. Only the draw and the hover redraw go. */
-@media (prefers-reduced-motion: reduce) {
-  .jr-sig-pass {
-    animation: none !important;
-    stroke-dashoffset: 0;
-  }
-  .jr-sig-box { opacity: 1; }
-}
-
-
 /* The stage's own drawing. It sits in the card rather than the line
    layer, so it survives the phone breakpoint where the connectors are
    dropped — on a phone this is the only line work on the page. Sized
@@ -867,6 +747,5 @@ body.jr {
   }
   .jr-card-title { font-size: 15px; }
   .jr-card-copy { font-size: 13.5px; }
-  .jr-lines { display: none; }
   .jr-controls { justify-content: flex-end; width: 100%; }
 }
