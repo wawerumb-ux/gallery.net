@@ -1,5 +1,6 @@
 /* The notification is Penguin UI's stacking toast, dressed on hcg-toast,
-   with a synthesised ding.
+   with a synthesised ding as the default and real recordings for named
+   actions.
 
    Five things about it are load-bearing and none of them are visible in
    a screenshot:
@@ -25,6 +26,11 @@
       one. `done` past `total` must not render a bar wider than its own
       track, and a write with no total must sweep rather than sit at a
       confident 0%.
+   6. The synthesised ding is the *default*, not the only voice. An action
+      may name a recording, and a recording that is missing, unlicensed or
+      still loading must fall back to the ding rather than cost the
+      message. The files themselves are licensed and gitignored, so a
+      checkout without them is a normal state, not a broken one.
 
    Plus the boring ones: every type the call sites use has a glyph, the
    dismissal is the stroked cross rather than the library's `&times;`, the
@@ -33,11 +39,12 @@
 
 import { test, describe } from 'node:test';
 import assert from 'node:assert';
-import { readFile } from 'node:fs/promises';
+import { readFile, access, stat } from 'node:fs/promises';
 import vm from 'node:vm';
 
 const APP = new URL('../app.js', import.meta.url);
 const CSS = new URL('../style.css', import.meta.url);
+const ROOT = new URL('../', import.meta.url);
 const app = await readFile(APP, 'utf8');
 const css = await readFile(CSS, 'utf8');
 /* The library is imported here, at module scope, because that is the only
@@ -112,15 +119,84 @@ describe('A — the sound is only ever heard on purpose', () => {
 
   test('A4 — a sticky progress line is silent', () => {
     const show = sliceCode('function showToast');
-    const sound = /if \(!o\.sticky\) playToastDing\(\);/.test(show);
+    const sound = /if \(!o\.sticky\) playToastDing\(o\.sound\);/.test(show);
     assert.ok(sound,
       'the batch loops raise one sticky line per photo — only a timed message may sound');
     // And the guard sits inside showToast, after the library call, so a
     // message that never rendered never sounds.
-    const call = show.indexOf('playToastDing()');
+    const call = show.indexOf('playToastDing(o.sound)');
     const shown = show.indexOf('toastId = id;');
     assert.ok(shown !== -1 && shown < call,
       'the ding must follow the message actually being shown');
+  });
+
+  test('A6 — a named action may bring its own recording, and only then', async () => {
+    // The default ding stays synthesised (A5). A *named* action is allowed
+    // a file, so the two mechanisms have to be distinguishable.
+    assert.match(src, /const TOAST_SOUND_FILES = \{/);
+    assert.match(src, /if \(sound && playToastFile\(sound\)\) return;/,
+      'playToastDing must try the named recording before falling back');
+
+    /* Every path the registry names must be a path — a bare filename or a
+       URL to a CDN would break the one rule that keeps this app working
+       offline. That is checked here because it is a static property of the
+       source.
+
+       Whether the file is *present* is deliberately not asserted. The
+       recordings are licensed and gitignored, so a clean checkout does not
+       have them and CI never will; asserting presence would mean the suite
+       could only ever pass on the one machine that holds the licences. A
+       missing file is a supported state, not a failure. */
+    const entries = src.matchAll(/^\s*(\w+): '(audio\/[^']+)',$/gm);
+    const paths = [...entries];
+    assert.ok(paths.length, 'the registry should name at least one recording');
+    for (const [, , p] of paths) {
+      assert.doesNotMatch(p, /^https?:\/\//,
+        `a sound must be served from this origin, not a CDN: ${p}`);
+      assert.match(p, /^audio\/[\w.-]+\.(mp3|m4a|aac|wav|ogg|oga|webm)$/,
+        `a sound must be a local audio file: ${p}`);
+    }
+    // …but if the folder does hold recordings, they have to be real files
+    // rather than whatever Git LFS left behind as a pointer.
+    for (const [, , p] of paths) {
+      try { await access(new URL(p, ROOT)); } catch (_) { break; }
+      const { size } = await stat(new URL(p, ROOT));
+      assert.ok(size > 1024, `${p} is ${size} bytes — that is an LFS pointer, not an audio file`);
+    }
+    // …and the file is fetched only after the switches say to make a noise.
+    const ding = sliceCode('function playToastDing', 'function setToastSound');
+    assert.ok(ding.indexOf('if (!toastSoundOn || !toastUnlocked) return;')
+      < ding.indexOf('playToastFile(sound)'),
+      'the sound flag and the gesture gate come before the file is touched');
+
+    // Every recorded sound is fetched once, on the first gesture, not on
+    // every notification that names it.
+    assert.match(src, /const unlock = \(\) => \{ toastUnlocked = true; primeToastSounds\(\); \};/,
+      'the gesture unlock is the earliest legitimate moment to start the download');
+  });
+
+  test('A8 — only the download confirmation names a recording', () => {
+    // One action has a voice so far, and it is the one whose outcome the
+    // visitor is unambiguous about. Spreading it further is a decision to
+    // make deliberately, not a side effect of the plumbing — so this test
+    // states the current line and will fail if one is added without a
+    // decision being recorded here.
+    const named = [...app.matchAll(/showToast\([^;]*?sound: '(\w+)'/g)].map((m) => m[1]);
+    assert.deepStrictEqual([...new Set(named)], ['download'],
+      'the only recorded voice is the download confirmation');
+    // And it must be the success branch, never the error one.
+    assert.match(app, /onDownloadComplete: \(\) => showToast\(`Saved \$\{viewerDownloadName\}`, \{ type: 'success', sound: 'download' \}\)/);
+    const err = app.slice(app.indexOf('onDownloadError:'), app.indexOf('onDownloadError:') + 300);
+    assert.doesNotMatch(err, /sound:/,
+      'a failed download must not play the recording that means "saved"');
+  });
+
+  test('A7 — a missing or unready file costs the noise, not the message', () => {
+    const file = sliceCode('function playToastFile', 'function playToastDing');
+    assert.match(file, /if \(!el \|\| el\.readyState < 2\) return false;/,
+      'an absent or still-loading recording must report itself unusable');
+    assert.match(file, /played\.catch\(\(\) => \{\}\);/,
+      'a rejected play() must not escape into the toast that triggered it');
   });
 
   test('A5 — the sound is synthesised, not fetched', () => {

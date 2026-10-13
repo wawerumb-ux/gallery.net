@@ -169,6 +169,19 @@ component; this one is synthesised, because a file would mean a network
 request, a licence and an mp3 decoder for what is one oscillator — and the
 archive has to keep working with the network gone.
 
+That synthesised ding is the **default**, not the only voice. An action
+whose outcome the visitor is unambiguous about names a recording of its
+own — the download confirmation raises `sound: 'download'`, and only on
+the success branch, since a chime for a photo that never landed would be
+the loudest lie on the page. `TOAST_SOUND_FILES` maps the action name to
+a file in `audio/`.
+
+A named recording that is missing, unlicensed, or still downloading falls
+straight back to the synthesised ding, so the noise is never what you
+lose — and because the recordings are licensed they are gitignored, which
+means a clean checkout that has none is a supported state, not a broken
+one. See `audio/README.md`.
+
 ## The progress bar
 
 A long read or write gets a bar with the percentage **inside** it:
@@ -201,7 +214,9 @@ the page has been touched — one built before a gesture is born suspended,
 and Chrome logs a warning for the privilege of asking — and a **sticky
 progress line is silent**, because the batch loops raise one per photo and
 forty dings across a single upload is not a notification. A timed message
-that is actually going to sit on screen is the only thing that sounds.
+that is actually going to sit on screen is the only thing that sounds —
+and the recording it fetches is only fetched after both gates are open,
+so a muted gallery downloads nothing.
 
 The gallery still shows **one message at a time**, not a stack: each
 progress line replaces the last, and the final summary replaces the last

@@ -5,3 +5,12 @@ node_modules/
 # workflow uploads, and it is rebuilt on every run.
 wasm/target/
 wasm/dist/
+
+# Notification sound files. The licences behind these — Envato Elements in
+# particular — cover using an asset in your own project, not redistributing
+# it, and this repository is public. audio/README.md is tracked; the assets
+# are not. The app falls back to the synthesised ding when one is missing.
+audio/*.mp3
+audio/*.wav
+audio/*.m4a
+audio/*.ogg
