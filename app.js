@@ -1679,7 +1679,8 @@ function renderAlbumDetail() {
     fig.addEventListener('click', () => {
       if (Date.now() < (state._suppressClickUntil || 0)) return;
       if (state.adminMode && state.batchSelect) { toggleBatchSelect(fig.dataset.path); return; }
-      openLightbox(fig.dataset.folder, Number(fig.dataset.index), startSrcFor(fig, fig.dataset.path));
+      openLightbox(fig.dataset.folder, Number(fig.dataset.index),
+        startSrcFor(fig, fig.dataset.path), fig.dataset.path);
     });
     wireLongPress(fig);
   });
@@ -1721,7 +1722,8 @@ function wireGalleryEvents() {
       // Hand the lightbox the exact image the card already loaded (a cache
       // hit = instant, no re-download, no blur flash) — but only once that
       // card has been confirmed to be the photo the tap resolves to.
-      openLightbox(fig.dataset.folder, Number(fig.dataset.index), startSrcFor(fig, fig.dataset.path));
+      openLightbox(fig.dataset.folder, Number(fig.dataset.index),
+        startSrcFor(fig, fig.dataset.path), fig.dataset.path);
     });
     wireLongPress(fig);
   });
@@ -2626,7 +2628,15 @@ function cardsForPath(path) {
 function toggleBatchSelect(path) {
   if (state.batchSelected.has(path)) state.batchSelected.delete(path);
   else state.batchSelected.add(path);
-  cardsForPath(path).forEach(card => {
+  const cards = cardsForPath(path);
+  // `cards` is the ground truth for whether the tap landed on a card at all.
+  // Zero matches means the badge went nowhere, which reads to a visitor as
+  // "the wrong card lit up" — so it is recorded rather than swallowed.
+  diagTap({
+    what: 'select', said: path, resolved: cards.length ? cards[0].dataset.path : null,
+    shown: state.batchSelected.has(path), ok: cards.length > 0,
+  });
+  cards.forEach(card => {
     card.classList.toggle('card-selected', state.batchSelected.has(path));
     const pick = card.querySelector('.card-pick');
     if (pick) pick.textContent = state.batchSelected.has(path) ? '✓' : '';
@@ -3648,15 +3658,52 @@ function startSrcFor(fig, resolvedPath) {
   return cardPath && resolvedPath && cardPath === resolvedPath ? img.currentSrc : null;
 }
 
-function openLightbox(folder, index, startSrc) {
+/* A tap record, for diagnosing "I tapped this and that one came up".
+   Every card tap is logged with the identity the card claimed, the identity
+   the index maths resolved, and the file the viewer actually painted — so the
+   report can be answered with one line from the console instead of a guess.
+
+   Read it with:  __galleryDiag()          — the last 40 taps
+                  __galleryDiag().clear()
+
+   Cheap by design: one small object per tap, no layout reads, and it can
+   never throw into the tap it is describing. */
+function diagTap(entry) {
+  try {
+    const log = (window.__galleryDiagLog = window.__galleryDiagLog || []);
+    log.push(Object.assign({ t: Date.now() }, entry));
+    if (log.length > 40) log.shift();
+  } catch (_) { /* diagnostics must never break a tap */ }
+}
+function galleryDiag() {
+  const log = (typeof window !== 'undefined' && window.__galleryDiagLog) || [];
+  const fmt = (e) => `${e.what || 'tap'} said=${e.said || '-'} `
+    + `resolved=${String(e.resolved || '-').split('/').pop()} `
+    + `shown=${String(e.shown || '-').split('/').pop()}`
+    + (e.ok === false ? '   <-- MISMATCH' : '');
+  return {
+    last: log.length ? fmt(log[log.length - 1]) : '(nothing recorded)',
+    mismatches: log.filter(e => e.ok === false).map(fmt),
+    all: log.map(fmt),
+    clear() { if (typeof window !== 'undefined' && window.__galleryDiagLog) window.__galleryDiagLog.length = 0; },
+    raw: log,
+  };
+}
+
+function openLightbox(folder, index, startSrc, said) {
   state.lightboxFolder = folder;
   const at = lightboxIndexFor(folder, index);
   // A tap on a card that no longer maps to a photo opens nothing rather than
   // opening the wrong one.
-  if (at < 0) return;
+  if (at < 0) {
+    diagTap({ what: 'viewer', said, index, resolved: null, shown: null, ok: false });
+    return;
+  }
   state.lightboxIndex = at;
   state.lightboxStartSrc = startSrc || null;
   updateLightbox();
+  const shown = (lightboxItems(folder)[at] || {}).path || null;
+  diagTap({ what: 'viewer', said, index, resolved: at, shown, ok: shown === said });
   overlayPush('lightbox', closeLightbox);
   el('lightbox').hidden = false;
 }
@@ -4630,3 +4677,12 @@ function failureSuffix(failedNames) {
    admin is signed in (tour/boot.js), and the tests load this file into a
    vm and reach the same object. */
 window.__gallery = gallery;
+
+/* The second global, and a function rather than a namespace: the tap log
+   behind the "I tapped this and that one came up" report. Exposed so it can
+   be read from a phone's console without a build step. `__galleryDiag()`
+   summarises; `.clear()` empties it.
+
+   Guarded because several tests slice this file and evaluate a region that
+   does not include galleryDiag's definition. */
+if (typeof galleryDiag === 'function') window.__galleryDiag = galleryDiag;

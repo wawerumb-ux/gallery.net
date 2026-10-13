@@ -21,5 +21,7 @@
     "url": "https://github.com/wawerumb-ux/gallery.net/issues"
   },
   "homepage": "https://github.com/wawerumb-ux/gallery.net#readme",
-  "devDependencies": {}
+  "devDependencies": {
+    "linkedom": "^0.18.13"
+  }
 }
