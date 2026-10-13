@@ -669,6 +669,46 @@ describe('The voices, executed', () => {
       'the torn-down voice must not be disconnected again on a later dismissal');
   });
 
+  test('every message the app can raise maps to the voice it should', () => {
+    /* The whole point of the palette: what the visitor hears has to match
+       what happened. This walks the shapes app.js actually raises — the
+       five types, sticky and not, with and without an Undo — and checks the
+       oscillator frequencies against the intended voice. A regression that
+       turned an error into a ding would pass every other test here. */
+    h.gesture();
+    const voice = () => h.freqs();
+    const cases = [
+      // [options, expected frequencies, why]
+      [{ type: 'info' }, [1318.51, 1975.53], 'an info is unremarkable — the default ding'],
+      [{ type: 'warning' }, [1318.51, 1975.53], 'a warning is not an error; it gets the default'],
+      [{ type: 'success' }, [1318.51, 1975.53], 'a single success is not a batch; default ding'],
+      [{ type: 'error' }, [392.0, 311.13, 784.0], 'a failure must sound like one'],
+      [{ type: 'error', sticky: true }, [392.0, 311.13, 784.0],
+        'a sticky error does not leave on screen, so it must be heard'],
+      [{ type: 'warning', sticky: true }, [1318.51, 1975.53],
+        'a sticky warning also stays, but is not a failure'],
+      [{ type: 'success', undo: () => {} }, [880.0, 587.33],
+        'done but reversible is a third state, not a plain success'],
+      [{ type: 'success', sound: 'success' }, [659.25, 880.0, 1318.51],
+        'a clean batch gets the wider voice'],
+      [{ type: 'warning', sound: undefined }, [1318.51, 1975.53],
+        'a partial batch must not claim it finished'],
+      [{ type: 'error', sound: 'undo' }, [880.0, 587.33],
+        'an explicit voice beats the derived one'],
+      [{ sound: 'nonsense' }, [1318.51, 1975.53],
+        'an unknown name falls back rather than muting'],
+    ];
+    for (const [opts, expected, why] of cases) {
+      h.reset();
+      h.api.showToast('message', opts);
+      assert.deepStrictEqual(voice(), expected, `${why} — ${JSON.stringify(opts)}`);
+    }
+    // And the one shape that must never sound.
+    h.reset();
+    h.api.showPending('Uploading photos', 1, 40);
+    assert.deepStrictEqual(voice(), [], 'work in flight must stay silent');
+  });
+
   test('a voice tears its own gain graph down when it finishes', () => {
     h.gesture();
     h.api.playToastDing('success');
