@@ -2046,10 +2046,11 @@ function wireStaticEvents() {
     label: 'Download',
     variant: 'ghost',
     className: 'dlb-viewer',
-    // A confirmed save gets a recorded voice of its own; the failed fetch
-    // below keeps the synthesised ding, because a chime for a photo that
-    // never landed would be the loudest lie on the page.
-    onDownloadComplete: () => showToast(`Saved ${viewerDownloadName}`, { type: 'success', sound: 'download' }),
+    // A confirmed save is a single action, not a batch, so it keeps the
+    // default ding. The failed fetch below is an `error` and is heard as
+    // one: the two were once the same sound, which is the one distinction
+    // here that genuinely needed making.
+    onDownloadComplete: () => showToast(`Saved ${viewerDownloadName}`, { type: 'success' }),
     // A failed fetch used to be the muted is-error state alone: 0.55
     // opacity for half a second, then reset. Nothing said the photo had
     // not saved, and a visitor who had just watched it fail could not
@@ -4012,30 +4013,18 @@ const TOAST_GLYPHS = {
 const TOAST_CLOSE_GLYPH = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M6 18L18 6M6 6l12 12"/></svg>';
 
 /* ── The notification sound ─────────────────────────────────────────
-   Penguin ships a ding with its component. This one is synthesised:
-   two sine partials a fifth apart, struck together and again 50ms
-   later, both gone inside 600ms. It costs nothing to carry, needs no
-   licence, and the archive keeps working with the network gone.
+   Every voice in this app is synthesised from oscillators. There is no
+   audio file, no network request and no licence: an oscillator is a few
+   hundred bytes of arithmetic, so a notification can carry its own
+   sound without a decoder, a download, or anything to attribute.
 
-   On top of that default sits a small registry of real recordings, so
-   an action with a voice of its own can have one. Every key is an
-   action name that showToast takes as `sound:`; anything not named
-   here stays on the synthesised ding. */
+   That is a deliberate position rather than a shortcut. A recorded
+   notification was tried and the file was the problem, not the sound:
+   the sources that permit redistribution are the ones with the thinnest
+   catalogue for interface use, and the rest either demand a credit line
+   or forbid shipping the file. Synthesising sidesteps the question
+   entirely, and it keeps the archive working with the network gone. */
 const TOAST_SOUND_KEY = 'gallery.toastSound';
-
-/* Which file backs which action. See audio/README.md for how to add
-   one, and for why the files themselves are not in git.
-
-   The key is an action name, not a file name — the upload summary and
-   the download confirmation are different actions even if they were
-   ever given the same recording, and the call site reads better for it.
-
-   The filename is left as the vendor issued it. The Envato item number
-   in it is the only thing that traces back to the licence the file is
-   used under, and a tidied-up name would throw that away. */
-const TOAST_SOUND_FILES = {
-  download: 'audio/universfield-new-notification-02-323592.mp3',
-};
 
 function storedToastSound() {
   try {
@@ -4050,71 +4039,15 @@ let toastSoundOn = storedToastSound();
 /* An AudioContext built before a gesture is born suspended, and Chrome
    logs a warning for the privilege of asking. So none is built until the
    page has been touched: the first pointerdown or keydown anywhere is the
-   unlock. Until then a notification is silent — which is what every
-   browser's autoplay policy would have done to a file anyway. */
+   unlock. Until then a notification is silent. */
 let toastUnlocked = false;
 if (typeof window !== 'undefined' && window.addEventListener) {
-  const unlock = () => { toastUnlocked = true; primeToastSounds(); };
+  const unlock = () => { toastUnlocked = true; };
   window.addEventListener('pointerdown', unlock, { once: true, capture: true });
   window.addEventListener('keydown', unlock, { once: true, capture: true });
 }
 
-/* ── Recorded voices ──────────────────────────────────────────────────
-   One HTMLAudioElement per action, built once and kept. Constructing
-   these is not the same as playing them, so there is no autoplay
-   question here — but there is a download, and the first unlock is the
-   earliest moment it is legitimate to start one.
-
-   Kept above playToastDing on purpose. The tests audit that function
-   for "synthesised, never fetched", and the one fetch this app does
-   make belongs to a named action rather than to the default ding. */
-const toastAudioEls = Object.create(null);
-function toastSoundEl(name) {
-  if (!Object.prototype.hasOwnProperty.call(TOAST_SOUND_FILES, name)) return null;
-  if (!toastAudioEls[name]) {
-    try {
-      const el = new Audio(TOAST_SOUND_FILES[name]);
-      el.preload = 'auto';
-      toastAudioEls[name] = el;
-    } catch (_) {
-      return null; // no constructor, or a browser that refuses the type
-    }
-  }
-  return toastAudioEls[name];
-}
-function primeToastSounds() {
-  for (const name in TOAST_SOUND_FILES) {
-    const el = toastSoundEl(name);
-    // `load()` on an element already set to preload="auto" is a no-op in
-    // most engines and the whole request in the rest. Harmless either way.
-    if (el && typeof el.load === 'function') {
-      try { el.load(); } catch (_) { /* it will fetch when it is played */ }
-    }
-  }
-}
-
-/* HAVE_CURRENT_DATA. A recording still fetching has nothing to play, and
-   waiting for it would mean the upload summary went quiet while a file
-   came down the wire — so an unready or missing file takes the
-   synthesised path instead. The notification is never lost to its sound. */
-function playToastFile(name) {
-  const el = toastSoundEl(name);
-  if (!el || el.readyState < 2) return false;
-  try {
-    el.currentTime = 0;
-    const played = el.play();
-    if (played && typeof played.catch === 'function') {
-      // A rejected play() (interrupted by the next one, a codec the
-      // device cannot decode) is not worth surfacing. The message stands.
-      played.catch(() => {});
-    }
-    return true;
-  } catch (_) {
-    return false;
-  }
-}
-
-/* ── The synthesised palette ──────────────────────────────────────────
+/* ── The palette ──────────────────────────────────────────────────────
    Four voices, all built the same way: a list of partials struck at
    offsets, each one an oscillator and a gain envelope, all under one
    bus. Nothing is sampled and nothing is fetched, so there is no
@@ -4166,14 +4099,12 @@ const TOAST_VOICES = {
 const DEFAULT_VOICE = 'ding';
 
 let toastAudio = null;
-/* `sound` is an action name, resolved in the order it costs most: a
-   recording if there is one (TOAST_SOUND_FILES), else a synthesised
-   voice (TOAST_VOICES), else the default ding. An unknown name is not
-   an error — a message with a voice nobody defined still gets a sound,
-   because the notification is the point and the noise is decoration. */
+/* `sound` is a voice name — see TOAST_VOICES. An unknown name is not an
+   error, it is the default: a message asking for a sound nobody defined
+   still gets one, because the notification is the point and the noise is
+   decoration. */
 function playToastDing(sound) {
   if (!toastSoundOn || !toastUnlocked) return;
-  if (sound && playToastFile(sound)) return;
   const AudioCtx = window.AudioContext || window.webkitAudioContext;
   if (!AudioCtx) return;
   try {

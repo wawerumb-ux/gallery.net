@@ -166,11 +166,6 @@ function harness(opts = {}) {
     console,
     document: doc,
     addEventListener(type, fn) { listeners.push({ type, fn }); },
-    Audio: class {
-      constructor(src) { this.src = src; this.preload = ''; this.readyState = 0; }
-      load() {}
-      play() { return Promise.resolve(); }
-    },
     requestAnimationFrame: (fn) => { raf.push(fn); return raf.length; },
     cancelAnimationFrame() {},
     setTimeout: (fn, ms) => { setTimeout(fn, 0); return 0; },
@@ -180,10 +175,10 @@ function harness(opts = {}) {
       getItem(k) { return k in this._v ? this._v[k] : null; },
       setItem(k, v) { this._v[k] = String(v); },
     },
-    /* Audio is decoration; the tests assert on what was attempted. With
-       no context the real code bails at `if (!AudioCtx) return`, so the
-       stub below is only installed for the tests that want to see the
-       oscillators. */
+    /* No AudioContext and no Audio: the real code must not need either a
+       file or a decoder, and the tests below install a context only to
+       watch which oscillators get built. */
+    Audio: undefined,
     AudioContext: undefined,
   };
   if (opts.audio) {

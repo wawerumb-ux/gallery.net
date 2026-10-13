@@ -171,8 +171,11 @@ archive has to keep working with the network gone.
 
 ### Four voices
 
-The synthesised ding is the **default and the primary mechanism**. Four
-voices exist, all built from oscillators and none fetched:
+Every notification sound in this app is **synthesised from oscillators**.
+There is no audio file, no network request, no licence and no attribution
+— an oscillator is a few hundred bytes of arithmetic, and a notification
+that carries its own sound therefore costs nothing to ship and works with
+the network gone.
 
 | Voice      | Interval                      | Played for                            |
 | ---------- | ----------------------------- | ------------------------------------- |
@@ -196,17 +199,17 @@ unsettled rather than finished. `success` is the opposite: it is withheld
 from a partial batch, since a half-finished move that sounded like a
 triumph would be the loudest lie available.
 
-A named action may instead bring a **recording** — `sound: 'download'` on
-the download confirmation, and only on the success branch, since a chime
-for a photo that never landed would be the loudest lie on the page.
-`TOAST_SOUND_FILES` maps the action name to a file in `audio/`.
+An unknown `sound:` name falls back to `ding` rather than muting. The
+notification is the point; the noise is decoration.
 
-A name resolves recording → voice → default, and every step of that is
-non-fatal: a missing file, an unknown name, or a codec the device refuses
-all fall through to the next. The noise is never what the visitor loses.
-Because recordings are licensed they are gitignored, so a clean checkout
-that has none is a supported state, not a broken one. See
-`audio/README.md`.
+A recorded notification was tried and removed. The sources that permit
+redistributing a file are the ones with the thinnest catalogue for
+interface use, and the rest demand a visible credit line or forbid
+shipping the file outright — so the file, not the sound, was the problem.
+Stock SFX are also made for video: 1–3 second musical tails, stereo and
+reverberant, with several dB of gain difference between clips, none of
+which suits a toast that lives eight seconds. Synthesising gives
+consistency by construction.
 
 ## The progress bar
 
@@ -241,8 +244,8 @@ and Chrome logs a warning for the privilege of asking — and a **sticky
 progress line is silent**, because the batch loops raise one per photo and
 forty dings across a single upload is not a notification. A timed message
 that is actually going to sit on screen is the only thing that sounds —
-and the recording it fetches is only fetched after both gates are open,
-so a muted gallery downloads nothing.
+and both gates are checked before an `AudioContext` is built at all, so a
+muted or untouched gallery builds no oscillator and fetches nothing.
 
 The gallery still shows **one message at a time**, not a stack: each
 progress line replaces the last, and the final summary replaces the last

@@ -1,6 +1,5 @@
 /* The notification is Penguin UI's stacking toast, dressed on hcg-toast,
-   with a synthesised ding as the default and real recordings for named
-   actions.
+   with a synthesised palette of four voices.
 
    Five things about it are load-bearing and none of them are visible in
    a screenshot:
@@ -26,19 +25,19 @@
       one. `done` past `total` must not render a bar wider than its own
       track, and a write with no total must sweep rather than sit at a
       confident 0%.
-   6. A notification has four voices. The synthesised palette is the
-      default and needs nothing from the network; a *named* action may
-      bring a recording instead, and that recording is licensed, gitignored,
-      and allowed to be absent. What must never happen is a message
-      failing to sound: a missing file, an unknown name, a codec the device
-      will not decode — each falls back rather than costing the message.
+   6. A notification has four voices and **no audio file anywhere**. Every
+      voice is built from oscillators, so there is nothing to download,
+      decode, licence or attribute, and the archive keeps working with the
+      network gone. A recording was tried and removed — the sources that
+      permit redistributing a file are the ones with the thinnest catalogue
+      for interface use, and the rest demand a credit line — so this test
+      guards the *absence* of that machinery, not just its behaviour.
 
    Two of the four are derived from the message rather than requested by
    the call site, because they carry information the words do not: an
    `error` type sounds like failure even if the text reads like success,
    and a message offering Undo sounds unsettled. A call site that forgets
-   to ask still gets both; only a recorded voice has to be named, since
-   only a recording has provenance to get wrong.
+   to ask still gets both.
 
    Plus the boring ones: every type the call sites use has a glyph, the
    dismissal is the stroked cross rather than the library's `&times;`, the
@@ -47,12 +46,11 @@
 
 import { test, describe } from 'node:test';
 import assert from 'node:assert';
-import { readFile, access, stat } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import vm from 'node:vm';
 
 const APP = new URL('../app.js', import.meta.url);
 const CSS = new URL('../style.css', import.meta.url);
-const ROOT = new URL('../', import.meta.url);
 const app = await readFile(APP, 'utf8');
 const css = await readFile(CSS, 'utf8');
 /* The library is imported here, at module scope, because that is the only
@@ -138,11 +136,10 @@ describe('A — the sound is only ever heard on purpose', () => {
       'the ding must follow the message actually being shown');
   });
 
-  test('A5 — the default voice is synthesised, never fetched', () => {
-    // The palette is the primary mechanism, so this is the load-bearing
-    // claim: a file would mean a network request and a licence for one
-    // oscillator, and the archive has to keep working offline. A *named*
-    // action may bring a recording (A6) — this is about the default.
+  test('A5 — every voice is synthesised, and nothing is fetched', () => {
+    // The load-bearing claim, now absolute: there is no audio file in this
+    // app at all. A file would mean a network request and a licence for
+    // what is one oscillator, and the archive has to keep working offline.
     const ding = sliceCode('function playToastDing', 'function setToastSound');
     assert.doesNotMatch(ding, /new Audio\(|https?:\/\//,
       'the default voice must be synthesised — no audio file, no CDN');
@@ -150,77 +147,38 @@ describe('A — the sound is only ever heard on purpose', () => {
     assert.match(ding, /osc\.type = 'sine'/);
   });
 
-  test('A6 — a named action may bring its own recording, and only then', async () => {
-    // The default ding stays synthesised (A5). A *named* action is allowed
-    // a file, so the two mechanisms have to be distinguishable.
-    assert.match(src, /const TOAST_SOUND_FILES = \{/);
-    assert.match(src, /if \(sound && playToastFile\(sound\)\) return;/,
-      'playToastDing must try the named recording before falling back');
-
-    /* Every path the registry names must be a path — a bare filename or a
-       URL to a CDN would break the one rule that keeps this app working
-       offline. That is checked here because it is a static property of the
-       source.
-
-       Whether the file is *present* is deliberately not asserted. The
-       recordings are licensed and gitignored, so a clean checkout does not
-       have them and CI never will; asserting presence would mean the suite
-       could only ever pass on the one machine that holds the licences. A
-       missing file is a supported state, not a failure. */
-    const entries = src.matchAll(/^\s*(\w+): '(audio\/[^']+)',$/gm);
-    const paths = [...entries];
-    assert.ok(paths.length, 'the registry should name at least one recording');
-    for (const [, , p] of paths) {
-      assert.doesNotMatch(p, /^https?:\/\//,
-        `a sound must be served from this origin, not a CDN: ${p}`);
-      assert.match(p, /^audio\/[\w.-]+\.(mp3|m4a|aac|wav|ogg|oga|webm)$/,
-        `a sound must be a local audio file: ${p}`);
+  test('A6 — the recording mechanism is gone, not merely unused', () => {
+    // A recorded notification was tried and removed: the sources that
+    // permit redistributing a file are the ones with the thinnest catalogue
+    // for interface use, and the rest demand a credit line or forbid
+    // shipping the file. What replaced it is the palette below.
+    //
+    // Asserting the *absence* of the machinery is stronger than asserting
+    // that it behaves: an unused registry, a primed cache and a `sound:`
+    // name that resolves to a file are all costs with no benefit, and
+    // nobody would notice them by reading the code.
+    for (const gone of ['TOAST_SOUND_FILES', 'playToastFile', 'primeToastSounds',
+      'toastSoundEl', 'toastAudioEls']) {
+      assert.doesNotMatch(src, new RegExp(gone), `${gone} should no longer exist`);
     }
-    // …but if the folder does hold recordings, they have to be real files
-    // rather than whatever Git LFS left behind as a pointer.
-    for (const [, , p] of paths) {
-      try { await access(new URL(p, ROOT)); } catch (_) { break; }
-      const { size } = await stat(new URL(p, ROOT));
-      assert.ok(size > 1024, `${p} is ${size} bytes — that is an LFS pointer, not an audio file`);
+    // Nothing anywhere in the app may reach for an audio file.
+    assert.doesNotMatch(app, /new Audio\(/,
+      'no notification may build an HTMLAudioElement');
+    assert.doesNotMatch(app, /['"`]audio\//,
+      'no notification may reference a file in audio/');
+    // And `sound:` now names a voice and nothing else. Matched against the
+    // comment-stripped source so the prose around a call site cannot be
+    // mistaken for its arguments — a bare `sound: (\w+)` reads "failed"
+    // out of the sentence "a batch that sounded like a triumph…".
+    const names = [...code(app).matchAll(/sound: '(\w+)'/g)].map((m) => m[1]);
+    const palette = sliceCode('const TOAST_VOICES', 'const DEFAULT_VOICE');
+    const known = [...palette.matchAll(/^  (\w+): \{/gm)].map((m) => m[1]);
+    for (const n of names) {
+      assert.ok(known.includes(n), `"${n}" is not a voice in the palette`);
     }
-    // …and the file is fetched only after the switches say to make a noise.
-    const ding = sliceCode('function playToastDing', 'function setToastSound');
-    assert.ok(ding.indexOf('if (!toastSoundOn || !toastUnlocked) return;')
-      < ding.indexOf('playToastFile(sound)'),
-      'the sound flag and the gesture gate come before the file is touched');
-
-    // Every recorded sound is fetched once, on the first gesture, not on
-    // every notification that names it.
-    assert.match(src, /const unlock = \(\) => \{ toastUnlocked = true; primeToastSounds\(\); \};/,
-      'the gesture unlock is the earliest legitimate moment to start the download');
   });
 
-  test('A7 — a missing or unready file costs the noise, not the message', () => {
-    const file = sliceCode('function playToastFile', 'function playToastDing');
-    assert.match(file, /if \(!el \|\| el\.readyState < 2\) return false;/,
-      'an absent or still-loading recording must report itself unusable');
-    assert.match(file, /played\.catch\(\(\) => \{\}\);/,
-      'a rejected play() must not escape into the toast that triggered it');
-  });
-
-  test('A8 — only the download confirmation names a *recording*', () => {
-    // A name in `sound:` can now resolve two ways: a file, or one of the
-    // synthesised voices. This test is about the files, because those are
-    // the licensed ones. A name that resolves to a voice costs nothing and
-    // needs no provenance, so the palette may grow freely.
-    const recorded = new Set([...src.matchAll(/^\s*(\w+): 'audio\/[^']+'/gm)].map((m) => m[1]));
-    const named = [...app.matchAll(/showToast\([^;]*?sound: '(\w+)'/g)].map((m) => m[1]);
-    const licensed = named.filter((n) => recorded.has(n));
-    assert.deepStrictEqual([...new Set(licensed)], ['download'],
-      'the only licensed recording in play is the download confirmation');
-    // And it must be the success branch, never the error one.
-    assert.match(app, /onDownloadComplete: \(\) => showToast\(`Saved \$\{viewerDownloadName\}`, \{ type: 'success', sound: 'download' \}\)/);
-    const err = app.slice(app.indexOf('onDownloadError:'), app.indexOf('onDownloadError:') + 300);
-    assert.doesNotMatch(err, /sound:/,
-      'a failed download must not play the recording that means "saved"');
-  });
-
-  test('A9 — the palette is four voices, and no two are the same sound', () => {
+  test('A7 — the palette is four voices, and no two are the same sound', () => {
     const palette = sliceCode('const TOAST_VOICES', 'const DEFAULT_VOICE');
     const voices = [...palette.matchAll(/^  (\w+): \{/gm)].map((m) => m[1]);
     assert.deepStrictEqual(voices, ['ding', 'error', 'undo', 'success'],
@@ -248,7 +206,7 @@ describe('A — the sound is only ever heard on purpose', () => {
     }
   });
 
-  test('A10 — every voice decays inside the toast it belongs to', () => {
+  test('A8 — every voice decays inside the toast it belongs to', () => {
     // A sound that outlives its own message is a notification the visitor
     // cannot switch off, arriving after the thing it announced is gone.
     // The shortest non-sticky toast is TOAST_MS, so every decay has to sit
@@ -266,7 +224,7 @@ describe('A — the sound is only ever heard on purpose', () => {
       'the per-partial envelope must close before its oscillator stops');
   });
 
-  test('A11 — failure and Undo are heard before they are read', () => {
+  test('A9 — failure and Undo are heard before they are read', () => {
     // The two voices worth having are the two that carry information the
     // message itself does not: a failure that reads like a success, and a
     // change that is not yet final. Both are derived rather than requested,
@@ -285,7 +243,7 @@ describe('A — the sound is only ever heard on purpose', () => {
       'showToast must copy its options before writing a voice onto them');
   });
 
-  test('A12 — a partial batch never gets the voice of a finished one', () => {
+  test('A10 — a partial batch never gets the voice of a finished one', () => {
     // Move and rename report a warning when anything was skipped or
     // collided. The wider success voice on a half-finished batch would be
     // the loudest lie available, so the guard is written out at each site.
