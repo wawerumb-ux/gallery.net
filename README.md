@@ -177,18 +177,53 @@ There is no audio file, no network request, no licence and no attribution
 that carries its own sound therefore costs nothing to ship and works with
 the network gone.
 
-| Voice      | Interval                      | Played for                            |
-| ---------- | ----------------------------- | ------------------------------------- |
-| `ding`     | rising fifth, E6 → B6         | the default — anything unclassified   |
-| `error`    | falling minor third, G4 → Eb4 | every `type: 'error'`                |
-| `undo`     | falling fourth, A5 → D5       | every message carrying an Undo        |
-| `success`  | rising fourth, E5 → A5 → E6   | a **clean batch** that reports a count|
+| Voice      | Interval                        | Played for                            |
+| ---------- | ------------------------------- | ------------------------------------- |
+| `ding`     | rising perfect fifth, E6 → B6   | the default — anything unclassified   |
+| `error`    | falling major third, G4 → Eb4   | every `type: 'error'`                |
+| `undo`     | falling perfect fifth, A5 → D5   | every message carrying an Undo        |
+| `success`  | rising fourth then fifth, E5→A5→E6 | a **clean batch** that reports a count|
 
 Each is a different *direction* rather than a different timbre, because
 direction is what survives a notification lasting under a second — the ear
 catches a rise and a fall far more reliably than it catches tone. All four
 share one bus peak, so none is louder than another by accident: a sound
 reading as "more urgent" purely from gain is lying about urgency.
+
+`ding` and `undo` are **the same seven semitones, one rising and one
+falling** — a mirror pair, and deliberately so. The default means
+something happened; `undo` is that gesture reversed, meaning it was taken
+back. `error` is two octaves lower as well as inverted, because an error
+that sounded like a ding would be confusing however it moved.
+
+Both notes that carry `error`'s interval sit below 400Hz, where a handset
+rolls off hard, so it carries a third partial at 784Hz purely for phone
+speakers — inaudible as a separate note on decent hardware, and the only
+part of that voice a phone can actually reproduce.
+
+### Living with the context
+
+Three things about the `AudioContext` are less obvious than they look:
+
+**Muting closes it.** A live context holds the output device open, so a
+visitor who has turned notifications off would still be paying for the
+hardware and the battery. Turning sound off drops the context; the next
+sound builds a fresh one.
+
+**A suspended context is replaced, never resumed.** `resume()` on a
+context nobody has unlocked is what trips Chrome's autoplay warning, and
+it lies about why the context is suspended. But *obeying* one is worse: iOS
+suspends on backgrounding and frequently does not resume on return, so a
+visitor who switched away once would find notifications permanently silent.
+A context that went suspended is closed and rebuilt. `visibilitychange`
+and `pageshow` both trigger this — a page restored from the back/forward
+cache fires no `visibilitychange` at all.
+
+**A context born suspended is obeyed, and the refusal is remembered.** If
+the browser hands back a context it will not run, that is an answer, not a
+glitch. Rebuilding on every notification would mean constructing a context
+per message for the rest of the session. The app goes quiet instead, and a
+real user gesture clears the flag — the only place a human is involved.
 
 `error` and `undo` are **derived**, not requested. `showToast` picks them
 from the message's own type and whether it carries an Undo, so a call site
@@ -245,7 +280,10 @@ progress line is silent**, because the batch loops raise one per photo and
 forty dings across a single upload is not a notification. A timed message
 that is actually going to sit on screen is the only thing that sounds —
 and both gates are checked before an `AudioContext` is built at all, so a
-muted or untouched gallery builds no oscillator and fetches nothing.
+muted or untouched gallery builds no oscillator and fetches nothing. Each
+voice tears down its own gain graph when it finishes, so a forty-photo
+batch does not leave forty notifications' worth of nodes attached to the
+output.
 
 The gallery still shows **one message at a time**, not a stack: each
 progress line replaces the last, and the final summary replaces the last

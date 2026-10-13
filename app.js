@@ -4042,9 +4042,50 @@ let toastSoundOn = storedToastSound();
    unlock. Until then a notification is silent. */
 let toastUnlocked = false;
 if (typeof window !== 'undefined' && window.addEventListener) {
-  const unlock = () => { toastUnlocked = true; };
+  const unlock = () => {
+    toastUnlocked = true;
+    // A fresh gesture is the one thing that can overturn a browser's
+    // earlier refusal, so the "no" is lifted here rather than anywhere
+    // else — this is the only place a real human is involved.
+    if (toastRefused) {
+      toastRefused = false;
+      const dead = toastAudio;
+      toastAudio = null;
+      if (dead && typeof dead.close === 'function') {
+        try { dead.close(); } catch (_) { /* already closed */ }
+      }
+    }
+  };
   window.addEventListener('pointerdown', unlock, { once: true, capture: true });
   window.addEventListener('keydown', unlock, { once: true, capture: true });
+
+  /* A context the browser has suspended is a context this page can no
+     longer use, and it does not always come back on its own. iOS in
+     particular suspends on backgrounding and frequently does not resume on
+     return — so without this a visitor who switched away once would find
+     notifications permanently silent for the rest of the session, with no
+     way to recover except a reload.
+
+     The context is dropped rather than resumed, deliberately. resume() on
+     a context nobody has unlocked is the thing that trips Chrome's autoplay
+     warning, and it is also a lie about why it is suspended. Discarding it
+     costs one small object; the next notification builds a fresh one, and
+     by then the page has been touched again, so the new context is born
+     running.
+
+     Two events, because neither alone is enough: `visibilitychange` catches
+     a backgrounded tab, and `pageshow` catches a page restored from the
+     back/forward cache — which fires no visibilitychange at all. */
+  const discardSuspended = () => {
+    const ctx = toastAudio;
+    if (!ctx || ctx.state !== 'suspended') return;
+    toastAudio = null;
+    if (typeof ctx.close === 'function') {
+      try { ctx.close(); } catch (_) { /* already closed */ }
+    }
+  };
+  document.addEventListener('visibilitychange', discardSuspended);
+  window.addEventListener('pageshow', discardSuspended);
 }
 
 /* ── The palette ──────────────────────────────────────────────────────
@@ -4070,27 +4111,41 @@ const TOAST_VOICES = {
     decay: 0.6,
     partials: [[1318.51, 0, 1], [1975.53, 0.05, 0.4]],
   },
-  /* Failure. A falling minor third a little under an octave — G4 down to
-     Eb4 — which is the interval that sounds like something being taken
-     back. The default's rise inverted, so the two are opposites rather
-     than two flavours of the same idea. Short too: a bad outcome should
-     not outlast the message explaining it. */
+  /* Failure. A falling MAJOR third — G4 down to Eb4, four semitones.
+     Major rather than minor on purpose: a minor third would sound rueful,
+     and rueful is the wrong register for something that did not happen. A
+     falling major third is blunter, and reads as final rather than sad.
+
+     Nearly two octaves below the default as well as inverted against it.
+     The register does most of the work here — an error that sounded like a
+     ding would be confusing however it moved.
+
+     The third partial exists only for phone speakers. Both of the notes
+     that carry the interval sit below 400Hz, where a handset rolls off
+     hard — the error would arrive as a click. G5 sits alongside them at
+     35% peak: inaudible as a separate note on decent speakers, and the
+     only part of this voice a phone can actually reproduce. It is an
+     octave above the first, so it adds no new interval. */
   error: {
-    decay: 0.42,
-    partials: [[392.0, 0, 1], [311.13, 0.09, 0.85]],
+    decay: 0.52,
+    partials: [[392.0, 0, 1], [311.13, 0.09, 0.85], [784.0, 0.02, 0.35]],
   },
-  /* "Done, but reversible." A falling fourth — A5 down to D5 — so it
-     ends where it came from instead of resolving upward. Deliberately
-     unresolved: the whole point of the message it belongs to is that
-     the outcome is not yet settled. */
+  /* "Done, but reversible." A falling PERFECT fifth — A5 down to D5, the
+     mirror image of the default's rising fifth, same seven semitones. That
+     symmetry is the whole design: the default means something happened,
+     and this is the same gesture reversed, meaning it was taken back.
+
+     Deliberately unresolved. The default rises into open air; this ends
+     lower than it started, because the outcome it belongs to is not
+     settled. */
   undo: {
     decay: 0.5,
     partials: [[880.0, 0, 1], [587.33, 0.1, 0.8]],
   },
   /* A batch that finished, as against a single action that did. A rising
-     fourth with a third partial on top — E5, A5, E6 — brighter and one
-     step wider than the default, so the difference is "more happened"
-     rather than "louder". */
+     fourth then a fifth — E5, A5, E6 — three partials where the default
+     has two, so the difference is "more happened" rather than "louder".
+     The bus peak is identical to every other voice's. */
   success: {
     decay: 0.55,
     partials: [[659.25, 0, 0.9], [880.0, 0.07, 0.7], [1318.51, 0.14, 0.45]],
@@ -4099,28 +4154,72 @@ const TOAST_VOICES = {
 const DEFAULT_VOICE = 'ding';
 
 let toastAudio = null;
-/* `sound` is a voice name — see TOAST_VOICES. An unknown name is not an
-   error, it is the default: a message asking for a sound nobody defined
-   still gets one, because the notification is the point and the noise is
-   decoration. */
+/* Set when the browser hands back a context it will not run. The answer
+   lasts for the session: a replacement would be born suspended too, and
+   rebuilding on every notification is worse than being quiet. */
+let toastRefused = false;
+/* Voices share one context, but nothing else is shared between two
+   notifications. Each builds its own bus and its own gains, and takes them
+   all down when it finishes — a forty-photo batch that ends in a summary
+   should not leave forty notifications' worth of gain graph hanging off
+   the destination for the rest of the session. */
 function playToastDing(sound) {
   if (!toastSoundOn || !toastUnlocked) return;
   const AudioCtx = window.AudioContext || window.webkitAudioContext;
   if (!AudioCtx) return;
   try {
-    if (!toastAudio) toastAudio = new AudioCtx();
-    if (toastAudio.state === 'suspended') return;
+    let freshContext = null;
+    if (!toastAudio) {
+      toastAudio = new AudioCtx();
+      freshContext = toastAudio;
+    }
+    /* A context can go suspended without the page having been hidden — an
+       incoming call on iOS, a Bluetooth device taking over, the OS
+       reclaiming audio in a low-power state. A context that is *running*
+       from an earlier notification is dead weight, and the visitor has
+       interacted since, so a replacement is born running. That is the
+       recovery the backgrounding case needs.
+
+       But a context born suspended is the browser answering "no", and it
+       must be obeyed rather than replaced — otherwise every notification
+       would build and discard one, forever, and the page would spend its
+       life constructing audio contexts it is not allowed to use. The
+       refusal is remembered, so the app goes quiet for the rest of the
+       session rather than churning; a genuine gesture clears it. */
+    if (toastAudio.state === 'suspended') {
+      if (toastAudio === freshContext) {
+        toastRefused = true;
+        return;
+      }
+      if (toastRefused) return;   // asked once already; the answer stands
+      const dead = toastAudio;
+      toastAudio = null;
+      // Closed rather than merely dropped. A suspended context still holds
+      // whatever it was holding the output device with, and "nobody
+      // references it any more" is not the same as "the browser let it go".
+      try { if (typeof dead.close === 'function') dead.close(); } catch (_) { /* already closed */ }
+      try { toastAudio = new AudioCtx(); } catch (_) { return; }
+      if (toastAudio.state === 'suspended') { toastRefused = true; return; }
+    }
     const voice = TOAST_VOICES[sound] || TOAST_VOICES[DEFAULT_VOICE];
     const { decay, partials } = voice;
     const now = toastAudio.currentTime;
-    const bus = toastAudio.createGain();
+    const ctx = toastAudio;
+    const bus = ctx.createGain();
     bus.gain.setValueAtTime(0.0001, now);
     bus.gain.exponentialRampToValueAtTime(0.16, now + 0.012);
     bus.gain.exponentialRampToValueAtTime(0.0001, now + decay);
-    bus.connect(toastAudio.destination);
+    bus.connect(ctx.destination);
+
+    // Everything this voice owns. Disconnecting the bus is enough to mute
+    // it, but each gain is dropped from its own parent too so a stopped
+    // voice releases its oscillator immediately rather than waiting for
+    // the graph to be collected wholesale.
+    const gains = [];
+    let last = null;
     for (const [freq, delay, peak] of partials) {
-      const osc = toastAudio.createOscillator();
-      const gain = toastAudio.createGain();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
       osc.type = 'sine';
       osc.frequency.setValueAtTime(freq, now + delay);
       gain.gain.setValueAtTime(0.0001, now + delay);
@@ -4128,8 +4227,19 @@ function playToastDing(sound) {
       gain.gain.exponentialRampToValueAtTime(0.0001, now + delay + decay - 0.05);
       osc.connect(gain);
       gain.connect(bus);
+      gains.push({ osc, gain });
       osc.start(now + delay);
+      // The last partial to finish owns the teardown.
       osc.stop(now + delay + decay);
+      last = osc;
+    }
+    if (last) {
+      last.onended = () => {
+        for (const { osc, gain } of gains) {
+          try { osc.disconnect(); gain.disconnect(); } catch (_) { /* already torn down */ }
+        }
+        try { bus.disconnect(); } catch (_) { /* already torn down */ }
+      };
     }
   } catch (_) {
     // The sound is decoration. A device with no output, or a context
@@ -4144,7 +4254,24 @@ function playToastDing(sound) {
 function setToastSound(on) {
   toastSoundOn = !!on;
   try { localStorage.setItem(TOAST_SOUND_KEY, toastSoundOn ? 'on' : 'off'); } catch (_) { /* nothing to remember it in */ }
-  if (toastSoundOn) playToastDing();
+  if (toastSoundOn) {
+    playToastDing();
+  } else {
+    // Turning sound off has to actually stop it. A live AudioContext holds
+    // the output device open, so a visitor who has muted notifications
+    // would still be paying for the hardware and the battery — the flag
+    // alone only stops the *next* sound, not the thing making them.
+    //
+    // close() is async and idempotent-safe to ignore afterwards, so the
+    // context is dropped on the floor whatever it does with the promise.
+    // The next sound builds a fresh one, which the gesture that opened the
+    // menu has already unlocked.
+    const ctx = toastAudio;
+    toastAudio = null;
+    if (ctx && typeof ctx.close === 'function') {
+      try { ctx.close(); } catch (_) { /* already closed, or closing */ }
+    }
+  }
 }
 
 /* The id of the toast currently on screen. hcg-toast stacks, but the

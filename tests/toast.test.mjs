@@ -7,7 +7,9 @@
    1. The sound is gated on a user gesture. An AudioContext built before
       one is born suspended, so a notification that arrives first — a
       rate-limit warning raised during boot, say — must be silent rather
-      than queue a context Chrome will warn about and never resume.
+      than queue a context Chrome will warn about and never resume. And a
+      context suspended *later* — by iOS backgrounding, or a call — must be
+      replaced rather than obeyed, or the app goes quiet for the session.
    2. A sticky progress line must not sound. The batch loops raise one
       per photo; forty dings across a single upload is not a
       notification, it is a machine gun. Only a message that is actually
@@ -38,6 +40,10 @@
    `error` type sounds like failure even if the text reads like success,
    and a message offering Undo sounds unsettled. A call site that forgets
    to ask still gets both.
+
+   And every voice has to survive the hardware it will actually meet: a
+   note below ~400Hz is a click on a phone speaker, so `error` carries an
+   extra partial it does not need on a laptop.
 
    Plus the boring ones: every type the call sites use has a glyph, the
    dismissal is the stroked cross rather than the library's `&times;`, the
@@ -115,12 +121,28 @@ describe('A — the sound is only ever heard on purpose', () => {
       'the guard has to come first, or a pre-gesture notification builds a suspended context');
   });
 
-  test('A3 — a suspended context is left alone rather than resumed', () => {
-    // resume() on a context nobody has unlocked is the thing that trips
-    // the autoplay warning; the honest answer is to stay quiet.
-    assert.match(src, /if \(toastAudio\.state === 'suspended'\) return;/);
-    assert.doesNotMatch(src, /toastAudio\.resume\(/,
-      'the ding must not resume the context to get around the gate');
+  test('A3 — a suspended context is never resumed', () => {
+    /* resume() on a context nobody has unlocked is what trips Chrome's
+       autoplay warning, and it is a lie about why the context is
+       suspended. So it stays off — permanently, in every branch.
+
+       What *has* changed is what happens instead of resuming. This test
+       used to assert `if (suspended) return;` outright, which meant a
+       context suspended by iOS backgrounding silenced notifications for
+       the rest of the session with no recovery — the exact bug the
+       discard-and-rebuild path exists to fix. The rule is not "obey a
+       suspended context"; it is "never resume one". */
+    assert.doesNotMatch(src, /\.resume\(/,
+      'nothing may resume a context to get around a gate');
+    // A context that is running when it should be dead is replaced.
+    assert.match(src, /if \(toastAudio\.state === 'suspended'\) \{/,
+      'a suspended context must be examined, not merely obeyed');
+    assert.match(src, /dead\.close\(\)|toastAudio\.close\(\)/,
+      'and the dead one must be released');
+    // A context born suspended is the browser refusing, which is obeyed
+    // once and remembered, so the app cannot churn a context per message.
+    assert.match(src, /toastRefused = true;/,
+      'a browser refusal must be remembered rather than retried forever');
   });
 
   test('A4 — a sticky progress line is silent', () => {
@@ -176,6 +198,61 @@ describe('A — the sound is only ever heard on purpose', () => {
     for (const n of names) {
       assert.ok(known.includes(n), `"${n}" is not a voice in the palette`);
     }
+  });
+
+  test('A7b — each voice is the interval its comment claims', () => {
+    /* Two of these comments were wrong once: `error` was described as a
+       falling minor third when it is a major one, and `undo` as a falling
+       fourth when it is a fifth. Nothing caught it because the comments
+       were prose and the frequencies were numbers, and the two were never
+       compared. This does that comparison, so the next person who retunes a
+       note finds out here rather than by ear. */
+    const palette = sliceCode('const TOAST_VOICES', 'const DEFAULT_VOICE');
+    const voices = {};
+    for (const [, name, decay, raw] of palette.matchAll(
+      /^  (\w+): \{\n    decay: ([\d.]+),\n    partials: (\[\[.*\]\]),/gm)) {
+      voices[name] = { decay: Number(decay), partials: JSON.parse(raw) };
+    }
+    assert.strictEqual(Object.keys(voices).length, 4, 'all four voices parsed');
+
+    const cents = (a, b) => 1200 * Math.log2(b / a);
+    /* Keyed by absolute semitone count: a fourth is 5, a fifth is 7. */
+    const SEMITONE = {
+      1: 'min 2nd', 2: 'maj 2nd', 3: 'min 3rd', 4: 'MAJ 3rd',
+      5: 'PERF 4th', 6: 'tritone', 7: 'PERF 5th', 8: 'min 6th',
+      9: 'maj 6th', 10: 'min 7th', 11: 'maj 7th',
+    };
+    // [name, first partial, second partial, semitones, direction, claimed]
+    const claims = [
+      ['ding', 7, 'rising', 'PERF 5th'],
+      ['error', 4, 'falling', 'MAJ 3rd'],
+      ['undo', 7, 'falling', 'PERF 5th'],
+      ['success', 5, 'rising', 'PERF 4th'],
+    ];
+    for (const [name, wantSemis, wantDir, wantName] of claims) {
+      const f = voices[name].partials.map((p) => p[0]);
+      const iv = Math.round(cents(f[0], f[1]));
+      const dir = iv > 0 ? 'rising' : 'falling';
+      assert.strictEqual(dir, wantDir, `${name} should ${wantDir}`);
+      assert.strictEqual(Math.abs(Math.round(iv / 100)), wantSemis,
+        `${name} moves ${iv}c, not the ${wantSemis} semitones claimed`);
+      assert.strictEqual(SEMITONE[wantSemis], wantName, 'the table itself is wrong');
+    }
+
+    // The mirror pair is the design, not a coincidence: ding and undo are
+    // the same interval in opposite directions, so "it happened" and "it
+    // was taken back" are recognisably the same gesture run backwards.
+    const ding = Math.round(cents(...voices.ding.partials.slice(0, 2).map((p) => p[0])));
+    const undo = Math.round(cents(...voices.undo.partials.slice(0, 2).map((p) => p[0])));
+    assert.strictEqual(Math.abs(ding), Math.abs(undo),
+      'ding and undo must be the same interval size, mirrored');
+    assert.ok(ding > 0 && undo < 0, 'ding rises, undo falls');
+
+    // And the error voice must be far enough below the default to be told
+    // apart by register alone, before direction or timbre register.
+    const octaves = Math.abs(cents(voices.error.partials[0][0], voices.ding.partials[0][0])) / 1200;
+    assert.ok(octaves > 1,
+      `error is only ${octaves.toFixed(2)} octaves from ding — too close to confuse`);
   });
 
   test('A7 — the palette is four voices, and no two are the same sound', () => {
@@ -281,8 +358,15 @@ describe('B — the switch is offered, remembered, and honest', () => {
 
   test('B4 — turning it back on plays the ding, so the row confirms itself', () => {
     const set = sliceCode('function setToastSound', 'let toastId');
-    assert.match(set, /if \(toastSoundOn\) playToastDing\(\);/);
     assert.match(set, /localStorage\.setItem\(TOAST_SOUND_KEY, toastSoundOn \? 'on' : 'off'\)/);
+    /* Written as `if (on) play(); else close();` rather than the earlier
+       `if (on) play();` on its own, because muting now has work to do too.
+       The property being protected is the same either way: turning sound
+       ON is audible. */
+    assert.match(set, /playToastDing\(\);/,
+      'enabling the sound must play it, so the row confirms itself by being heard');
+    assert.match(set, /ctx\.close\(\)/,
+      'disabling it must release the output device, not merely stop the next sound');
   });
 });
 

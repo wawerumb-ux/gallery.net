@@ -150,7 +150,9 @@ function harness(opts = {}) {
     // have to resolve against the tree the library actually built.
     querySelector: (sel) => find(root, sel),
     querySelectorAll: (sel) => findAll(root, sel),
-    addEventListener() {},
+    // The recovery listeners are installed on `document`, not on window,
+    // so this has to collect them rather than swallow them.
+    addEventListener(type, fn) { listeners.push({ type, fn }); },
   };
   const raf = [];
   /* The unlock listeners the real page installs on `window`. Collected
@@ -162,6 +164,19 @@ function harness(opts = {}) {
      assertable: two voices are different if the numbers are different,
      and a stub that records them says so without a human listening. */
   const played = [];
+  /* Contexts built, and contexts closed. A muted gallery must leave the
+     output device alone, and that is only observable by counting them. */
+  let made = 0;
+  let closed = 0;
+  /* Node lifecycle: how many disconnects a finished voice issued, and
+     whether a teardown has run. `finish()` fires the onended of whichever
+     oscillator the app left holding it — the last partial. */
+  const live = { disconnects: 0, ended: 0 };
+  const lastOsc = { current: null };
+  /* The contexts this page is holding, newest last, so a test can suspend
+     one the way a phone would. */
+  const contexts = [];
+  let bornSuspended = false;
   const sandbox = {
     console,
     document: doc,
@@ -184,12 +199,23 @@ function harness(opts = {}) {
   if (opts.audio) {
     sandbox.AudioContext = class {
       constructor() {
-        this.state = 'running';
+        this.state = bornSuspended ? 'suspended' : 'running';
         this.currentTime = 0;
         this.destination = {};
+        made++;
+        contexts.push(this);
+      }
+      close() {
+        this.state = 'closed';
+        closed++;
+        return Promise.resolve();
       }
       createGain() {
-        const g = { gain: rampable(), connect() {}, disconnect() {} };
+        const g = {
+          gain: rampable(),
+          connect() {},
+          disconnect() { live.disconnects++; },
+        };
         return g;
       }
       createOscillator() {
@@ -201,9 +227,13 @@ function harness(opts = {}) {
           type: '',
           frequency: freq,
           connect() {},
-          disconnect() {},
-          start(t) { played.push({ freq: o._freq, type: o.type, at: t }); },
+          disconnect() { live.disconnects++; },
+          start(t) {
+            played.push({ freq: o._freq, type: o.type, at: t });
+            lastOsc.current = o;
+          },
           stop() {},
+          onended: null,
           _freq: 0,
         };
         freq.setValueAtTime = (v) => { o._freq = v; };
@@ -229,13 +259,32 @@ function harness(opts = {}) {
   };
   /* Fire the gesture the page is waiting for. Before this, every sound is
      correctly silent — which the sound tests below rely on. */
-  const gesture = () => { for (const l of listeners) if (l.type === 'pointerdown') l.fn(); };
+  const gesture = () => { fire('pointerdown'); };
+  const fire = (type) => { for (const l of listeners) if (l.type === type) l.fn(); };
   return {
     api: sandbox.__n, doc, container, flushFrames, storage: sandbox.localStorage,
     played, gesture,
     // Frequencies the palette actually built, for comparison between voices.
     freqs: () => played.map((p) => p.freq),
-    reset: () => { played.length = 0; },
+    reset: () => { played.length = 0; live.disconnects = 0; live.ended = 0; },
+    get made() { return made; },
+    get closed() { return closed; },
+    live,
+    /* Run the teardown the browser would run once the last partial's
+       scheduled stop time has passed. */
+    finish: () => {
+      const o = lastOsc.current;
+      if (o && typeof o.onended === 'function') { live.ended++; o.onended(); }
+    },
+    /* What a phone does when the visitor switches away. */
+    suspend: () => { for (const c of contexts) if (c.state === 'running') c.state = 'suspended'; },
+    /* Contexts still alive and unclosed — the ones the page is holding. */
+    held: () => contexts.filter((c) => c.state !== 'closed').length,
+    /* …and the events that bring them back. */
+    foreground: () => { fire('visibilitychange'); },
+    pageshow: () => { fire('pageshow'); },
+    get bornSuspended() { return bornSuspended; },
+    set bornSuspended(v) { bornSuspended = v; },
   };
 }
 
@@ -454,7 +503,7 @@ describe('The voices, executed', () => {
     assert.deepStrictEqual(voiceOf('ding'), ding);
 
     for (const [name, expected] of Object.entries({
-      error: [392.0, 311.13],
+      error: [392.0, 311.13, 784.0],
       undo: [880.0, 587.33],
       success: [659.25, 880.0, 1318.51],
     })) {
@@ -489,10 +538,181 @@ describe('The voices, executed', () => {
     }
   });
 
+  test('a suspended context is replaced, not obeyed', () => {
+    h.gesture();
+    h.api.playToastDing();                 // builds and runs a context
+    assert.strictEqual(h.made, 1);
+    // iOS suspends on backgrounding and often does not resume on return.
+    h.suspend();                           // the context the page holds goes suspended
+    h.reset();
+    h.api.playToastDing('success');
+    assert.strictEqual(h.made, 2,
+      'a suspended context must be discarded and rebuilt — obeying it means silence for the rest of the session');
+    assert.ok(h.freqs().length > 0, 'and the notification must still be heard');
+    // The abandoned context is not closed here — it is simply dropped, and
+    // a closed one would have cost a promise for no benefit. The
+    // visibilitychange handler is what closes contexts it finds suspended,
+    // and it is covered separately below.
+    assert.strictEqual(h.held(), 1, 'the page must hold exactly one live context');
+  });
+
+  test('returning to the tab drops a suspended context', () => {
+    h.gesture();
+    h.api.playToastDing();
+    h.suspend();
+    h.foreground();
+    assert.strictEqual(h.closed, 1,
+      'visibilitychange must release a suspended context on the way back');
+    h.reset();
+    h.api.playToastDing('error');
+    assert.ok(h.freqs().length > 0, 'so the next notification is audible again');
+  });
+
+  test('a page restored from the back/forward cache recovers too', () => {
+    h.gesture();
+    h.api.playToastDing();
+    h.suspend();
+    h.pageshow();
+    assert.strictEqual(h.closed, 1,
+      'bfcache restore fires pageshow and no visibilitychange — that path needs its own listener');
+  });
+
+  test('a running context is left alone when the tab is hidden', () => {
+    h.gesture();
+    h.api.playToastDing();
+    h.foreground();
+    h.pageshow();
+    assert.strictEqual(h.closed, 0,
+      'a context that is merely fine must not be thrown away on every tab switch');
+  });
+
+  test('a context born suspended is obeyed, not rebuilt in a loop', () => {
+    h.gesture();
+    h.bornSuspended = true;                // the browser decided this was not a real gesture
+    h.reset();
+    h.api.playToastDing();
+    assert.strictEqual(h.made, 1, 'a context born suspended is obeyed, not replaced');
+    h.reset();
+    h.api.playToastDing();
+    assert.strictEqual(h.made, 1, 'and it must not spawn a new one per notification');
+    assert.deepStrictEqual(h.freqs(), [], 'silence is correct here; a rebuild loop is not');
+  });
+
+  test('every voice has energy a phone speaker can reproduce', () => {
+    /* A handset rolls off steeply below ~400Hz and has no sub-bass at all,
+       so a voice whose notes all live down there arrives as a click. Each
+       voice must put *some* of its energy above that, at a peak worth
+       hearing — not merely contain one high partial at a whisper. */
+    h.gesture();
+    for (const name of ['ding', 'error', 'undo', 'success']) {
+      const freqs = voiceOf(name);
+      const voice = h.api.TOAST_VOICES[name];
+      const peaks = voice.partials.map((p) => p[2]);
+      const above = freqs.filter((f) => f >= 450);
+      assert.ok(above.length > 0,
+        `${name} has nothing above 450Hz (${freqs.join(', ')}) — a phone would render it as a click`);
+      // And the part a phone *can* hear must not be buried under the rest.
+      const loudestAbove = voice.partials
+        .filter((p) => p[0] >= 450)
+        .reduce((a, p) => Math.max(a, p[2]), 0);
+      const loudestOverall = Math.max(...peaks);
+      assert.ok(loudestAbove >= loudestOverall * 0.25,
+        `${name} keeps its audible-for-phones partial too quiet: ${loudestAbove} vs ${loudestOverall}`);
+    }
+  });
+
+  test('no voice is short enough to read as a click', () => {
+    h.gesture();
+    for (const name of ['ding', 'error', 'undo', 'success']) {
+      const { decay, partials } = h.api.TOAST_VOICES[name];
+      // Every partial has to sound for long enough to be heard as a pitch.
+      // 150ms is roughly where a tone starts reading as a tick.
+      const shortest = Math.min(...partials.map((p) => decay - p[1]));
+      assert.ok(shortest > 0.15,
+        `${name}'s first partial sounds for only ${(shortest * 1000) | 0}ms — that is a click`);
+      // And none may ring past the toast it belongs to.
+      const longest = Math.max(...partials.map((p) => decay + p[1]));
+      assert.ok(longest < 1, `${name} rings for ${longest}s, longer than the message lasts`);
+    }
+  });
+
+  test('a voice tears its own gain graph down when it finishes', () => {
+    h.gesture();
+    h.api.playToastDing('success');
+    // Three partials means four nodes to reclaim once the last one ends.
+    assert.strictEqual(h.live.disconnects, 0, 'nothing may be torn down before the sound has finished');
+    assert.strictEqual(h.live.ended, 0, 'onended cannot have fired yet');
+    h.finish();
+    // osc + gain per partial, then the bus.
+    assert.strictEqual(h.live.disconnects, 3 * 2 + 1,
+      'every node this voice built must be disconnected when it ends');
+    assert.strictEqual(h.live.ended, 1, 'teardown runs once, on the last partial');
+  });
+
+  test('one voice tearing down does not silence the next', () => {
+    h.gesture();
+    h.api.playToastDing('error');
+    h.finish();
+    // `error` has three partials: three oscillators, three gains and a bus.
+    assert.strictEqual(h.live.disconnects, 3 * 2 + 1, 'the first voice released its own seven nodes');
+    // Cleared counters only — `played` is what freqs() reads, and reset()
+    // zeroes both, so re-record the baseline afterwards.
+    h.reset();
+    h.api.playToastDing('success');
+    h.finish();
+    // `success` has three partials: seven more disconnects, and no more.
+    // A shared bus or a stale closure reaching into the second voice would
+    // show up here as a number that is not exactly seven.
+    assert.strictEqual(h.live.disconnects, 3 * 2 + 1,
+      'each voice owns and releases only its own nodes');
+    assert.ok(h.freqs().length > 0, 'and it still sounded');
+  });
+
+  test('muting closes the context rather than leaving it open', () => {
+    h.gesture();
+    h.api.playToastDing();
+    const made = h.made;
+    assert.ok(made > 0, 'playing a voice must build a context');
+    h.api.setToastSound(false);
+    assert.strictEqual(h.closed, made,
+      'every context built while unmuted must be closed on mute — a live context holds the output device open');
+  });
+
+  test('unmuting builds a fresh context and sounds again', () => {
+    h.gesture();
+    h.api.playToastDing();
+    const first = h.made;
+    h.api.setToastSound(false);
+    assert.strictEqual(h.closed, first);
+    h.reset();
+    h.api.setToastSound(true);           // plays the ding
+    assert.ok(h.made > first, 'unmuting must build a new context, not reuse the closed one');
+    assert.ok(h.freqs().length > 0, 'unmuting must confirm itself by being heard');
+    // And it still works afterwards, so the close did not wedge the flag.
+    h.reset();
+    h.api.playToastDing('error');
+    assert.deepStrictEqual(h.freqs(), [392.0, 311.13, 784.0], 'sound must survive a mute/unmute cycle');
+  });
+
+  test('muting before anything has played is harmless', () => {
+    h.gesture();
+    h.api.setToastSound(false);           // no context exists yet
+    assert.strictEqual(h.made, 0, 'muting must not build a context just to close it');
+    assert.deepStrictEqual(h.freqs(), [], 'and must not make a sound');
+  });
+
+  test('muting twice does not throw on an already-closed context', () => {
+    h.gesture();
+    h.api.playToastDing();
+    h.api.setToastSound(false);
+    h.api.setToastSound(false);
+    assert.strictEqual(h.made, 1, 'the second mute must not build or close anything');
+  });
+
   test('a failed message sounds like failure, without asking', () => {
     h.gesture();
     h.api.showToast('Could not save.', { type: 'error' });
-    assert.deepStrictEqual(h.freqs(), [392.0, 311.13],
+    assert.deepStrictEqual(h.freqs(), [392.0, 311.13, 784.0],
       'the error voice must be derived from the type, not requested per call site');
   });
 
