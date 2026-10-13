@@ -94,11 +94,18 @@ describe('A failed classification save cannot be missed', () => {
 
   test('both failure paths go through the one reporter', () => {
     const calls = saveTagModal.match(/reportTagSaveFailed\(/g) || [];
-    // Two sites, in saveTagModal: the rename branch and the ordinary one.
-    // A third path added later without the reporter is the regression this
-    // pins — and it would show up as a count above two.
-    assert.strictEqual(calls.length, 2,
-      'both failure paths must route through reportTagSaveFailed');
+    /* Four sites, in saveTagModal: the rename branch, the ordinary one, and
+       two in album creation — the move itself and the metadata write that
+       follows it. A fifth path added later without the reporter is the
+       regression this pins; it would show up as a count above four.
+
+       Both album paths are here for the same reason as the other two. If the
+       put or the delete fails, the photo is still where it was and the album
+       does not exist; if the album lands but its classification cannot be
+       saved, the photo is in an album nothing can describe. Reporting either
+       as a success would be the worst outcome available. */
+    assert.strictEqual(calls.length, 4,
+      'every failure path must route through reportTagSaveFailed');
     // And no bare showToast of an error can slip in beside it.
     assert.doesNotMatch(saveTagModal, /showToast\([^)]*NOT saved/,
       'the failure message must come from the reporter, not an inline toast');

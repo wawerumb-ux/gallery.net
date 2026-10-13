@@ -2030,6 +2030,18 @@ function wireStaticEvents() {
   // Classify modal
   el('tagCancel').addEventListener('click', () => overlayClose('tagModalOverlay'));
   el('tagSave').addEventListener('click', saveTagModal);
+  // The album field follows the dropdown, and the Save button follows the
+  // name: an unusable name must not be one keystroke away from a real write.
+  el('tagStage').addEventListener('change', syncNewAlbumField);
+  if (el('tagNewAlbumName')) {
+    el('tagNewAlbumName').addEventListener('input', syncNewAlbumField);
+    el('tagNewAlbumName').addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && el('tagStage').value === NEW_ALBUM && !el('tagSave').disabled) {
+        e.preventDefault();
+        saveTagModal();
+      }
+    });
+  }
   el('tagModalOverlay').addEventListener('click', e => {
     if (e.target.id === 'tagModalOverlay') overlayClose('tagModalOverlay');
   });
@@ -2429,9 +2441,16 @@ function openTagModal(path, pretty) {
   el('tagAuto').textContent = `${c.stage || 'Unclassified'} · ${c.confidence} · ${c.reason}${c.activity ? ' · ' + c.activity : ''}`;
   el('tagStage').innerHTML = ['', ...JOURNEY.map(j => j.stage)].map(s =>
     `<option value="${escapeAttr(s)}" ${s === ((md && md.phase) || '') ? 'selected' : ''}>${escapeHtml(s || '— auto —')}</option>`
-  ).join('');
+  ).join('')
+    // The last option is not a stage: it opens a field for an album that
+    // does not exist yet. It is last so it never sits among real stages and
+    // cannot be picked by accident when someone is scrolling for one.
+    + `<option value="${NEW_ALBUM}">＋ New album…</option>`;
   el('tagActivity').value = (md && md.activity) || '';
   el('tagRename').value = path.split('/').pop();
+  // A dialog opened fresh must not inherit the last one's album draft.
+  if (el('tagNewAlbumName')) el('tagNewAlbumName').value = '';
+  if (el('tagNewAlbum')) el('tagNewAlbum').hidden = true;
   // Save is disabled while a write is in flight; a dialog opened at any
   // other moment must find it armed.
   const saveBtn = el('tagSave');
@@ -2496,10 +2515,103 @@ async function renamePhoto(path, newName) {
    re-enters the function and writes the same metadata twice. */
 let tagSaving = false;
 
+/* Put one photo into a folder that does not exist yet, which is how a
+   folder comes into being at all. Git has no empty directories, so this is
+   create-then-delete: the same pair of calls a move between albums makes,
+   wrapped so a failure cannot leave a photo in both places.
+
+   Every member of the asset travels, not just the canonical. Leaving a
+   variant behind would split one logical photo across two albums, and the
+   next tree load would group the strays back with the original. */
+async function moveIntoNewAlbum(path, to) {
+  const asset = state.assets.find(a => a.canonical.path === path);
+  const items = asset ? [asset.canonical, ...asset.variants] : [];
+  if (!items.length) return { ok: false, error: 'That photo is not in the loaded tree.' };
+  const from = items[0].path.split('/').slice(-2, -1)[0];
+  if (!from) return { ok: false, error: 'Could not tell which album this photo is in.' };
+  if (from === to) return { ok: false, error: 'The photo is already in that album.' };
+
+  const moved = [];
+  try {
+    for (const item of items) {
+      const src = await githubFetch(
+        `https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/git/blobs/${item.sha}`,
+        { headers: { Authorization: `Bearer ${state.token}` } });
+      if (!src.ok) throw new Error(`could not read ${item.name}`);
+      const content = (await src.json()).content;
+      await githubPut(`${CONFIG.imagesPath}/${to}/${item.name}`, content,
+        `Create album "${to}" with ${item.name} via gallery admin`, { overwrite: false });
+      // Only delete the source once the copy exists. Reversing this order
+      // loses the photo if the put fails.
+      await githubDelete(item.path, item.sha, `File ${item.name} into ${to} via gallery admin`);
+      moved.push(item);
+    }
+  } catch (err) {
+    // Roll back the copies that did land, so a half-finished album does not
+    // hold duplicates of a photo that is still in the old one. A rollback
+    // that itself fails is swallowed: the original error is the one worth
+    // reporting, and a second failure here cannot be acted on from here.
+    for (const item of moved) {
+      try { await githubDelete(`${CONFIG.imagesPath}/${to}/${item.name}`, null, 'Roll back partial album creation via gallery admin'); } catch (_) { /* already reported below */ }
+    }
+    return { ok: false, error: errWhy(err) };
+  }
+  return { ok: true, from, to };
+}
+
+/* Create the album, move the photo into it, and carry its classification
+   across to the new path.
+
+   The metadata move is not optional bookkeeping. gallery.json is keyed by
+   path, so a photo that moves without its key follows the folder-name rules
+   and lands back on "Needs review" — which is the state the whole feature
+   exists to end. Both keys are rewritten together, and the old one removed,
+   so nothing is left pointing at a file that is no longer there. */
+async function createAlbumFromTag(path, to) {
+  const name = path.split('/').pop();
+  const toPath = `${CONFIG.imagesPath}/${to}/${name}`;
+
+  if (DEMO_MODE) {
+    let moved = null;
+    for (const folder of state.order) {
+      const hit = (state.folders[folder] || []).findIndex(f => f.path === path);
+      if (hit !== -1) { [moved] = state.folders[folder].splice(hit, 1); break; }
+    }
+    if (!moved) return { ok: false, error: 'That photo is not in the demo gallery.' };
+    moved = { ...moved, path: toPath, folder: to };
+    (state.folders[to] = state.folders[to] || []).push(moved);
+    state.order = Object.keys(state.folders).sort((a, b) =>
+      (folderSequence(a) - folderSequence(b)) || a.localeCompare(b, 'en', { numeric: true }));
+    const md = state.metadata[path];
+    if (md) { state.metadata[toPath] = md; delete state.metadata[path]; }
+    render();
+    return { ok: true, to, path: toPath };
+  }
+
+  const r = await moveIntoNewAlbum(path, to);
+  if (!r.ok) return r;
+
+  // The write succeeded, so the file now lives at toPath. Re-key the
+  // classification onto it before anything can re-render from stale state.
+  const md = state.metadata[path];
+  if (md) { state.metadata[toPath] = md; delete state.metadata[path]; }
+  return { ok: true, to, path: toPath };
+}
+
 async function saveTagModal() {
   if (tagSaving) return;
   const path = state.taggingPath;
-  const phase = el('tagStage').value;
+  const stageSel = el('tagStage').value;
+  const wantsNewAlbum = stageSel === NEW_ALBUM;
+  const check = wantsNewAlbum ? newAlbumCheck(el('tagNewAlbumName').value) : null;
+  // A refused name must not be silently downgraded to "classify, don't
+  // create" — the visitor asked for an album and would get a save instead.
+  if (wantsNewAlbum && !check.ok) {
+    overlayClose('tagModalOverlay');
+    showToast(check.why, { type: 'warning' });
+    return;
+  }
+  const phase = wantsNewAlbum ? '' : stageSel;
   const activity = el('tagActivity').value.trim();
   const newName = el('tagRename').value.trim();
   if (phase || activity) state.metadata[path] = { phase, activity };
@@ -2530,6 +2642,24 @@ async function saveTagModal() {
   let renamedLive = false;
   let renameMsg = '';
   try {
+    /* The album is created FIRST. If it fails there is nothing to classify
+       into, and a classification saved against a folder that does not exist
+       is exactly the state that leaves a photo on "Needs review" forever. */
+    if (wantsNewAlbum) {
+      const r = await createAlbumFromTag(path, check.name);
+      if (!r.ok) {
+        // The photo is where it was and the album does not exist. Say so
+        // plainly rather than reporting a save that did not happen.
+        reportTagSaveFailed(new Error(r.error), savingId);
+        return;
+      }
+      render();
+      try { await persistMetadata(); } catch (err) { reportTagSaveFailed(err, savingId); return; }
+      await loadTree(true);
+      showToast(`Created album "${check.name}" with this photo.`, { type: 'success', sound: 'success' });
+      return;
+    }
+
     if (newName) {
       const r = await renamePhoto(path, newName);
       if (r.ok) {
@@ -2592,6 +2722,47 @@ function resolveTarget(rawValue) {
   const value = (rawValue || '').trim();
   const match = availableCategories().find(f => f.toLowerCase() === value.toLowerCase());
   return match || normalizeCategory(value);
+}
+
+/* ── Creating an album from the classify dialog ──────────────────────
+   The stage dropdown can ask for a new album. That is not a cosmetic
+   addition: four of the eleven folders on disk had no FOLDER_STAGES row,
+   and a folder with no row can never have its classification saved, so
+   those photos sit on "Needs review" forever.
+
+   The awkward part is that git cannot store an empty directory. A folder
+   only exists in the tree once something is in it, so "create this album"
+   necessarily means "create it and put this photo in it" — the same
+   put-then-delete that moving a photo between albums already does. */
+const NEW_ALBUM = '__new_album__';
+
+/* What the typed name would actually become, or why it cannot. Shown live,
+   because "Cable Routing" quietly becoming "cable-routing" is fine, but a
+   name landing as a second album next to an existing one is not. */
+function newAlbumCheck(raw) {
+  const typed = (raw || '').trim();
+  if (!typed) return { ok: false, why: 'Type a name for the new album.' };
+  const name = normalizeCategory(typed);
+  if (!name) return { ok: false, why: 'That name has no usable characters.' };
+  const from = (state.taggingPath || '').split('/').slice(-2, -1)[0];
+  if (name === from) return { ok: false, why: `This photo is already in "${name}".` };
+  if (availableCategories().includes(name)) return { ok: false, why: `An album named "${name}" already exists.` };
+  return { ok: true, name, why: `Will create images/${name}/ and move this photo in.` };
+}
+
+/* Show the name field only while the new-album option is chosen, and keep
+   its hint in step with what is typed. */
+function syncNewAlbumField() {
+  const wrap = el('tagNewAlbum');
+  const sel = el('tagStage');
+  if (!wrap || !sel) return;
+  const wanted = sel.value === NEW_ALBUM;
+  wrap.hidden = !wanted;
+  if (!wanted) return;
+  const check = newAlbumCheck(el('tagNewAlbumName').value);
+  el('tagNewAlbumHint').textContent = check.why;
+  const save = el('tagSave');
+  if (save) save.disabled = !check.ok;
 }
 
 /* Selection mode (S10 long-press select). Entry points: the ⋮ menu's
@@ -4655,6 +4826,7 @@ function failureSuffix(failedNames) {
     journeyFor, folderSequence, albumStageName, availableCategories,
     classifyPhoto, clsLabel, normalizeCategory, allPhaseOptions,
     extractPhotoDate, prettyName,
+    NEW_ALBUM, newAlbumCheck, syncNewAlbumField, moveIntoNewAlbum,
 
     // Assets & duplicates
     buildAssets, discoverFromTree, setAssets, summarizeDuplicates,
