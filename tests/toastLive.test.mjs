@@ -525,12 +525,18 @@ describe('The voices, executed', () => {
     h.gesture();
     const opts = { type: 'error' };
     h.api.showToast('Could not save.', opts);
-    // Same object, reused for a success: the error voice chosen for the
-    // first call must not be sitting there waiting for the second.
-    assert.ok(!opts.sound, `showToast mutated the caller's options: ${opts.sound}`);
+    // The voice was derived, not asked for — so the caller's object must
+    // come back exactly as it went in. An object carrying a sound it
+    // never set would be a lie about its own contents, and any later
+    // call reusing it would inherit a voice nobody chose for it.
+    assert.ok(!('sound' in opts), `showToast wrote a voice onto the caller's options: ${opts.sound}`);
+    assert.deepStrictEqual(opts, { type: 'error' }, 'the options must come back unmodified');
+
+    // And that holds when the same object is reused for a different kind
+    // of message: it must resolve from its new type, not from residue.
     h.reset();
-    h.api.showToast('Saved.', opts);
+    h.api.showToast('Saved.', Object.assign(opts, { type: 'success' }));
     assert.deepStrictEqual(h.freqs(), [1318.51, 1975.53],
-      'the reused options must resolve to the default, not inherit the error voice');
+      'the reused options must resolve from their new type, not inherit the error voice');
   });
 });

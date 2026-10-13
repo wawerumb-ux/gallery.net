@@ -7,7 +7,7 @@
     "test": "tests"
   },
   "scripts": {
-    "test": "node --test tests/ tour/"
+    "test": "node --test \"tests/*.test.mjs\" \"tour/*.test.mjs\""
   },
   "repository": {
     "type": "git",
