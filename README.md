@@ -169,18 +169,44 @@ component; this one is synthesised, because a file would mean a network
 request, a licence and an mp3 decoder for what is one oscillator — and the
 archive has to keep working with the network gone.
 
-That synthesised ding is the **default**, not the only voice. An action
-whose outcome the visitor is unambiguous about names a recording of its
-own — the download confirmation raises `sound: 'download'`, and only on
-the success branch, since a chime for a photo that never landed would be
-the loudest lie on the page. `TOAST_SOUND_FILES` maps the action name to
-a file in `audio/`.
+### Four voices
 
-A named recording that is missing, unlicensed, or still downloading falls
-straight back to the synthesised ding, so the noise is never what you
-lose — and because the recordings are licensed they are gitignored, which
-means a clean checkout that has none is a supported state, not a broken
-one. See `audio/README.md`.
+The synthesised ding is the **default and the primary mechanism**. Four
+voices exist, all built from oscillators and none fetched:
+
+| Voice      | Interval                      | Played for                            |
+| ---------- | ----------------------------- | ------------------------------------- |
+| `ding`     | rising fifth, E6 → B6         | the default — anything unclassified   |
+| `error`    | falling minor third, G4 → Eb4 | every `type: 'error'`                |
+| `undo`     | falling fourth, A5 → D5       | every message carrying an Undo        |
+| `success`  | rising fourth, E5 → A5 → E6   | a **clean batch** that reports a count|
+
+Each is a different *direction* rather than a different timbre, because
+direction is what survives a notification lasting under a second — the ear
+catches a rise and a fall far more reliably than it catches tone. All four
+share one bus peak, so none is louder than another by accident: a sound
+reading as "more urgent" purely from gain is lying about urgency.
+
+`error` and `undo` are **derived**, not requested. `showToast` picks them
+from the message's own type and whether it carries an Undo, so a call site
+cannot forget them — which matters because those are the two cases where
+the sound carries something the words do not. An `error` whose text reads
+like success still sounds like failure; a message offering Undo sounds
+unsettled rather than finished. `success` is the opposite: it is withheld
+from a partial batch, since a half-finished move that sounded like a
+triumph would be the loudest lie available.
+
+A named action may instead bring a **recording** — `sound: 'download'` on
+the download confirmation, and only on the success branch, since a chime
+for a photo that never landed would be the loudest lie on the page.
+`TOAST_SOUND_FILES` maps the action name to a file in `audio/`.
+
+A name resolves recording → voice → default, and every step of that is
+non-fatal: a missing file, an unknown name, or a codec the device refuses
+all fall through to the next. The noise is never what the visitor loses.
+Because recordings are licensed they are gitignored, so a clean checkout
+that has none is a supported state, not a broken one. See
+`audio/README.md`.
 
 ## The progress bar
 

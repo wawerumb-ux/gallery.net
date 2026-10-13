@@ -135,7 +135,7 @@ function findAll(root, sel) {
 const NOTIF_START = '/* ── Notifications ──';
 const NOTIF_END = '/* ── Public surface ──';
 
-function harness() {
+function harness(opts = {}) {
   const body = app.slice(app.indexOf(NOTIF_START), app.indexOf(NOTIF_END));
   assert.notStrictEqual(body.length > 0, false, 'the notification block moved');
 
@@ -153,9 +153,24 @@ function harness() {
     addEventListener() {},
   };
   const raf = [];
+  /* The unlock listeners the real page installs on `window`. Collected
+     rather than fired, so a test can decide when the page counts as
+     touched — which is the whole point of the gesture gate. */
+  const listeners = [];
+  /* Every oscillator the notification layer built, in order, with the
+     frequency and envelope it was given. This is what makes the palette
+     assertable: two voices are different if the numbers are different,
+     and a stub that records them says so without a human listening. */
+  const played = [];
   const sandbox = {
     console,
     document: doc,
+    addEventListener(type, fn) { listeners.push({ type, fn }); },
+    Audio: class {
+      constructor(src) { this.src = src; this.preload = ''; this.readyState = 0; }
+      load() {}
+      play() { return Promise.resolve(); }
+    },
     requestAnimationFrame: (fn) => { raf.push(fn); return raf.length; },
     cancelAnimationFrame() {},
     setTimeout: (fn, ms) => { setTimeout(fn, 0); return 0; },
@@ -165,14 +180,49 @@ function harness() {
       getItem(k) { return k in this._v ? this._v[k] : null; },
       setItem(k, v) { this._v[k] = String(v); },
     },
-    /* Audio is decoration; the tests assert on what was attempted. */
+    /* Audio is decoration; the tests assert on what was attempted. With
+       no context the real code bails at `if (!AudioCtx) return`, so the
+       stub below is only installed for the tests that want to see the
+       oscillators. */
     AudioContext: undefined,
   };
+  if (opts.audio) {
+    sandbox.AudioContext = class {
+      constructor() {
+        this.state = 'running';
+        this.currentTime = 0;
+        this.destination = {};
+      }
+      createGain() {
+        const g = { gain: rampable(), connect() {}, disconnect() {} };
+        return g;
+      }
+      createOscillator() {
+        // frequency.setValueAtTime is the only setter the real code uses,
+        // and it is where the note is chosen — so that is what gets
+        // recorded, rather than a guess made after the fact.
+        const freq = rampable();
+        const o = {
+          type: '',
+          frequency: freq,
+          connect() {},
+          disconnect() {},
+          start(t) { played.push({ freq: o._freq, type: o.type, at: t }); },
+          stop() {},
+          _freq: 0,
+        };
+        freq.setValueAtTime = (v) => { o._freq = v; };
+        return o;
+      }
+    };
+  }
   sandbox.window = sandbox;
   sandbox.globalThis = sandbox;
   const ctx = vm.createContext(sandbox);
   vm.runInContext(lib + '\n;globalThis.__toast = toast;', ctx, { filename: 'hcg-toast.js' });
-  vm.runInContext(body + '\n;globalThis.__n = { showToast, showPending, dismissToast, setToastSound };',
+  vm.runInContext(body
+    + '\n;globalThis.__n = { showToast, showPending, dismissToast, setToastSound,'
+    + ' playToastDing, TOAST_VOICES };',
     ctx, { filename: 'app-notifications.js' });
   const flushFrames = () => { const q = raf.splice(0); q.forEach(f => f()); };
   /* The library appends its container lazily, on first use, so until
@@ -182,7 +232,28 @@ function harness() {
     const c = find(root, '.hcg-toast-container');
     return c || root;
   };
-  return { api: sandbox.__n, doc, container, flushFrames, storage: sandbox.localStorage };
+  /* Fire the gesture the page is waiting for. Before this, every sound is
+     correctly silent — which the sound tests below rely on. */
+  const gesture = () => { for (const l of listeners) if (l.type === 'pointerdown') l.fn(); };
+  return {
+    api: sandbox.__n, doc, container, flushFrames, storage: sandbox.localStorage,
+    played, gesture,
+    // Frequencies the palette actually built, for comparison between voices.
+    freqs: () => played.map((p) => p.freq),
+    reset: () => { played.length = 0; },
+  };
+}
+
+/* A stand-in for AudioParam. The real one interpolates a timeline; nothing
+   here needs the shape, only that the code can call setters on it. */
+function rampable() {
+  return {
+    value: 0,
+    setValueAtTime() {},
+    linearRampToValueAtTime() {},
+    exponentialRampToValueAtTime() {},
+    cancelScheduledValues() {},
+  };
 }
 
 describe('The notification layer, executed', () => {
@@ -356,5 +427,110 @@ describe('The notification layer, executed', () => {
     assert.equal(h.storage.getItem('gallery.toastSound'), 'off');
     h.api.setToastSound(true);
     assert.equal(h.storage.getItem('gallery.toastSound'), 'on');
+  });
+});
+
+/* ── The palette, executed ──────────────────────────────────────────
+   The static audit in toast.test.mjs reads the source; this runs it.
+   The stub records the oscillators the real code builds, so "these two
+   voices are different" is a claim about numbers rather than a claim
+   about how it probably sounds. */
+describe('The voices, executed', () => {
+  let h;
+  beforeEach(() => { h = harness({ audio: true }); });
+
+  const voiceOf = (name) => {
+    h.reset();
+    h.api.playToastDing(name);
+    return h.freqs();
+  };
+
+  test('nothing sounds before a gesture', () => {
+    h.api.playToastDing();
+    assert.deepStrictEqual(h.freqs(), [],
+      'the gesture gate has to hold even when a context is available');
+  });
+
+  test('every voice builds its own oscillators, and the default is the ding', () => {
+    h.gesture();
+    const ding = voiceOf(undefined);
+    assert.deepStrictEqual(ding, [1318.51, 1975.53],
+      'no name must resolve to the original two partials, unchanged');
+    assert.deepStrictEqual(voiceOf('ding'), ding);
+
+    for (const [name, expected] of Object.entries({
+      error: [392.0, 311.13],
+      undo: [880.0, 587.33],
+      success: [659.25, 880.0, 1318.51],
+    })) {
+      assert.deepStrictEqual(voiceOf(name), expected, `${name} must build its own partials`);
+    }
+  });
+
+  test('four voices means four distinct sounds, and no two collapse together', () => {
+    h.gesture();
+    const all = ['ding', 'error', 'undo', 'success'].map(voiceOf);
+    const joined = all.map((f) => f.join(','));
+    assert.strictEqual(new Set(joined).size, 4,
+      `two voices built the same oscillators: ${joined.join(' | ')}`);
+    // And every one is audible: no voice may be silent, or a message
+    // would be waiting on a sound that does not exist.
+    for (const [i, v] of all.entries()) assert.ok(v.length > 0, `voice ${i} built no oscillators`);
+  });
+
+  test('an unknown name is a miss, not a mute', () => {
+    h.gesture();
+    assert.deepStrictEqual(voiceOf('nope'), voiceOf(undefined),
+      'a name nobody defined must fall back to the default, not to silence');
+  });
+
+  test('muting the sound stops every voice', () => {
+    h.gesture();
+    h.api.setToastSound(false);
+    for (const name of ['ding', 'error', 'undo', 'success', 'nope']) {
+      h.reset();
+      h.api.playToastDing(name);
+      assert.deepStrictEqual(h.freqs(), [], `${name} sounded while muted`);
+    }
+  });
+
+  test('a failed message sounds like failure, without asking', () => {
+    h.gesture();
+    h.api.showToast('Could not save.', { type: 'error' });
+    assert.deepStrictEqual(h.freqs(), [392.0, 311.13],
+      'the error voice must be derived from the type, not requested per call site');
+  });
+
+  test('a message offering Undo sounds unsettled, without asking', () => {
+    h.gesture();
+    h.api.showToast('Deleted 3 photos.', { type: 'success', undo: () => {} });
+    assert.deepStrictEqual(h.freqs(), [880.0, 587.33],
+      'the undo voice must be derived from the Undo, not requested per call site');
+  });
+
+  test('an explicit sound beats the derived one', () => {
+    h.gesture();
+    h.api.showToast('Saved photo.jpg', { type: 'error', sound: 'undo' });
+    assert.deepStrictEqual(h.freqs(), [880.0, 587.33],
+      'a call site that names a voice must win over the derived default');
+  });
+
+  test('a sticky progress line is still silent', () => {
+    h.gesture();
+    h.api.showPending('Uploading photos', 1, 3);
+    assert.deepStrictEqual(h.freqs(), [], 'a batch progress line must not sound');
+  });
+
+  test('writing a derived voice does not leak back to the caller', () => {
+    h.gesture();
+    const opts = { type: 'error' };
+    h.api.showToast('Could not save.', opts);
+    // Same object, reused for a success: the error voice chosen for the
+    // first call must not be sitting there waiting for the second.
+    assert.ok(!opts.sound, `showToast mutated the caller's options: ${opts.sound}`);
+    h.reset();
+    h.api.showToast('Saved.', opts);
+    assert.deepStrictEqual(h.freqs(), [1318.51, 1975.53],
+      'the reused options must resolve to the default, not inherit the error voice');
   });
 });

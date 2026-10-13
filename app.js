@@ -2784,7 +2784,11 @@ async function performBatchMove() {
   showToast(failed || collided
     ? `Moved ${moved} photo${moved === 1 ? '' : 's'} into ${to}${failureSuffix(failedNames)}${collided ? ` (${collided} skipped — name already there)` : ''}.`
     : `Moved ${done} photo${done === 1 ? '' : 's'} into ${to}.`,
-    { type: failed || collided ? 'warning' : 'success' });
+    // A clean batch reports a count, and reporting a count is the
+    // difference from a single action: more happened, so it gets the
+    // wider voice. A partial one stays on the default — it is a warning,
+    // and a warning that sounded like a triumph would be worse than none.
+    { type: failed || collided ? 'warning' : 'success', sound: failed || collided ? undefined : 'success' });
   await loadTree(true);
 }
 
@@ -2869,7 +2873,7 @@ async function renamePhase() {
     showToast(`Photos renamed, but metadata not saved: ${errWhy(err)}`, { type: 'error' });
   }
   showToast(failed ? `Renamed "${from}" to "${to}"${failureSuffix(failedNames)}.` : `Renamed "${from}" to "${to}".`,
-    { type: failed ? 'warning' : 'success' });
+    { type: failed ? 'warning' : 'success', sound: failed ? undefined : 'success' });
   await loadTree(true);
 }
 
@@ -4110,9 +4114,63 @@ function playToastFile(name) {
   }
 }
 
+/* ── The synthesised palette ──────────────────────────────────────────
+   Four voices, all built the same way: a list of partials struck at
+   offsets, each one an oscillator and a gain envelope, all under one
+   bus. Nothing is sampled and nothing is fetched, so there is no
+   licence, no third-party notice, and the archive keeps working with
+   the network gone.
+
+   A partial is [frequency, delay, peak]. All four voices share the
+   same 0.16 bus peak, so none of them is louder than another by
+   accident — a sound that reads as "more urgent" because the gain
+   happened to sit higher is a sound that is lying about urgency.
+
+   Each voice is a different *direction*, because that is what survives
+   a notification that lasts under a second: the ear catches a rise
+   and a fall far more reliably than it catches timbre. */
+const TOAST_VOICES = {
+  /* The default, and unchanged: two partials a fifth apart, the second
+     struck 50ms later at 40% — E6 then B6. Rising, so it reads as "it
+     happened". */
+  ding: {
+    decay: 0.6,
+    partials: [[1318.51, 0, 1], [1975.53, 0.05, 0.4]],
+  },
+  /* Failure. A falling minor third a little under an octave — G4 down to
+     Eb4 — which is the interval that sounds like something being taken
+     back. The default's rise inverted, so the two are opposites rather
+     than two flavours of the same idea. Short too: a bad outcome should
+     not outlast the message explaining it. */
+  error: {
+    decay: 0.42,
+    partials: [[392.0, 0, 1], [311.13, 0.09, 0.85]],
+  },
+  /* "Done, but reversible." A falling fourth — A5 down to D5 — so it
+     ends where it came from instead of resolving upward. Deliberately
+     unresolved: the whole point of the message it belongs to is that
+     the outcome is not yet settled. */
+  undo: {
+    decay: 0.5,
+    partials: [[880.0, 0, 1], [587.33, 0.1, 0.8]],
+  },
+  /* A batch that finished, as against a single action that did. A rising
+     fourth with a third partial on top — E5, A5, E6 — brighter and one
+     step wider than the default, so the difference is "more happened"
+     rather than "louder". */
+  success: {
+    decay: 0.55,
+    partials: [[659.25, 0, 0.9], [880.0, 0.07, 0.7], [1318.51, 0.14, 0.45]],
+  },
+};
+const DEFAULT_VOICE = 'ding';
+
 let toastAudio = null;
-/* `sound` is an action name — see TOAST_SOUND_FILES. Absent, unknown or
-   unavailable, and this is the synthesised ding underneath. */
+/* `sound` is an action name, resolved in the order it costs most: a
+   recording if there is one (TOAST_SOUND_FILES), else a synthesised
+   voice (TOAST_VOICES), else the default ding. An unknown name is not
+   an error — a message with a voice nobody defined still gets a sound,
+   because the notification is the point and the noise is decoration. */
 function playToastDing(sound) {
   if (!toastSoundOn || !toastUnlocked) return;
   if (sound && playToastFile(sound)) return;
@@ -4121,24 +4179,26 @@ function playToastDing(sound) {
   try {
     if (!toastAudio) toastAudio = new AudioCtx();
     if (toastAudio.state === 'suspended') return;
+    const voice = TOAST_VOICES[sound] || TOAST_VOICES[DEFAULT_VOICE];
+    const { decay, partials } = voice;
     const now = toastAudio.currentTime;
     const bus = toastAudio.createGain();
     bus.gain.setValueAtTime(0.0001, now);
     bus.gain.exponentialRampToValueAtTime(0.16, now + 0.012);
-    bus.gain.exponentialRampToValueAtTime(0.0001, now + 0.6);
+    bus.gain.exponentialRampToValueAtTime(0.0001, now + decay);
     bus.connect(toastAudio.destination);
-    for (const [freq, delay, peak] of [[1318.51, 0, 1], [1975.53, 0.05, 0.4]]) {
+    for (const [freq, delay, peak] of partials) {
       const osc = toastAudio.createOscillator();
       const gain = toastAudio.createGain();
       osc.type = 'sine';
       osc.frequency.setValueAtTime(freq, now + delay);
       gain.gain.setValueAtTime(0.0001, now + delay);
       gain.gain.exponentialRampToValueAtTime(peak, now + delay + 0.01);
-      gain.gain.exponentialRampToValueAtTime(0.0001, now + delay + 0.55);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + delay + decay - 0.05);
       osc.connect(gain);
       gain.connect(bus);
       osc.start(now + delay);
-      osc.stop(now + delay + 0.6);
+      osc.stop(now + delay + decay);
     }
   } catch (_) {
     // The sound is decoration. A device with no output, or a context
@@ -4292,13 +4352,28 @@ function showPending(action, done, total) {
 function showToast(msg, opts = {}) {
   const lib = toastLib();
   if (!lib) return null;
-  const o = opts === true ? { sticky: true } : (opts || {});
+  // Copied, not aliased: the voice chosen below is written back onto the
+  // options, and a call site that passed an object it holds onto — or a
+  // shared literal — must not come back from showToast carrying a sound
+  // it never asked for. A 45-line function that quietly mutates its
+  // argument is the kind of thing nobody audits.
+  const o = Object.assign({}, opts === true ? { sticky: true } : (opts || {}));
   const undo = o.undo || null;
   // A sticky message with no type of its own is work in flight. Every
   // sticky line in this app is a batch saying what it is doing, so the
   // default has to be the colour that means "still going".
   const type = o.type || (o.sticky ? 'pending' : 'info');
   const duration = o.sticky ? 0 : (undo ? TOAST_UNDO_MS : TOAST_MS);
+
+  // Which voice, when the call site has not named one. Failure is the
+  // only outcome a visitor can misread — a message that failed and one
+  // that succeeded are often the same sentence with a different verb, so
+  // the sound is where the distinction is least likely to be lost. A
+  // message offering Undo is a third thing: done, but not settled. An
+  // explicit `sound` always wins over both.
+  if (!o.sound) {
+    o.sound = type === 'error' ? 'error' : (undo ? 'undo' : undefined);
+  }
 
   dismissToast();
   // The library's global is a *callable*, not an object with a .show on

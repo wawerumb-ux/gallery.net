@@ -26,11 +26,19 @@
       one. `done` past `total` must not render a bar wider than its own
       track, and a write with no total must sweep rather than sit at a
       confident 0%.
-   6. The synthesised ding is the *default*, not the only voice. An action
-      may name a recording, and a recording that is missing, unlicensed or
-      still loading must fall back to the ding rather than cost the
-      message. The files themselves are licensed and gitignored, so a
-      checkout without them is a normal state, not a broken one.
+   6. A notification has four voices. The synthesised palette is the
+      default and needs nothing from the network; a *named* action may
+      bring a recording instead, and that recording is licensed, gitignored,
+      and allowed to be absent. What must never happen is a message
+      failing to sound: a missing file, an unknown name, a codec the device
+      will not decode — each falls back rather than costing the message.
+
+   Two of the four are derived from the message rather than requested by
+   the call site, because they carry information the words do not: an
+   `error` type sounds like failure even if the text reads like success,
+   and a message offering Undo sounds unsettled. A call site that forgets
+   to ask still gets both; only a recorded voice has to be named, since
+   only a recording has provenance to get wrong.
 
    Plus the boring ones: every type the call sites use has a glyph, the
    dismissal is the stroked cross rather than the library's `&times;`, the
@@ -130,6 +138,18 @@ describe('A — the sound is only ever heard on purpose', () => {
       'the ding must follow the message actually being shown');
   });
 
+  test('A5 — the default voice is synthesised, never fetched', () => {
+    // The palette is the primary mechanism, so this is the load-bearing
+    // claim: a file would mean a network request and a licence for one
+    // oscillator, and the archive has to keep working offline. A *named*
+    // action may bring a recording (A6) — this is about the default.
+    const ding = sliceCode('function playToastDing', 'function setToastSound');
+    assert.doesNotMatch(ding, /new Audio\(|https?:\/\//,
+      'the default voice must be synthesised — no audio file, no CDN');
+    assert.match(ding, /createOscillator\(\)/);
+    assert.match(ding, /osc\.type = 'sine'/);
+  });
+
   test('A6 — a named action may bring its own recording, and only then', async () => {
     // The default ding stays synthesised (A5). A *named* action is allowed
     // a file, so the two mechanisms have to be distinguishable.
@@ -175,22 +195,6 @@ describe('A — the sound is only ever heard on purpose', () => {
       'the gesture unlock is the earliest legitimate moment to start the download');
   });
 
-  test('A8 — only the download confirmation names a recording', () => {
-    // One action has a voice so far, and it is the one whose outcome the
-    // visitor is unambiguous about. Spreading it further is a decision to
-    // make deliberately, not a side effect of the plumbing — so this test
-    // states the current line and will fail if one is added without a
-    // decision being recorded here.
-    const named = [...app.matchAll(/showToast\([^;]*?sound: '(\w+)'/g)].map((m) => m[1]);
-    assert.deepStrictEqual([...new Set(named)], ['download'],
-      'the only recorded voice is the download confirmation');
-    // And it must be the success branch, never the error one.
-    assert.match(app, /onDownloadComplete: \(\) => showToast\(`Saved \$\{viewerDownloadName\}`, \{ type: 'success', sound: 'download' \}\)/);
-    const err = app.slice(app.indexOf('onDownloadError:'), app.indexOf('onDownloadError:') + 300);
-    assert.doesNotMatch(err, /sound:/,
-      'a failed download must not play the recording that means "saved"');
-  });
-
   test('A7 — a missing or unready file costs the noise, not the message', () => {
     const file = sliceCode('function playToastFile', 'function playToastDing');
     assert.match(file, /if \(!el \|\| el\.readyState < 2\) return false;/,
@@ -199,16 +203,99 @@ describe('A — the sound is only ever heard on purpose', () => {
       'a rejected play() must not escape into the toast that triggered it');
   });
 
-  test('A5 — the sound is synthesised, not fetched', () => {
-    // A file would mean a network request and a licence for one
-    // oscillator, and the archive has to keep working offline.
-    const ding = sliceCode('function playToastDing', 'function setToastSound');
-    assert.doesNotMatch(ding, /new Audio\(|https?:\/\//,
-      'the ding must be synthesised — no audio file, no CDN');
-    assert.match(ding, /createOscillator\(\)/);
-    assert.match(ding, /osc\.type = 'sine'/);
+  test('A8 — only the download confirmation names a *recording*', () => {
+    // A name in `sound:` can now resolve two ways: a file, or one of the
+    // synthesised voices. This test is about the files, because those are
+    // the licensed ones. A name that resolves to a voice costs nothing and
+    // needs no provenance, so the palette may grow freely.
+    const recorded = new Set([...src.matchAll(/^\s*(\w+): 'audio\/[^']+'/gm)].map((m) => m[1]));
+    const named = [...app.matchAll(/showToast\([^;]*?sound: '(\w+)'/g)].map((m) => m[1]);
+    const licensed = named.filter((n) => recorded.has(n));
+    assert.deepStrictEqual([...new Set(licensed)], ['download'],
+      'the only licensed recording in play is the download confirmation');
+    // And it must be the success branch, never the error one.
+    assert.match(app, /onDownloadComplete: \(\) => showToast\(`Saved \$\{viewerDownloadName\}`, \{ type: 'success', sound: 'download' \}\)/);
+    const err = app.slice(app.indexOf('onDownloadError:'), app.indexOf('onDownloadError:') + 300);
+    assert.doesNotMatch(err, /sound:/,
+      'a failed download must not play the recording that means "saved"');
   });
-});
+
+  test('A9 — the palette is four voices, and no two are the same sound', () => {
+    const palette = sliceCode('const TOAST_VOICES', 'const DEFAULT_VOICE');
+    const voices = [...palette.matchAll(/^  (\w+): \{/gm)].map((m) => m[1]);
+    assert.deepStrictEqual(voices, ['ding', 'error', 'undo', 'success'],
+      'the palette is exactly these four voices');
+
+    // Every voice must actually differ from the default, or it is not a
+    // voice — it is the default under another name, and a notification
+    // that sounds identical while claiming to mean something else is
+    // worse than no distinction at all.
+    const partialsOf = (name) => {
+      const at = palette.indexOf(`  ${name}: {`);
+      assert.notStrictEqual(at, -1, `no voice named ${name}`);
+      return palette.slice(at, at + 400).match(/partials: (\[\[.*\]\]),/)[1];
+    };
+    const ding = partialsOf('ding');
+    for (const v of voices.filter((x) => x !== 'ding')) {
+      assert.notStrictEqual(partialsOf(v), ding, `${v} must not be the default ding's partials`);
+    }
+    // And they must not be duplicates of each other either.
+    const seen = new Map();
+    for (const v of voices) {
+      const p = partialsOf(v);
+      assert.ok(!seen.has(p), `${v} is a copy of ${seen.get(p)}`);
+      seen.set(p, v);
+    }
+  });
+
+  test('A10 — every voice decays inside the toast it belongs to', () => {
+    // A sound that outlives its own message is a notification the visitor
+    // cannot switch off, arriving after the thing it announced is gone.
+    // The shortest non-sticky toast is TOAST_MS, so every decay has to sit
+    // well inside it.
+    const palette = sliceCode('const TOAST_VOICES', 'const DEFAULT_VOICE');
+    const decays = [...palette.matchAll(/^  (\w+): \{\n    decay: ([\d.]+),/gm)];
+    assert.strictEqual(decays.length, 4, 'all four voices declare a decay');
+    for (const [, name, decay] of decays) {
+      assert.ok(Number(decay) < 1, `${name} decays over ${decay}s — too long for a toast`);
+    }
+    // And the envelope has to reach the bus before its oscillator stops,
+    // or every voice ends on an audible step.
+    const ding = sliceCode('function playToastDing', 'function setToastSound');
+    assert.match(ding, /exponentialRampToValueAtTime\(0\.0001, now \+ delay \+ decay - 0\.05\)/,
+      'the per-partial envelope must close before its oscillator stops');
+  });
+
+  test('A11 — failure and Undo are heard before they are read', () => {
+    // The two voices worth having are the two that carry information the
+    // message itself does not: a failure that reads like a success, and a
+    // change that is not yet final. Both are derived rather than requested,
+    // so a call site cannot forget them.
+    const show = sliceCode('function showToast');
+    assert.match(show, /type === 'error' \? 'error'/,
+      'an error must fall to the error voice without the call site asking');
+    assert.match(show, /undo \? 'undo'/,
+      'a message carrying Undo must fall to the undo voice');
+    assert.match(show, /if \(!o\.sound\)/,
+      'a derived voice must yield to one the call site named explicitly');
+    // And the copy it writes back must not escape to the caller: a shared
+    // literal would come back carrying a sound it never asked for, and
+    // every later call on it would inherit that.
+    assert.match(show, /Object\.assign\(\{\}, opts === true/,
+      'showToast must copy its options before writing a voice onto them');
+  });
+
+  test('A12 — a partial batch never gets the voice of a finished one', () => {
+    // Move and rename report a warning when anything was skipped or
+    // collided. The wider success voice on a half-finished batch would be
+    // the loudest lie available, so the guard is written out at each site.
+    assert.match(app, /sound: failed \|\| collided \? undefined : 'success'/,
+      'move must withhold the success voice when anything was skipped or collided');
+    assert.match(app, /\{ type: failed \? 'warning' : 'success', sound: failed \? undefined : 'success' \}/,
+      'rename must withhold the success voice when anything failed');
+  });
+
+  });
 
 describe('B — the switch is offered, remembered, and honest', () => {
   test('B1 — it defaults to on and persists under gallery.toastSound', () => {
