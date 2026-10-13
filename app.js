@@ -4041,6 +4041,16 @@ let toastSoundOn = storedToastSound();
    page has been touched: the first pointerdown or keydown anywhere is the
    unlock. Until then a notification is silent. */
 let toastUnlocked = false;
+/* The context in use, and the voice currently sounding. Both are declared
+   before the listeners below, which reach into them — a listener that ran
+   against an uninitialised binding would throw rather than recover. */
+let toastAudio = null;
+let toastVoice = null;
+/* Set when the browser hands back a context it will not run. The answer
+   lasts for the session: a replacement would be born suspended too, and
+   rebuilding on every notification is worse than being quiet. */
+let toastRefused = false;
+
 if (typeof window !== 'undefined' && window.addEventListener) {
   const unlock = () => {
     toastUnlocked = true;
@@ -4049,6 +4059,9 @@ if (typeof window !== 'undefined' && window.addEventListener) {
     // else — this is the only place a real human is involved.
     if (toastRefused) {
       toastRefused = false;
+      // Silenced before the context goes, or the tone that prompted the
+      // refusal keeps ringing against a context that is about to be closed.
+      stopToastDing();
       const dead = toastAudio;
       toastAudio = null;
       if (dead && typeof dead.close === 'function') {
@@ -4079,6 +4092,9 @@ if (typeof window !== 'undefined' && window.addEventListener) {
   const discardSuspended = () => {
     const ctx = toastAudio;
     if (!ctx || ctx.state !== 'suspended') return;
+    // The handle goes with the context, for the same reason: nothing may
+    // be left pointing at nodes that are about to be released.
+    toastVoice = null;
     toastAudio = null;
     if (typeof ctx.close === 'function') {
       try { ctx.close(); } catch (_) { /* already closed */ }
@@ -4153,20 +4169,51 @@ const TOAST_VOICES = {
 };
 const DEFAULT_VOICE = 'ding';
 
-let toastAudio = null;
-/* Set when the browser hands back a context it will not run. The answer
-   lasts for the session: a replacement would be born suspended too, and
-   rebuilding on every notification is worse than being quiet. */
-let toastRefused = false;
 /* Voices share one context, but nothing else is shared between two
    notifications. Each builds its own bus and its own gains, and takes them
    all down when it finishes — a forty-photo batch that ends in a summary
    should not leave forty notifications' worth of gain graph hanging off
    the destination for the rest of the session. */
+/* Cut the current tone off where it stands. Exponential, not linear: the
+   point is to disappear rather than fade out audibly, and a linear ramp on
+   an exponential envelope still clicks at the end. */
+function stopToastDing() {
+  const voice = toastVoice;
+  if (!voice) return;
+  // Cleared before any work, so a context that turns out to be unusable
+  // still leaves nothing behind: a stale handle here would be stopped and
+  // disconnected again on every later notification, against nodes that no
+  // longer exist.
+  toastVoice = null;
+  try {
+    const ctx = toastAudio;
+    // A closed context is already silent, and its nodes are already gone.
+    // Tearing down "logically" is all that is left, which the clear above
+    // has done.
+    if (!ctx || ctx.state === 'closed') return;
+    const now = ctx.currentTime;
+    voice.bus.gain.cancelScheduledValues(now);
+    voice.bus.gain.setValueAtTime(Math.max(voice.bus.gain.value, 0.0001), now);
+    voice.bus.gain.exponentialRampToValueAtTime(0.0001, now + 0.02);
+    // The oscillators stop at the end of that ramp and release themselves
+    // through the same onended teardown every other voice uses.
+    for (const osc of voice.oscs) {
+      try { osc.stop(now + 0.03); } catch (_) { /* already stopped */ }
+    }
+  } catch (_) {
+    // Muting a tone is decoration being removed. A failure here must not
+    // cost the notification that is about to be shown.
+  }
+}
 function playToastDing(sound) {
   if (!toastSoundOn || !toastUnlocked) return;
   const AudioCtx = window.AudioContext || window.webkitAudioContext;
   if (!AudioCtx) return;
+  // One tone at a time. The gallery shows a single message, so a second
+  // notification always supersedes the first — and the tone that announced
+  // the first has to go with it, or the visitor hears something they can
+  // no longer see. The ramp is short enough to be inaudible as a fade.
+  stopToastDing();
   try {
     let freshContext = null;
     if (!toastAudio) {
@@ -4235,11 +4282,18 @@ function playToastDing(sound) {
     }
     if (last) {
       last.onended = () => {
+        if (toastVoice && toastVoice.bus === bus) toastVoice = null;
         for (const { osc, gain } of gains) {
           try { osc.disconnect(); gain.disconnect(); } catch (_) { /* already torn down */ }
         }
         try { bus.disconnect(); } catch (_) { /* already torn down */ }
       };
+      // Held so a new notification can cut this one off. The gallery shows
+      // one message at a time and every batch replaces the last, so two
+      // tones can legitimately overlap: an error that sounds, immediately
+      // replaced by the next progress line, would otherwise ring on over
+      // whatever the visitor is doing for another half second.
+      toastVoice = { bus, oscs: gains.map((g) => g.osc) };
     }
   } catch (_) {
     // The sound is decoration. A device with no output, or a context
@@ -4255,23 +4309,23 @@ function setToastSound(on) {
   toastSoundOn = !!on;
   try { localStorage.setItem(TOAST_SOUND_KEY, toastSoundOn ? 'on' : 'off'); } catch (_) { /* nothing to remember it in */ }
   if (toastSoundOn) {
+    stopToastDing();
     playToastDing();
   } else {
-    // Turning sound off has to actually stop it. A live AudioContext holds
-    // the output device open, so a visitor who has muted notifications
-    // would still be paying for the hardware and the battery — the flag
-    // alone only stops the *next* sound, not the thing making them.
-    //
-    // close() is async and idempotent-safe to ignore afterwards, so the
-    // context is dropped on the floor whatever it does with the promise.
-    // The next sound builds a fresh one, which the gesture that opened the
-    // menu has already unlocked.
+    // Turning sound off has to actually stop it, including whatever is
+    // sounding at this instant — a visitor who mutes mid-tone expects
+    // silence now, not in half a second. The context goes too: a live one
+    // holds the output device open, so a muted gallery would still be
+    // paying for the hardware and the battery.
+    stopToastDing();
     const ctx = toastAudio;
     toastAudio = null;
     if (ctx && typeof ctx.close === 'function') {
       try { ctx.close(); } catch (_) { /* already closed, or closing */ }
     }
   }
+  /* Destructive: releases the context, so anything pointing into it is
+     cleared too. Every exit that drops the context must drop the voice. */
 }
 
 /* The id of the toast currently on screen. hcg-toast stacks, but the
@@ -4302,6 +4356,11 @@ function toastLib() {
 }
 
 function dismissToast() {
+  // Replacing a message replaces its sound. The gallery shows one at a
+  // time and the batch loops lean on that, so two tones can overlap: a
+  // tone that outlived the message it belonged to would be announcing
+  // something the visitor can no longer see.
+  stopToastDing();
   const lib = toastLib();
   if (!lib || toastId == null) return;
   // dismissAll, not dismiss(id): dismiss() plays the exit transition and
@@ -4456,11 +4515,23 @@ function showToast(msg, opts = {}) {
   toastId = id;
   decorateToast(id, undo);
   if (o.progress) renderToastProgress(id, o.progress.done, o.progress.total);
-  // A sticky line is a progress bar in words: a batch raises one per
-  // photo, and forty dings across one upload is not a notification. Only
-  // a message that is actually going to sit on screen gets the sound —
-  // and it gets the voice its action asked for, if there is one.
-  if (!o.sticky) playToastDing(o.sound);
+  // A sticky *progress* line is a progress bar in words: a batch raises one
+  // per photo, and forty dings across one upload is not a notification.
+// That is the whole reason for the rule, and it is about frequency, not
+  // about stickiness.
+//
+// Sticky is not the same as "invisible". A sticky line has duration 0, so
+// it stays on screen until dismissed or replaced — often for the rest of
+// the session. Four call sites raise a sticky *error* that the visitor is
+// meant to read and act on: a classification that was not saved, a file
+// that could not be deleted. Those are the messages that most need to be
+// heard, and silencing them because they happen to be sticky meant the app
+// reported its worst outcomes in silence and then sat there.
+//
+// So the gate is on what the line is *for*: work in flight stays quiet,
+// and anything that has come to a stop sounds once — even if it does not
+// leave on its own.
+  if (!o.sticky || type !== 'pending') playToastDing(o.sound);
   return id;
 }
 

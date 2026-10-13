@@ -10,10 +10,11 @@
       than queue a context Chrome will warn about and never resume. And a
       context suspended *later* — by iOS backgrounding, or a call — must be
       replaced rather than obeyed, or the app goes quiet for the session.
-   2. A sticky progress line must not sound. The batch loops raise one
-      per photo; forty dings across a single upload is not a
-      notification, it is a machine gun. Only a message that is actually
-      going to sit on screen gets the ding.
+   2. A progress line must not sound. The batch loops raise one per photo;
+      forty dings across a single upload is not a notification, it is a
+      machine gun. The gate is on `type === 'pending'`, not on stickiness
+      — four sticky lines are errors that stay on screen until dismissed,
+      and those are exactly the ones that must be heard.
    3. Undo goes inside the toast's body, under the message. That is
       where Penguin puts the actions on a message-style notification, and
       it is also what keeps the button from sitting between the text and
@@ -145,17 +146,30 @@ describe('A — the sound is only ever heard on purpose', () => {
       'a browser refusal must be remembered rather than retried forever');
   });
 
-  test('A4 — a sticky progress line is silent', () => {
+  test('A4 — a progress line is silent, but a sticky outcome is not', () => {
     const show = sliceCode('function showToast');
-    const sound = /if \(!o\.sticky\) playToastDing\(o\.sound\);/.test(show);
-    assert.ok(sound,
-      'the batch loops raise one sticky line per photo — only a timed message may sound');
+    assert.match(show, /if \(!o\.sticky \|\| type !== 'pending'\) playToastDing\(o\.sound\);/,
+      'the gate must exclude work in flight, not everything that stays on screen');
     // And the guard sits inside showToast, after the library call, so a
     // message that never rendered never sounds.
     const call = show.indexOf('playToastDing(o.sound)');
     const shown = show.indexOf('toastId = id;');
     assert.ok(shown !== -1 && shown < call,
       'the ding must follow the message actually being shown');
+
+    /* This gate used to be `if (!o.sticky)`, which silenced every sticky
+       line — including four sticky *errors* that sit on screen until the
+       visitor dismisses them. An unsaved classification and a file that
+       could not be deleted are exactly the outcomes that must not be
+       reported in silence and then simply left there. The rule is about
+       frequency, not about stickiness. */
+    const stickyErrors = [...app.matchAll(/showToast\(([^;]*?sticky: true[^;]*?)\)/g)]
+      .filter((m) => /type: 'error'/.test(m[1]));
+    assert.ok(stickyErrors.length >= 3,
+      'this app really does raise sticky errors — if that ever stops, this test should be revisited');
+    // Every one of them must be audible now, since none of them leaves.
+    assert.doesNotMatch(show, /sticky[^\n]*type: 'error'[^\n]*return/,
+      'a sticky error may not be singled out for silence');
   });
 
   test('A5 — every voice is synthesised, and nothing is fetched', () => {

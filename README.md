@@ -210,6 +210,12 @@ visitor who has turned notifications off would still be paying for the
 hardware and the battery. Turning sound off drops the context; the next
 sound builds a fresh one.
 
+**One tone at a time.** The gallery shows one message, so a second
+notification always supersedes the first — and the tone that announced the
+first is cut off rather than left ringing over something the visitor can no
+longer see. Muting silences whatever is playing at that instant, not just
+the next sound.
+
 **A suspended context is replaced, never resumed.** `resume()` on a
 context nobody has unlocked is what trips Chrome's autoplay warning, and
 it lies about why the context is suspended. But *obeying* one is worse: iOS

@@ -142,6 +142,12 @@ function harness(opts = {}) {
   // The library creates its own container inside document.body, so the
   // root the tests inspect is that container, not document.body itself.
   const root = makeEl();
+  /* The unlock listeners the real page installs on `window`, and the
+   recovery listeners it installs on `document`. Collected rather than
+   fired, so a test can decide when the page counts as touched and when it
+   comes back to the foreground — which is the whole point of both gates.
+   Declared before `doc`, which writes into it. */
+  const listeners = [];
   const doc = {
     body: root,
     createElement: (tag) => makeEl(tag),
@@ -150,15 +156,9 @@ function harness(opts = {}) {
     // have to resolve against the tree the library actually built.
     querySelector: (sel) => find(root, sel),
     querySelectorAll: (sel) => findAll(root, sel),
-    // The recovery listeners are installed on `document`, not on window,
-    // so this has to collect them rather than swallow them.
     addEventListener(type, fn) { listeners.push({ type, fn }); },
   };
   const raf = [];
-  /* The unlock listeners the real page installs on `window`. Collected
-     rather than fired, so a test can decide when the page counts as
-     touched — which is the whole point of the gesture gate. */
-  const listeners = [];
   /* Every oscillator the notification layer built, in order, with the
      frequency and envelope it was given. This is what makes the palette
      assertable: two voices are different if the numbers are different,
@@ -171,7 +171,7 @@ function harness(opts = {}) {
   /* Node lifecycle: how many disconnects a finished voice issued, and
      whether a teardown has run. `finish()` fires the onended of whichever
      oscillator the app left holding it — the last partial. */
-  const live = { disconnects: 0, ended: 0 };
+  const live = { disconnects: 0, ended: 0, stops: 0 };
   const lastOsc = { current: null };
   /* The contexts this page is holding, newest last, so a test can suspend
      one the way a phone would. */
@@ -232,7 +232,7 @@ function harness(opts = {}) {
             played.push({ freq: o._freq, type: o.type, at: t });
             lastOsc.current = o;
           },
-          stop() {},
+          stop() { live.stops++; },
           onended: null,
           _freq: 0,
         };
@@ -266,7 +266,7 @@ function harness(opts = {}) {
     played, gesture,
     // Frequencies the palette actually built, for comparison between voices.
     freqs: () => played.map((p) => p.freq),
-    reset: () => { played.length = 0; live.disconnects = 0; live.ended = 0; },
+    reset: () => { played.length = 0; live.disconnects = 0; live.ended = 0; live.stops = 0; },
     get made() { return made; },
     get closed() { return closed; },
     live,
@@ -636,6 +636,39 @@ describe('The voices, executed', () => {
     }
   });
 
+  test('no stale voice handle survives a context teardown', () => {
+    /* Every path that releases the context must release the voice too. A
+       handle left behind would be stopped and disconnected again on every
+       later notification, against nodes that no longer exist — invisible
+       until it starts throwing, and harmless-looking either way. */
+    h.gesture();
+    h.api.playToastDing('success');           // a voice now holds the context
+    h.suspend();
+    h.foreground();                            // discards the suspended context
+    const before = h.live.stops;
+    h.api.playToastDing('error');              // must not touch the dead voice
+    // error's own three oscillators are scheduled to stop. The discarded
+    // voice's three are NOT stopped again — they went with their context,
+    // so this is 3 and not 6. The handle was cleared by the teardown, which
+    // is the thing being protected: a stale handle would stop them a second
+    // time, against nodes that no longer exist.
+    assert.strictEqual(h.live.stops - before, 3,
+      `a discarded context's voice must not be stopped again (got ${h.live.stops - before} extra stops, expected 3)`);
+  });
+
+  test('cutting a tone off releases it exactly once', () => {
+    h.gesture();
+    h.api.playToastDing('success');
+    h.reset();
+    h.api.showToast('Something else entirely.', { type: 'info' });
+    const afterFirst = h.live.disconnects;
+    // The replaced voice is already stopped, so a second dismissal must
+    // find nothing to do.
+    h.api.dismissToast();
+    assert.strictEqual(h.live.disconnects, afterFirst,
+      'the torn-down voice must not be disconnected again on a later dismissal');
+  });
+
   test('a voice tears its own gain graph down when it finishes', () => {
     h.gesture();
     h.api.playToastDing('success');
@@ -730,10 +763,52 @@ describe('The voices, executed', () => {
       'a call site that names a voice must win over the derived default');
   });
 
-  test('a sticky progress line is still silent', () => {
+  test('a progress line is still silent', () => {
     h.gesture();
     h.api.showPending('Uploading photos', 1, 3);
     assert.deepStrictEqual(h.freqs(), [], 'a batch progress line must not sound');
+    // …including the progress lines that update repeatedly. Forty dings
+    // across one upload is a machine gun, not a notification.
+    for (let i = 2; i <= 40; i++) h.api.showPending('Uploading photos', i, 40);
+    assert.deepStrictEqual(h.freqs(), [], 'no line of a running batch may sound');
+  });
+
+  test('a sticky error sounds, because it stays on screen', () => {
+    h.gesture();
+    // Duration 0: this message does not leave on its own. It is the
+    // visitor's worst outcome reported so far and it stays there.
+    h.api.showToast('NOT deleted: rate limited.', { type: 'error', sticky: true });
+    assert.deepStrictEqual(h.freqs(), [392.0, 311.13, 784.0],
+      'an error that does not dismiss itself must not be delivered silently');
+  });
+
+  test('a sticky warning sounds too — it also stays', () => {
+    h.gesture();
+    h.api.showToast('Skipped a.jpg — name already there.', { type: 'warning', sticky: true });
+    assert.deepStrictEqual(h.freqs(), [1318.51, 1975.53],
+      'a sticky warning is work that stopped, so it is not "in flight"');
+  });
+
+  test('a new notification cuts off the one still sounding', () => {
+    h.gesture();
+    h.api.playToastDing('success');
+    // Every voice stops its own oscillators once to schedule them, so the
+    // count includes the scheduling stops as well as the cut-offs.
+    h.reset();
+    h.api.playToastDing('error');
+    // error's three oscillators are scheduled (3 stops) plus the previous
+    // voice's three being cut short.
+    assert.strictEqual(h.live.stops, 3 + 3,
+      'replacing a message must replace its sound, or the old tone announces something the visitor can no longer see');
+  });
+
+  test('muting cuts off a tone that is mid-flight', () => {
+    h.gesture();
+    h.api.playToastDing('success');
+    h.reset();
+    h.api.setToastSound(false);
+    assert.ok(h.live.stops >= 3,
+      `muting during a tone must silence it now, not when it finishes on its own (got ${h.live.stops} stops)`);
   });
 
   test('writing a derived voice does not leak back to the caller', () => {
