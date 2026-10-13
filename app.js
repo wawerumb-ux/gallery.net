@@ -1679,9 +1679,7 @@ function renderAlbumDetail() {
     fig.addEventListener('click', () => {
       if (Date.now() < (state._suppressClickUntil || 0)) return;
       if (state.adminMode && state.batchSelect) { toggleBatchSelect(fig.dataset.path); return; }
-      const img = fig.querySelector('img');
-      openLightbox(fig.dataset.folder, Number(fig.dataset.index),
-        (img && img.classList.contains('is-loaded') && img.currentSrc) ? img.currentSrc : null);
+      openLightbox(fig.dataset.folder, Number(fig.dataset.index), startSrcFor(fig, fig.dataset.path));
     });
     wireLongPress(fig);
   });
@@ -1721,11 +1719,9 @@ function wireGalleryEvents() {
       if (Date.now() < (state._suppressClickUntil || 0)) return;
       if (state.adminMode && state.batchSelect) { toggleBatchSelect(fig.dataset.path); return; }
       // Hand the lightbox the exact image the card already loaded (a cache
-      // hit = instant, no re-download, no blur flash). Null = card still
-      // loading → start at the sharp tier.
-      const img = fig.querySelector('img');
-      openLightbox(fig.dataset.folder, Number(fig.dataset.index),
-        (img && img.classList.contains('is-loaded') && img.currentSrc) ? img.currentSrc : null);
+      // hit = instant, no re-download, no blur flash) — but only once that
+      // card has been confirmed to be the photo the tap resolves to.
+      openLightbox(fig.dataset.folder, Number(fig.dataset.index), startSrcFor(fig, fig.dataset.path));
     });
     wireLongPress(fig);
   });
@@ -2609,10 +2605,28 @@ function enterSelectMode(path) {
   render();
 }
 
+/* A path used as an ATTRIBUTE VALUE in a selector, not an identifier.
+   CSS.escape is for identifiers — it escapes `.` and `/` into `\.` and `\/`,
+   and inside `[data-path="…"]` those match a literal backslash followed by
+   the character. Every card query built that way matched nothing, so
+   selecting a photo updated the state and no badge appeared anywhere.
+
+   Inside a double-quoted attribute value only the quote and the backslash
+   itself need escaping. Nothing else. */
+function attrSel(value) {
+  return String(value).replace(/["\\]/g, '\\$&');
+}
+/* Every card showing this photo, in either grid. */
+function cardsForPath(path) {
+  const v = attrSel(path);
+  return document.querySelectorAll(
+    `#picturesView .card[data-path="${v}"], #albumDetailView .card[data-path="${v}"]`);
+}
+
 function toggleBatchSelect(path) {
   if (state.batchSelected.has(path)) state.batchSelected.delete(path);
   else state.batchSelected.add(path);
-  document.querySelectorAll(`#picturesView .card[data-path="${CSS.escape(path)}"], #albumDetailView .card[data-path="${CSS.escape(path)}"]`).forEach(card => {
+  cardsForPath(path).forEach(card => {
     card.classList.toggle('card-selected', state.batchSelected.has(path));
     const pick = card.querySelector('.card-pick');
     if (pick) pick.textContent = state.batchSelected.has(path) ? '✓' : '';
@@ -2646,8 +2660,7 @@ async function batchDeleteSelected() {
   // has its tiles to clone from — the dialog sits there while you read it,
   // and the grid underneath can be scrolled or re-rendered in that time —
   // and so a failure can put that same tile back.
-  const cards = paths.map(p => document.querySelector(
-    `#picturesView .card[data-path="${CSS.escape(p)}"], #albumDetailView .card[data-path="${CSS.escape(p)}"]`));
+  const cards = paths.map(p => cardsForPath(p)[0] || null);
 
   const ok = await askConfirm({
     title: paths.length === 1 ? 'Delete 1 photo?' : `Delete ${paths.length} photos?`,
@@ -2898,7 +2911,7 @@ async function removePhase() {
     // simply removed, same as any off-screen photo.
     onAccept: () => {
       const albumCard = document.querySelector(
-        `#albumsView .album[data-folder="${CSS.escape(folder)}"]`);
+        `#albumsView .album[data-folder="${attrSel(folder)}"]`);
       return playTrashEat(el('confirmBin'), albumCard ? [{ node: albumCard }] : []);
     }
   });
@@ -3602,18 +3615,46 @@ function lightboxItems(folder) {
     : (state.folders[folder] || []);
 }
 /* Cards report a folder-local index; on the Pictures tab translate it to the
-   position of that same photo in the day-sorted list. */
+   position of that same photo in the day-sorted list.
+
+   -1 means "that index does not name a photo in this list", which is not the
+   same as position 0. It used to collapse a miss to 0, and 0 is a perfectly
+   valid position for a completely different photo — so a lookup that failed
+   quietly produced a viewer showing the wrong picture under the tapped
+   photo's name. Callers must treat -1 as a failure, not an index. */
 function lightboxIndexFor(folder, index) {
-  if (state.view !== 'images') return index;
+  if (state.view !== 'images') {
+    const items = state.folders[folder] || [];
+    return index >= 0 && index < items.length ? index : -1;
+  }
   const target = (state.folders[folder] || [])[index];
-  if (!target) return 0;
+  if (!target) return -1;
   const at = (state.picturesList || []).findIndex(c => c.img.path === target.path);
-  return at >= 0 ? at : 0;
+  return at;   // -1 when the photo is not on the wall
+}
+
+/* The card's own thumbnail, but only if it really is the photo that resolved.
+   It is a cache-hit shortcut so the viewer opens from cache rather than
+   re-fetching — not a second source of truth. Handing updateLightbox a src
+   from one photo while it resolves another is how you end up staring at
+   image 2 under image 3's filename. */
+function startSrcFor(fig, resolvedPath) {
+  const img = fig && fig.querySelector ? fig.querySelector('img') : null;
+  if (!img || !img.classList.contains('is-loaded') || !img.currentSrc) return null;
+  // The card's img is only trustworthy when its card and the resolved photo
+  // are the same file. Compare on the path the card claims, since currentSrc
+  // is a tier of that path at best.
+  const cardPath = fig.dataset ? fig.dataset.path : null;
+  return cardPath && resolvedPath && cardPath === resolvedPath ? img.currentSrc : null;
 }
 
 function openLightbox(folder, index, startSrc) {
   state.lightboxFolder = folder;
-  state.lightboxIndex = lightboxIndexFor(folder, index);
+  const at = lightboxIndexFor(folder, index);
+  // A tap on a card that no longer maps to a photo opens nothing rather than
+  // opening the wrong one.
+  if (at < 0) return;
+  state.lightboxIndex = at;
   state.lightboxStartSrc = startSrc || null;
   updateLightbox();
   overlayPush('lightbox', closeLightbox);
@@ -3738,6 +3779,12 @@ function updateLightbox() {
   const lb = el('lightboxImg');
   // Always open crisp: the LARGEST committed variant (cached once the card
   // revealed, ~66KB if nav); full-res original layers in silently after.
+  //
+  // startSrc is only a cache-hit shortcut, and it is only honoured when it
+  // names the photo actually on screen. Anything that steps the viewer after
+  // open (a refresh from a rename, a delete) must fall back to this photo's
+  // own source rather than reuse a thumbnail belonging to a different one —
+  // that mismatch is invisible in code and obvious to anyone looking at it.
   const start = state.lightboxStartSrc || lightboxSrc(img);
   state.lightboxStartSrc = null;
   lb.src = start;
@@ -4568,6 +4615,7 @@ function failureSuffix(failedNames) {
 
     // URLs, names & sources
     rawUrl, pageUrl, imgSrc, cardSrc, lightboxSrc, thumbSrc,
+    lightboxIndexFor, openLightbox, startSrcFor,
     sanitizeFilename, cssSafe, escapeHtml, escapeAttr,
 
     // Notifications
