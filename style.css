@@ -1233,19 +1233,6 @@ body.is-selecting .tabbar, body.is-selecting .fab { transform: translateY(110%);
   margin: 12px 0 6px;
 }
 
-/* New-album field inside the classify dialog. Hidden until the dropdown
-   asks for it; the hint sits under the field rather than beside it so it
-   can wrap to two lines on a phone instead of being clipped. */
-.tag-newalbum-row { position: relative; }
-.tag-newalbum-hint {
-  display: block;
-  font-size: 12px;
-  color: var(--text-faint);
-  margin: 6px 0 0;
-  line-height: 1.45;
-  overflow-wrap: anywhere;
-}
-
 .text-input {
   width: 100%;
   background: var(--surface);

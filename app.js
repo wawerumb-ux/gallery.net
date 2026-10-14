@@ -2030,18 +2030,6 @@ function wireStaticEvents() {
   // Classify modal
   el('tagCancel').addEventListener('click', () => overlayClose('tagModalOverlay'));
   el('tagSave').addEventListener('click', saveTagModal);
-  // The album field follows the dropdown, and the Save button follows the
-  // name: an unusable name must not be one keystroke away from a real write.
-  el('tagStage').addEventListener('change', syncNewAlbumField);
-  if (el('tagNewAlbumName')) {
-    el('tagNewAlbumName').addEventListener('input', syncNewAlbumField);
-    el('tagNewAlbumName').addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' && el('tagStage').value === NEW_ALBUM && !el('tagSave').disabled) {
-        e.preventDefault();
-        saveTagModal();
-      }
-    });
-  }
   el('tagModalOverlay').addEventListener('click', e => {
     if (e.target.id === 'tagModalOverlay') overlayClose('tagModalOverlay');
   });
@@ -2441,16 +2429,9 @@ function openTagModal(path, pretty) {
   el('tagAuto').textContent = `${c.stage || 'Unclassified'} · ${c.confidence} · ${c.reason}${c.activity ? ' · ' + c.activity : ''}`;
   el('tagStage').innerHTML = ['', ...JOURNEY.map(j => j.stage)].map(s =>
     `<option value="${escapeAttr(s)}" ${s === ((md && md.phase) || '') ? 'selected' : ''}>${escapeHtml(s || '— auto —')}</option>`
-  ).join('')
-    // The last option is not a stage: it opens a field for an album that
-    // does not exist yet. It is last so it never sits among real stages and
-    // cannot be picked by accident when someone is scrolling for one.
-    + `<option value="${NEW_ALBUM}">＋ New album…</option>`;
+  ).join('');
   el('tagActivity').value = (md && md.activity) || '';
   el('tagRename').value = path.split('/').pop();
-  // A dialog opened fresh must not inherit the last one's album draft.
-  if (el('tagNewAlbumName')) el('tagNewAlbumName').value = '';
-  if (el('tagNewAlbum')) el('tagNewAlbum').hidden = true;
   // Save is disabled while a write is in flight; a dialog opened at any
   // other moment must find it armed.
   const saveBtn = el('tagSave');
@@ -2602,16 +2583,9 @@ async function saveTagModal() {
   if (tagSaving) return;
   const path = state.taggingPath;
   const stageSel = el('tagStage').value;
-  const wantsNewAlbum = stageSel === NEW_ALBUM;
-  const check = wantsNewAlbum ? newAlbumCheck(el('tagNewAlbumName').value) : null;
-  // A refused name must not be silently downgraded to "classify, don't
-  // create" — the visitor asked for an album and would get a save instead.
-  if (wantsNewAlbum && !check.ok) {
-    overlayClose('tagModalOverlay');
-    showToast(check.why, { type: 'warning' });
-    return;
-  }
-  const phase = wantsNewAlbum ? '' : stageSel;
+  // If the user picked a stage, we may need to create its folder.
+  // "— auto —" means no explicit stage, so we just save metadata.
+  const phase = stageSel || '';
   const activity = el('tagActivity').value.trim();
   const newName = el('tagRename').value.trim();
   if (phase || activity) state.metadata[path] = { phase, activity };
@@ -2642,11 +2616,17 @@ async function saveTagModal() {
   let renamedLive = false;
   let renameMsg = '';
   try {
-    /* The album is created FIRST. If it fails there is nothing to classify
-       into, and a classification saved against a folder that does not exist
-       is exactly the state that leaves a photo on "Needs review" forever. */
-    if (wantsNewAlbum) {
-      const r = await createAlbumFromTag(path, check.name);
+    /* If the selected stage has no folder yet, create it by moving this
+       photo into it. This is the same put-then-delete that moving between
+       albums uses. The folder name comes from FOLDER_STAGES or a slugified
+       stage name. If the folder already exists, we just classify normally. */
+    const folder = phase ? stageFolder(phase) : null;
+    const hasFolder = folder && (state.folders[folder] || []).length > 0;
+    if (folder && !hasFolder) {
+      /* The album is created FIRST. If it fails there is nothing to classify
+         into, and a classification saved against a folder that does not exist
+         is exactly the state that leaves a photo on "Needs review" forever. */
+      const r = await createAlbumFromTag(path, folder);
       if (!r.ok) {
         // The photo is where it was and the album does not exist. Say so
         // plainly rather than reporting a save that did not happen.
@@ -2656,7 +2636,7 @@ async function saveTagModal() {
       render();
       try { await persistMetadata(); } catch (err) { reportTagSaveFailed(err, savingId); return; }
       await loadTree(true);
-      showToast(`Created album "${check.name}" with this photo.`, { type: 'success', sound: 'success' });
+      showToast(`Created album "${folder}" with this photo.`, { type: 'success', sound: 'success' });
       return;
     }
 
@@ -2734,35 +2714,22 @@ function resolveTarget(rawValue) {
    only exists in the tree once something is in it, so "create this album"
    necessarily means "create it and put this photo in it" — the same
    put-then-delete that moving a photo between albums already does. */
-const NEW_ALBUM = '__new_album__';
-
-/* What the typed name would actually become, or why it cannot. Shown live,
-   because "Cable Routing" quietly becoming "cable-routing" is fine, but a
-   name landing as a second album next to an existing one is not. */
-function newAlbumCheck(raw) {
-  const typed = (raw || '').trim();
-  if (!typed) return { ok: false, why: 'Type a name for the new album.' };
-  const name = normalizeCategory(typed);
-  if (!name) return { ok: false, why: 'That name has no usable characters.' };
-  const from = (state.taggingPath || '').split('/').slice(-2, -1)[0];
-  if (name === from) return { ok: false, why: `This photo is already in "${name}".` };
-  if (availableCategories().includes(name)) return { ok: false, why: `An album named "${name}" already exists.` };
-  return { ok: true, name, why: `Will create images/${name}/ and move this photo in.` };
+/* A folder is an album. Some stages have folders; others don't yet.
+   When a photo is classified under a stage that has no folder yet,
+   the folder is created by moving the photo into it — the same
+   put-then-delete that moving between albums uses. */
+function stageFolder(stage) {
+  // Inverse of FOLDER_STAGES: stage sequence → folder name.
+  // A stage may have multiple folders; pick the first one.
+  // If the stage isn't in JOURNEY, slugify it directly.
+  const seq = JOURNEY.find(j => j.stage === stage)?.sequence;
+  if (seq === undefined) return slugify(stage);
+  const folders = Object.keys(FOLDER_STAGES).filter(f => FOLDER_STAGES[f] === seq);
+  return folders[0] || slugify(stage);
 }
 
-/* Show the name field only while the new-album option is chosen, and keep
-   its hint in step with what is typed. */
-function syncNewAlbumField() {
-  const wrap = el('tagNewAlbum');
-  const sel = el('tagStage');
-  if (!wrap || !sel) return;
-  const wanted = sel.value === NEW_ALBUM;
-  wrap.hidden = !wanted;
-  if (!wanted) return;
-  const check = newAlbumCheck(el('tagNewAlbumName').value);
-  el('tagNewAlbumHint').textContent = check.why;
-  const save = el('tagSave');
-  if (save) save.disabled = !check.ok;
+function slugify(s) {
+  return s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
 }
 
 /* Selection mode (S10 long-press select). Entry points: the ⋮ menu's
@@ -4826,7 +4793,7 @@ function failureSuffix(failedNames) {
     journeyFor, folderSequence, albumStageName, availableCategories,
     classifyPhoto, clsLabel, normalizeCategory, allPhaseOptions,
     extractPhotoDate, prettyName,
-    NEW_ALBUM, newAlbumCheck, syncNewAlbumField, moveIntoNewAlbum,
+    slugify, stageFolder, moveIntoNewAlbum,
 
     // Assets & duplicates
     buildAssets, discoverFromTree, setAssets, summarizeDuplicates,
