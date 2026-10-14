@@ -1,18 +1,6 @@
 {
-  "images/cable-pull/20260619_130842.jpg": {
-    "phase": "Site Survey & Planning",
-    "activity": ""
-  },
-  "images/cable-pull-and-management/20260619_130850.jpg": {
-    "phase": "Site Survey & Planning",
-    "activity": ""
-  },
-  "images/server-rack-build/20260804_092247.jpg": {
-    "phase": "Pathways & Containment",
-    "activity": ""
-  },
-  "images/server-rack-build/20260731_181119.jpg": {
-    "phase": "Network Integration",
+  "images/server-rack-build/20260802_105308-800.webp": {
+    "phase": "Rack / Cabinet Installation",
     "activity": ""
   }
 }
