@@ -3894,10 +3894,26 @@ function galleryDiag() {
   const fmt = (e) => `${e.what || 'tap'} said=${e.said || '-'} `
     + `resolved=${String(e.resolved || '-').split('/').pop()} `
     + `shown=${String(e.shown || '-').split('/').pop()}`
+    + (e.painted ? ` painted=${e.painted}` : '')
     + (e.ok === false ? '   <-- MISMATCH' : '');
+  // A paint fault and an index fault look identical to the user but are not
+  // the same bug. Index fault: the viewer holds a photo other than the one
+  // resolved. Paint fault: the viewer holds the RIGHT photo index, but the
+  // <img> is showing some other file's bytes — the slide track or the service
+  // worker, not the maths. Split them out so one console call answers which.
+  const wrongPaint = log.filter(e =>
+    e.painted && !String(e.painted).includes(basenameStem(
+      String(e.shown || 'x').split('/').pop() || 'x')));
   return {
     last: log.length ? fmt(log[log.length - 1]) : '(nothing recorded)',
     mismatches: log.filter(e => e.ok === false).map(fmt),
+    paintMismatches: wrongPaint.length,
+    paintSamples: wrongPaint.slice(-6).map(e => ({
+      said: String(e.said || '').split('/').pop(),
+      painted: e.painted,
+      paintedFull: e.paintedFull,
+      slots: e.slots,
+    })),
     all: log.map(fmt),
     clear() { if (typeof window !== 'undefined' && window.__galleryDiagLog) window.__galleryDiagLog.length = 0; },
     raw: log,
@@ -3917,8 +3933,29 @@ function openLightbox(folder, index, startSrc, said) {
   state.lightboxStartSrc = startSrc || null;
   resetSlideTrack();
   updateLightbox();
+  // Read back what the viewer ACTUALLY painted. `shown` from the items array
+  // can only ever prove the index maths agreed with itself — it cannot see a
+  // rendering fault, and this bug is not an index fault: the maths resolves
+  // correctly and the wrong photo is still on screen. So take the evidence off
+  // the DOM — the big image's own src/data-full, and which photo each of the
+  // three slide slots is actually holding.
+  const lb = el('lightboxImg');
+  const painted = lb ? (lb.currentSrc || lb.src || '') : '';
+  const paintedFull = lb ? (lb.dataset.full || '') : '';
+  const slots = slideNodes().map(n => ({
+    id: n.id || '-',
+    role: ['is-prev', 'is-current', 'is-next'].find(c => n.classList.contains(c)) || '?',
+    path: n.dataset.path || '-',
+    src: (n.currentSrc || n.src || '').split('/').pop().split('?')[0] || '-',
+  }));
   const shown = (lightboxItems(folder)[at] || {}).path || null;
-  diagTap({ what: 'viewer', said, index, resolved: at, shown, ok: shown === said });
+  diagTap({
+    what: 'viewer', said, index, resolved: at, shown,
+    painted: painted.split('/').pop().split('?')[0] || '(none)',
+    paintedFull: paintedFull.split('/').pop().split('?')[0] || '(none)',
+    slots,
+    ok: shown === said,
+  });
   overlayPush('lightbox', closeLightbox);
   el('lightbox').hidden = false;
 }
