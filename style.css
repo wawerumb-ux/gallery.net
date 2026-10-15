@@ -84,6 +84,11 @@
   --tabbar-h: 60px;
   --radius-tile: 4px;        /* mobile grid tiles: almost sharp */
   --radius-hover: 14px;      /* tiles round out on hover into a soft frame */
+  /* Breathing room between photo tiles. 6px against a ~115px tile is a clean
+     separation without turning the wall into loose thumbnails; below ~4px the
+     photos stop reading as separate items, above ~10px the wall stops reading
+     as a grid at all. */
+  --gap-tile: 6px;
   --radius-cover: 16px;      /* album covers */
   --radius-sheet: 26px;      /* sheets & dialogs */
   --radius-pill: 9999px;
@@ -607,7 +612,14 @@ body.is-selecting .tabbar, body.is-selecting .fab { transform: translateY(110%);
 .grid-pictures {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 2px;
+  gap: var(--gap-tile);
+  /* Opaque, because the column is transparent and the video backdrop runs
+     behind it at ~45% brightness (--scrim is only 0.55 black). Gutters left
+     transparent turned every seam between photos into a moving sliver of
+     footage — it read as a rendering fault, not as spacing. On true black the
+     gap is just breathing room, and the video still frames the column in the
+     margins. */
+  background: var(--bg);
 }
 
 /* One photo tile */
