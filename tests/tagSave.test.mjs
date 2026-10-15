@@ -39,53 +39,28 @@ const body = (name) => {
 
 const saveTagModal = body('saveTagModal');
 
-describe('A classification save says what it is doing', () => {
-  test('a pending message is shown before the first network await', () => {
-    // showPending, not showToast: one photo is one write, so the bar has
-    // no count to divide and sweeps instead — but the card is still
-    // orange and still says what the app is doing.
-    assert.match(saveTagModal, /showPending\(\s*'Saving classification'/,
-      'saveTagModal must open with a pending toast');
-    // The point is that it comes before any `await`, not merely that the
-    // string exists: a pending toast raised after the write has already
-    // happened is exactly the silence this is fixing.
-    const toastAt = saveTagModal.indexOf("showPending('Saving classification'");
-    const firstAwait = saveTagModal.indexOf('await ');
-    assert.ok(toastAt !== -1, 'no pending toast found');
-    assert.ok(firstAwait !== -1, 'saveTagModal has no await to order against');
-    assert.ok(toastAt < firstAwait,
-      'the pending toast must precede the first await, or it announces nothing');
+describe('A classification save says nothing until it has happened', () => {
+  test('no toast is raised before the write resolves', () => {
+    // The dialog closes and the screen goes quiet until the write is done.
+    // A toast before that is a claim about the future, and it is
+    // indistinguishable from the one that reports what actually happened.
+    assert.doesNotMatch(saveTagModal, /showPending\(/,
+      'nothing may announce the save before it has happened');
+    const pendingish = saveTagModal.match(/showToast\(\s*'Saving classification'/);
+    assert.equal(pendingish, null,
+      'a save toast must be raised after the write, not before it');
+    // The Save button is what says work is under way.
+    assert.match(saveTagModal, /saveBtn\.textContent = 'Saving…'/,
+      'the button must carry the in-flight signal');
   });
 
-  test('the pending message cannot expire mid-write', () => {
-    // showPending is sticky by construction — it is the call for work in
-    // flight. A timed card would be gone before a slow write returns.
-    assert.doesNotMatch(saveTagModal, /showToast\(\s*'Saving classification'/,
-      'a plain showToast here would be timed, and would expire mid-write');
-    const fn = source.slice(source.indexOf('function showPending'));
-    assert.match(fn.slice(0, fn.indexOf('}')), /sticky: true/,
-      'showPending must be sticky, or this whole claim is unfounded');
-  });
-
-  test('a re-entrant save is refused', () => {
-    assert.match(source, /let tagSaving = false/,
-      'the in-flight guard variable is missing');
-    assert.match(saveTagModal, /if \(tagSaving\) return;/,
-      'a second press on Save must be refused while a write is in flight');
-    // The flag has to be cleared on every exit, including a throw, or the
-    // next classify in the session would be permanently dead.
-    assert.match(saveTagModal, /finally\s*\{[\s\S]*tagSaving = false/,
-      'tagSaving must be released in a finally, or a failed save wedges the button');
-  });
-
-  test('the Save button reflects the in-flight state', () => {
-    assert.match(saveTagModal, /saveBtn\.disabled = true/,
-      'Save must be disabled while writing');
-    assert.match(saveTagModal, /saveBtn\.disabled = false/,
-      'Save must be re-enabled afterwards');
-    // A save that throws must not leave the next dialog's button dead.
-    assert.match(body('openTagModal'), /saveBtn\.disabled = false/,
-      'openTagModal must re-arm Save — a thrown save would otherwise wedge it');
+  test('the success toast only follows a successful persist', () => {
+    const successAt = saveTagModal.indexOf("showToast(renameMsg ? `Saved classification");
+    const persistAt = saveTagModal.indexOf('await persistMetadata();');
+    assert.ok(persistAt !== -1, 'no metadata write found');
+    assert.ok(successAt !== -1, 'no success toast found');
+    assert.ok(persistAt < successAt,
+      'Saved classification must follow the write it claims to have made');
   });
 });
 
@@ -129,8 +104,11 @@ describe('A failed classification save cannot be missed', () => {
       'the GitHub error must reach the visitor, not just "it failed"');
   });
 
-  test('the pending toast is replaced rather than left to expire', () => {
-    assert.match(report, /dismissToast\(\)/,
-      'the pending message must be cleared in place so there is no gap');
+  test('the failure toast is sticky, since nothing else is on screen', () => {
+    // There is no pending toast to replace any more, so the failure is the
+    // only thing on screen — it has to hold long enough to be read.
+    assert.match(report, /sticky: true/,
+      'the failure must be sticky now that it cannot be overwritten');
+    assert.match(report, /NOT saved/);
   });
 });

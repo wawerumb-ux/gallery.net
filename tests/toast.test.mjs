@@ -396,7 +396,11 @@ describe('C — every message is drawn in Penguin\'s shape', () => {
     for (const t of used) {
       assert.ok(defined.has(t), `type '${t}' is raised somewhere but has no glyph`);
     }
-    assert.ok(used.has('pending'), 'showPending must actually raise the type');
+    // 'pending' is no longer raised by a literal call site: nothing announces
+    // work in flight any more. It is still the type a sticky message falls
+    // back to, so the glyph and the tint have to stay.
+    assert.match(src, /o\.sticky \? 'pending' : 'info'/,
+      'a sticky message with no type of its own must still fall back to pending');
   });
 
   test('C2 — the glyphs are inline SVG, not the library\'s text characters', () => {
@@ -593,105 +597,6 @@ describe('E — the colour follows the action', () => {
   });
 });
 
-describe('F — long reads and writes report a number', () => {
-  test('F1 — showPending says what the app is doing, with a bar under it', () => {
-    const fn = sliceCode('function showPending', '/* A message, optionally carrying');
-    assert.match(fn, /showToast\(action, \{ type: 'pending', sticky: true, progress: \{ done, total \} \}\)/);
-  });
-
-  test('F2 — the bar is built onto the live item, so it dies with it', () => {
-    // No separate timer, no node of its own: the item carries it and
-    // dismissAll() takes both away together.
-    const fn = sliceCode('function renderToastProgress', 'function showPending');
-    assert.match(fn, /item\.classList\.add\('hcg-toast-item--progress'\);/);
-    assert.match(fn, /item\.appendChild\(bar\);/);
-    assert.match(fn, /item\.querySelector\('\.toast-progress'\)/,
-      'the second call must reuse the bar, not stack a new one per step');
-  });
-
-  test('F3 — both labels live inside the strip', () => {
-    const fn = sliceCode('function renderToastProgress', 'function showPending');
-    assert.match(fn, /<div class="toast-progress-fill"><\/div>/);
-    assert.match(fn, /<span class="toast-progress-count"><\/span>/);
-    assert.match(fn, /<span class="toast-progress-pct"><\/span>/);
-    // No interpolation: the only things that go in here are numbers this
-    // function formats, and nothing in it may be able to inject markup.
-    assert.match(fn, /bar\.innerHTML = '<div class="toast-progress-fill"><\/div>'\s*\+\s*'<span class="toast-progress-count"><\/span>'\s*\+\s*'<span class="toast-progress-pct"><\/span>';/);
-  });
-
-  test('F4 — done is clamped to total, so the bar cannot overflow its track', () => {
-    // A batch that over-counts — a skipped file still advancing the
-    // counter — must not render a fill wider than 100%.
-    const fn = sliceCode('function renderToastProgress', 'function showPending');
-    assert.match(fn, /const n = Math\.max\(0, Math\.min\(done, total\)\);/);
-    assert.match(fn, /bar\.style\.setProperty\('--toast-progress', ratio\.toFixed\(4\)\);/);
-    assert.match(fn, /pct\.textContent = `\$\{Math\.round\(ratio \* 100\)\}%`;/);
-  });
-
-  test('F5 — no usable total sweeps and admits it, instead of claiming 0%', () => {
-    const fn = sliceCode('function renderToastProgress', 'function showPending');
-    assert.match(fn, /if \(!Number\.isFinite\(total\) \|\| total <= 0\) \{/);
-    assert.match(fn, /bar\.classList\.add\('toast-progress--indeterminate'\);/);
-    assert.match(fn, /pct\.textContent = 'Working…';/);
-    // ...and it must not also leave a stale fraction behind on the track.
-    assert.match(fn, /bar\.style\.removeProperty\('--toast-progress'\);/);
-  });
-
-  test('F6 — every long batch reports through it, with both halves', () => {
-    // Each batch opens at 0 and advances inside its loop; a bar that only
-    // ever opens is a decoration, not progress. `label` is passed through
-    // unquoted — applyRestore is called with 'Undo' and 'Revert all'.
-    for (const [action, total] of [
-      ['Uploading photos', 'total'],
-      ['Deleting photos', 'paths.length'],
-      ['Moving photos', 'paths.length'],
-      ['Renaming photos', 'affected.length'],
-      ['Removing photos', 'files'],
-      ['label', 'total'],
-    ]) {
-      const a = new RegExp(`showPending\\('?${action}'?, 0, ${total.replace('.', '\\.')}\\);`);
-      assert.match(src, a, `${action} must open its bar at zero`);
-      assert.match(src, new RegExp(`showPending\\('?${action}'?, (\\+\\+)?[a-z]+, ${total.replace('.', '\\.')}\\);`),
-        `${action} must advance its bar inside the loop`);
-    }
-  });
-
-  test('F7 — the phase-removal bar counts files, not photos', () => {
-    // One asset is its canonical plus its generated variants, so counting
-    // assets would sit at 100% for most of the work.
-    assert.match(src, /const files = affected\.reduce\(\(n, a\) => n \+ 1 \+ a\.variants\.length, 0\);/);
-  });
-
-  test('F8 — the stylesheet gives the strip room and the labels somewhere to sit', () => {
-    assert.match(cssCode, /\.hcg-toast-item--progress \{ padding-bottom: 31px; \}/,
-      'a bar needs somewhere to sit that is not the message');
-    const bar = cssCode.slice(cssCode.indexOf('.toast-progress {'));
-    assert.match(bar, /\.toast-progress \{[\S\s]*?position: absolute;/);
-    assert.match(bar, /\.toast-progress \{[\S\s]*?bottom: 0;/);
-    assert.match(bar, /\.toast-progress-count \{ left: 0; \}/);
-    assert.match(bar, /\.toast-progress-pct \{ right: 0; \}/);
-    // The labels sit on the fill at one end of the run and the track at
-    // the other, which is why --toast-fill is a darker step than the tint.
-    //
-    // Matched on the comment-stripped copy and anchored to the newline that
-    // opens the block: warning shares one selector list with pending, so
-    // `.hcg-toast-item--warning {` does not exist and indexOf returned -1,
-    // slicing from -1 handed this the tail of the file.
-    for (const v of ['info', 'success', 'error', 'warning', 'pending']) {
-      const at = cssCode.search(new RegExp(`\\.hcg-toast-item--${v}[\\s\\S]*?\\{`));
-      assert.notStrictEqual(at, -1, `no rule found for the ${v} variant`);
-      const rule = cssCode.slice(at, cssCode.indexOf('}', at));
-      assert.match(rule, /--toast-tint:/, `${v} must declare --toast-tint`);
-      assert.match(rule, /--toast-fill: #[0-9a-f]{6};/,
-        `${v} needs a deep fill for the white label to clear 4.5:1`);
-    }
-  });
-
-  test('F9 — reduced-motion stops the sweep rather than freezing it', () => {
-    const rm = css.slice(css.lastIndexOf('@media (prefers-reduced-motion: reduce)'));
-    assert.match(rm, /\.toast-progress-fill \{ transition: none !important; animation: none !important; \}/);
-  });
-});
 
 describe('D — the stylesheet paints it', () => {
   test('D1 — each variant carries its own tint, fill and icon plate', () => {

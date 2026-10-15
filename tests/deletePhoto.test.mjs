@@ -70,46 +70,24 @@ const body = (name) => {
 
 const deleteImage = body('deleteImage');
 
-describe('A delete says it is deleting', () => {
-  test('a pending message is shown before the request is awaited', () => {
-    // One photo is one request, not a batch, so there is no progress bar
-    // and nothing to divide — showPending still raises the orange
-    // work-in-flight card, which is the whole job here.
-    assert.match(deleteImage, /showPending\(\s*`Deleting /,
-      'deleteImage must open with a pending toast once the dialog is accepted');
-    // Not "before the first await" — askConfirm's own `await onAccept()` runs
-    // the swallow animation while the dialog is still up, and that is by
-    // design. What must not happen is the pending toast arriving after the
-    // delete request has already been awaited, because then it announces
-    // an outcome the visitor has been waiting for.
-    const toastAt = deleteImage.indexOf('showPending(`Deleting');
+describe('A delete says nothing until it has actually happened', () => {
+  test('no toast is raised before the request resolves', () => {
+    // The rule the app now holds to: a toast is a report, and a report
+    // cannot be made about something that has not happened yet. A message
+    // shown before the write lands looks exactly like one shown after it,
+    // and the two mean opposite things — which is how an admin ends up
+    // believing a photo was deleted when it was not.
+    assert.doesNotMatch(deleteImage, /showPending\(/,
+      'nothing may announce the delete before it has happened');
+    const toastAt = deleteImage.indexOf('showToast(');
     const requestAwait = deleteImage.indexOf('await request;');
-    assert.ok(toastAt !== -1, 'no pending toast found');
     assert.ok(requestAwait !== -1, 'the request await is missing');
-    assert.ok(toastAt < requestAwait,
-      'the pending toast must precede `await request`, or it announces nothing');
+    assert.ok(toastAt !== -1, 'no toast found on the delete path');
+    assert.ok(requestAwait < toastAt,
+      'the toast must follow `await request`, or it reports a future');
   });
 
-  test('the pending message cannot expire mid-request', () => {
-    // showPending is sticky by construction — it is the call for work in
-    // flight, and a timed card would be gone before a slow delete returns.
-    assert.match(deleteImage, /showPending\(\s*`Deleting /);
-    assert.doesNotMatch(deleteImage, /showToast\(\s*`Deleting /,
-      'a plain showToast here would be timed, and would expire');
-    const fn = source.slice(source.indexOf('function showPending'));
-    assert.match(fn.slice(0, fn.indexOf('}')), /sticky: true/,
-      'showPending must be sticky, or this whole claim is unfounded');
-  });
-
-  test('it is raised only after the visitor confirmed', () => {
-    // A cancel must leave no trace: nothing may be announced before `ok`.
-    const guardAt = deleteImage.indexOf('if (!ok || !request) return;');
-    const toastAt = deleteImage.indexOf('showPending(`Deleting');
-    assert.ok(guardAt !== -1 && toastAt > guardAt,
-      'a cancelled delete must announce nothing at all');
-  });
-
-  test('the delete still offers Undo on success', () => {
+  test('the success toast carries Undo, so success is still distinguishable', () => {
     assert.match(deleteImage, /undo:\s*DEMO_MODE \? null : undoLastChange/,
       'the success path must keep its Undo');
   });

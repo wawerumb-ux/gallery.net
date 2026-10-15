@@ -246,7 +246,7 @@ function harness(opts = {}) {
   const ctx = vm.createContext(sandbox);
   vm.runInContext(lib + '\n;globalThis.__toast = toast;', ctx, { filename: 'hcg-toast.js' });
   vm.runInContext(body
-    + '\n;globalThis.__n = { showToast, showPending, dismissToast, setToastSound,'
+    + '\n;globalThis.__n = { showToast, dismissToast, setToastSound,'
     + ' playToastDing, TOAST_VOICES };',
     ctx, { filename: 'app-notifications.js' });
   const flushFrames = () => { const q = raf.splice(0); q.forEach(f => f()); };
@@ -363,61 +363,6 @@ describe('The notification layer, executed', () => {
     const item = items();
     assert.ok(item.classSet.has('hcg-toast-item--error'), 'must not fall back to pending/orange');
     assert.ok(!item.classSet.has('hcg-toast-item--pending'));
-  });
-
-  test('showPending renders a bar, and the bar is not a decoration', () => {
-    // This is the assertion that failed to exist: removing the
-    // renderToastProgress call from showToast leaves a text-only suite
-    // green, because nothing was watching whether the function ran.
-    h.api.showPending('Uploading photos', 7, 40);
-    h.flushFrames();
-    const item = items();
-    assert.ok(item.classSet.has('hcg-toast-item--progress'),
-      'the card must be marked as carrying a bar');
-    const b = bar(item);
-    assert.ok(b, 'the bar element must actually be in the DOM');
-  });
-
-  test('the bar reports the real fraction, count and percentage', () => {
-    h.api.showPending('Deleting photos', 9, 40);
-    h.flushFrames();
-    const b = bar(items());
-    assert.ok(b, 'no bar');
-    const count = b.children.find(c => c.classSet.has('toast-progress-count'));
-    const pct = b.children.find(c => c.classSet.has('toast-progress-pct'));
-    assert.equal(count.textContent, '9 / 40', 'the count must be inside the bar');
-    assert.equal(pct.textContent, '23%', 'the percentage must be inside the bar');
-    // 9/40 = 0.225, and the fill is width: calc(var(--toast-progress) * 100%).
-    assert.equal(b.style.props['--toast-progress'], '0.2250',
-      'the fill must be driven by the real ratio');
-  });
-
-  test('the bar advances as the batch advances', () => {
-    for (const [done, want] of [[0, '0.0000'], [1, '0.0250'], [20, '0.5000'], [40, '1.0000']]) {
-      h.api.showPending('Moving photos', done, 40);
-      h.flushFrames();
-      const b = bar(items());
-      assert.equal(b.style.props['--toast-progress'], want, `at ${done}/40`);
-    }
-  });
-
-  test('done past total cannot render a bar wider than its track', () => {
-    h.api.showPending('Renaming photos', 55, 40);
-    h.flushFrames();
-    const b = bar(items());
-    assert.equal(b.style.props['--toast-progress'], '1.0000', 'must clamp to 100%');
-    const pct = b.children.find(c => c.classSet.has('toast-progress-pct'));
-    assert.equal(pct.textContent, '100%');
-  });
-
-  test('no usable total sweeps and admits it, rather than claiming 0%', () => {
-    h.api.showPending('Saving classification');
-    h.flushFrames();
-    const b = bar(items());
-    assert.ok(b.classSet.has('toast-progress--indeterminate'));
-    const pct = b.children.find(c => c.classSet.has('toast-progress-pct'));
-    assert.equal(pct.textContent, 'Working…');
-    assert.ok(!('--toast-progress' in b.style.props), 'no stale fraction left behind');
   });
 
   test('Undo lands inside the body, not beside it', () => {
@@ -705,7 +650,7 @@ describe('The voices, executed', () => {
     }
     // And the one shape that must never sound.
     h.reset();
-    h.api.showPending('Uploading photos', 1, 40);
+    h.api.showToast('Uploading photos', { sticky: true });
     assert.deepStrictEqual(voice(), [], 'work in flight must stay silent');
   });
 
@@ -805,11 +750,11 @@ describe('The voices, executed', () => {
 
   test('a progress line is still silent', () => {
     h.gesture();
-    h.api.showPending('Uploading photos', 1, 3);
+    h.api.showToast('Uploading photos', { sticky: true });
     assert.deepStrictEqual(h.freqs(), [], 'a batch progress line must not sound');
     // …including the progress lines that update repeatedly. Forty dings
     // across one upload is a machine gun, not a notification.
-    for (let i = 2; i <= 40; i++) h.api.showPending('Uploading photos', i, 40);
+    for (let i = 2; i <= 40; i++) h.api.showToast('Uploading photos', { sticky: true });
     assert.deepStrictEqual(h.freqs(), [], 'no line of a running batch may sound');
   });
 

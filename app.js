@@ -2370,7 +2370,7 @@ async function performUploads() {
   overlayClose('uploadModalOverlay');
 
   let total = Object.values(groups).reduce((a, g) => a + g.length, 0);
-  let done = 0, skipped = 0, failed = 0;
+  let skipped = 0, failed = 0;
   const failedNames = [];
   // Why each failure happened, first occurrence per distinct reason. The
   // names alone never said anything useful: a file that 422s, 409s or 403s
@@ -2384,7 +2384,6 @@ async function performUploads() {
   const existing = new Set();
   for (const folder of state.order) for (const f of state.folders[folder]) existing.add(f.path);
 
-  showPending('Uploading photos', 0, total);
   for (const [folder, files] of Object.entries(groups)) {
     if (DEMO_MODE) {
       if (!state.folders[folder]) {
@@ -2395,7 +2394,7 @@ async function performUploads() {
       }
       for (const file of files) {
         const path = `${CONFIG.imagesPath || 'images'}/${folder}/${file.name}`;
-        if (existing.has(path)) { skipped++; done++; continue; }
+        if (existing.has(path)) { skipped++; continue; }
         const src = await fileToDataUrl(file);
         state.folders[folder].push({
           path,
@@ -2404,8 +2403,6 @@ async function performUploads() {
           demoSrc: src,
         });
         existing.add(path);
-        done++;
-        showPending('Uploading photos', done, total);
       }
       continue;
     }
@@ -2414,7 +2411,7 @@ async function performUploads() {
         const base64 = await fileToBase64(file);
         const safeName = sanitizeFilename(file.name);
         const path = `${CONFIG.imagesPath}/${folder}/${safeName}`;
-        if (existing.has(path)) { skipped++; done++; continue; }
+        if (existing.has(path)) { skipped++; continue; }
         await githubPut(path, base64, `Add ${safeName} via gallery admin`, { overwrite: false });
         existing.add(path);
         const j = journeyFor(folder);
@@ -2429,8 +2426,6 @@ async function performUploads() {
         const why = errWhy(err);
         if (!failedReasons.includes(why)) failedReasons.push(why);
       }
-      done++;
-      showPending('Uploading photos', done, total);
     }
   }
   const added = total - skipped - failed;
@@ -2631,26 +2626,22 @@ async function saveTagModal() {
   else delete state.metadata[path];
   overlayClose('tagModalOverlay');
 
-  /* Say the wait is happening, and say it before the first await.
+  /* Nothing is said here. The dialog closes and the screen goes quiet until
+     the write has actually resolved, and only then does a toast appear —
+     carrying the outcome, not the intention.
 
-     Every other admin action opens with a progress toast — 'Uploading
-     0/N…', 'Moving 0/N…', 'Deleting 0/N…' — and classify was the only one
-     that closed its dialog and then went quiet. A real write is a GitHub
-     Contents PUT: a tree read, a blob write and a commit, and with
-     githubFetch's 10s timeout and three attempts a stalling one can sit
-     here for half a minute. Measured against a 4s mock, the dialog was
-     closed and the screen showed nothing from +355ms to +3070ms, which
-     reads as a dropped click rather than a save in progress. Sticky, so
-     it stays until the real outcome replaces it. */
+     This used to open with a progress toast, and it was measurably wrong:
+     a toast shown before the write lands is a claim about the future, and
+     it is indistinguishable from the one shown after it lands. Two messages
+     that look alike and mean opposite things is how an admin ends up
+     believing a photo was filed when it was not. Silence is honest, and the
+     Save button already says the work is under way. */
   tagSaving = true;
   // The guard above is what makes a double save impossible; disabling the
   // button is what makes it visible. openTagModal() puts it back, so a
   // save that throws mid-flight cannot leave the next dialog's Save dead.
   const saveBtn = el('tagSave');
   if (saveBtn) { saveBtn.disabled = true; saveBtn.textContent = 'Saving…'; }
-  // One photo, so no count to divide — the bar sweeps instead. The text
-  // names the action, which is the part a visitor reads.
-  const savingId = showPending('Saving classification');
 
   let renamedLive = false;
   let renameMsg = '';
@@ -2669,11 +2660,11 @@ async function saveTagModal() {
       if (!r.ok) {
         // The photo is where it was and the album does not exist. Say so
         // plainly rather than reporting a save that did not happen.
-        reportTagSaveFailed(new Error(r.error), savingId);
+        reportTagSaveFailed(new Error(r.error));
         return;
       }
       render();
-      try { await persistMetadata(); } catch (err) { reportTagSaveFailed(err, savingId); return; }
+      try { await persistMetadata(); } catch (err) { reportTagSaveFailed(err); return; }
       await loadTree(true);
       showToast(`Created album "${folder}" with this photo.`, { type: 'success', sound: 'success' });
       return;
@@ -2695,7 +2686,7 @@ async function saveTagModal() {
         await loadTree(true);
         showToast(`Saved classification — ${renameMsg}`, { type: 'success' });
       } catch (err) {
-        reportTagSaveFailed(err, savingId);
+        reportTagSaveFailed(err);
       }
       return;
     }
@@ -2705,7 +2696,7 @@ async function saveTagModal() {
       await persistMetadata();
       showToast(renameMsg ? `Saved classification — ${renameMsg}` : 'Saved classification.', { type: 'success' });
     } catch (err) {
-      reportTagSaveFailed(err, savingId);
+      reportTagSaveFailed(err);
     }
   } finally {
     tagSaving = false;
@@ -2718,10 +2709,7 @@ async function saveTagModal() {
    screen before it shows the next one, so an ordinary error toast could
    be replaced by an unrelated message — or simply expire — while the
    visitor was still looking at the dialog that had just closed. */
-function reportTagSaveFailed(err, savingId) {
-  // Replace the pending message in place rather than dismissing and
-  // re-showing, so there is never a gap with nothing on screen.
-  if (savingId != null) dismissToast();
+function reportTagSaveFailed(err) {
   showToast(`Classification NOT saved: ${errWhy(err)}`, { type: 'error', sticky: true });
 }
 
@@ -2876,9 +2864,8 @@ async function batchDeleteSelected() {
 
   // The bin performed on the selection inside the confirmation, while the
   // dialog was up. The loop below runs once it has closed.
-  let done = 0, failed = 0;
+  let failed = 0;
   const failedNames = [];
-  showPending('Deleting photos', 0, paths.length);
   for (let i = 0; i < paths.length; i++) {
     const path = paths[i];
     // The whole asset, same as the single-photo path — see assetItemsFor.
@@ -2892,8 +2879,6 @@ async function batchDeleteSelected() {
       failedNames.push(path.split('/').pop());
       eatRestore([cards[i] && cards[i].querySelector('.card-img')]);
     }
-    done++;
-    showPending('Deleting photos', done, paths.length);
   }
   exitBatchSelect();
   showToast(failed
@@ -2955,7 +2940,6 @@ async function performBatchMove() {
 
   let done = 0, failed = 0, collided = 0;
   const failedNames = [];
-  showPending('Moving photos', 0, paths.length);
   for (const path of paths) {
     const asset = state.assets.find(a => a.canonical.path === path);
     const items = asset ? [asset.canonical, ...asset.variants] : [];
@@ -2977,8 +2961,6 @@ async function performBatchMove() {
       failed++;
       failedNames.push(items[0].name);
     }
-    done++;
-    showPending('Moving photos', done, paths.length);
   }
   exitBatchSelect();
   const moved = done - failed - collided;
@@ -3043,9 +3025,8 @@ async function renamePhase() {
   }
 
   const affected = state.assets.filter(a => a.folder === from);
-  let done = 0, failed = 0;
+  let failed = 0;
   const failedNames = [];
-  showPending('Renaming photos', 0, affected.length);
   for (const asset of affected) {
     try {
       for (const item of [asset.canonical, ...asset.variants]) {
@@ -3059,8 +3040,6 @@ async function renamePhase() {
       failed++;
       failedNames.push(asset.canonical.name);
     }
-    done++;
-    showPending('Renaming photos', done, affected.length);
   }
   // Remap metadata keys from the old folder to the new one, then persist.
   const md = Object.keys(state.metadata);
@@ -3125,8 +3104,6 @@ async function removePhase() {
   // requests, and a bar counting the photos would sit at 100% for most of
   // the work it is meant to be reporting on.
   const files = affected.reduce((n, a) => n + 1 + a.variants.length, 0);
-  let removed = 0;
-  showPending('Removing photos', 0, files);
   for (const asset of affected) {
     for (const item of [asset.canonical, ...asset.variants]) {
       try {
@@ -3137,7 +3114,6 @@ async function removePhase() {
       }
       // After the try rather than inside it: the bar reports requests
       // finished, and a failed one is finished too.
-      showPending('Removing photos', ++removed, files);
     }
   }
   for (const key of Object.keys(state.metadata)) if (key.startsWith(prefix)) delete state.metadata[key];
@@ -3225,10 +3201,9 @@ async function treePathMap(commitSha) {
 async function applyRestore(plan, label) {
   const total = plan.put.length + plan.remove.length;
   if (!total) return showToast('Nothing to change — that state is already back.', { type: 'info' });
-  let done = 0, failed = 0;
+  let failed = 0;
   const failedNames = [];
   const headers = { Authorization: `Bearer ${state.token}` };
-  showPending(label, 0, total);
   for (const { path, sha } of plan.put) {
     try {
       const blob = await githubFetch(`https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}/git/blobs/${sha}`, { headers });
@@ -3239,7 +3214,6 @@ async function applyRestore(plan, label) {
       failed++;
       failedNames.push(path);
     }
-    showPending(label, ++done, total);
   }
   for (const { path, sha } of plan.remove) {
     try {
@@ -3248,7 +3222,6 @@ async function applyRestore(plan, label) {
       failed++;
       failedNames.push(path);
     }
-    showPending(label, ++done, total);
   }
   showToast(failed ? `${label} done${failureSuffix(failedNames)}.` : `${label} done.`,
     { type: failed ? 'warning' : 'success' });
@@ -3615,7 +3588,6 @@ async function deleteImage(path, sha, prettyLabel, opts = {}) {
      app with an Undo behind it, so a wait that cannot be interpreted is
      the worst place to have one. Sticky, so it holds until the outcome
      replaces it. */
-  const deletingId = showPending(`Deleting ${prettyLabel}`);
   // The local state change is last: re-rendering mid-swallow pulls the
   // photo out of the bin before it arrives, which is the one thing this
   // effect must not do.
@@ -3626,7 +3598,7 @@ async function deleteImage(path, sha, prettyLabel, opts = {}) {
     showToast(DEMO_MODE ? `Deleted ${prettyLabel} (demo).` : `Deleted ${prettyLabel}.`,
       { type: 'success', undo: DEMO_MODE ? null : undoLastChange });
   } catch (err) {
-    reportDeleteFailed(err, deletingId);
+    reportDeleteFailed(err);
     if (opts.restore) opts.restore();
   }
 }
@@ -3638,8 +3610,7 @@ async function deleteImage(path, sha, prettyLabel, opts = {}) {
    showToast() dismisses whatever is on screen before showing the next, so
    an ordinary 3.2s toast can be replaced or expire unread — and the
    restore puts the photo back on screen either way. */
-function reportDeleteFailed(err, deletingId) {
-  if (deletingId != null) dismissToast();
+function reportDeleteFailed(err) {
   showToast(`NOT deleted: ${errWhy(err)}`, { type: 'error', sticky: true });
 }
 
@@ -4772,71 +4743,7 @@ function decorateToast(id, undo) {
   (item.querySelector('.hcg-toast-body') || item).appendChild(btn);
 }
 
-/* The bar, and both of its labels, for a long read or write.
 
-   The library has a progress bar of its own, but it is a countdown — it
-   shows how much time is left before the toast dismisses itself, which is
-   the opposite of what a batch needs — and it only renders at all when the
-   toast has a non-zero duration, which a progress line by definition does
-   not. So the bar is built here and appended to the live item, which means
-   it dies with the item: there is no separate timer or node to clean up,
-   and the batch's own `dismissToast()` takes the bar with it.
-
-   Both labels sit inside the strip. `done / total` on the left, the
-   percentage on the right, so the bar reports a count and a proportion
-   from one place instead of the message having to say both. */
-function renderToastProgress(id, done, total) {
-  const item = document.querySelector(`.hcg-toast-item[data-toast-id="${id}"]`);
-  if (!item) return;
-
-  item.classList.add('hcg-toast-item--progress');
-  let bar = item.querySelector('.toast-progress');
-  if (!bar) {
-    bar = document.createElement('div');
-    bar.className = 'toast-progress';
-    // Static markup, no interpolation: the only things that ever go in
-    // here are numbers this function formats.
-    bar.innerHTML = '<div class="toast-progress-fill"></div>'
-      + '<span class="toast-progress-count"></span>'
-      + '<span class="toast-progress-pct"></span>';
-    item.appendChild(bar);
-  }
-
-  const count = bar.querySelector('.toast-progress-count');
-  const pct = bar.querySelector('.toast-progress-pct');
-
-  // No usable total: a single write, or a read whose length is unknown.
-  // The fill sweeps and the label admits it, rather than showing a 0%
-  // that would be a claim about work that is already under way.
-  if (!Number.isFinite(total) || total <= 0) {
-    bar.classList.add('toast-progress--indeterminate');
-    bar.style.removeProperty('--toast-progress');
-    count.textContent = '';
-    pct.textContent = 'Working…';
-    return;
-  }
-
-  // Clamped: a batch that over-counts (a skipped file still advancing the
-  // counter, say) must not render a bar wider than its own track.
-  const n = Math.max(0, Math.min(done, total));
-  const ratio = n / total;
-  bar.classList.remove('toast-progress--indeterminate');
-  bar.style.setProperty('--toast-progress', ratio.toFixed(4));
-  count.textContent = `${n} / ${total}`;
-  pct.textContent = `${Math.round(ratio * 100)}%`;
-}
-
-/* A long read or write, reported as the action it is performing with the
-   bar beneath it. `action` is the string the card shows — "Uploading
-   photos", "Revert all" — which is the whole point: the visitor is told
-   what the app is doing, not just that something is happening.
-
-   done/total are optional. Without a total the bar sweeps instead of
-   filling. With them it is a real proportion, and calling this on every
-   step is what makes the bar move. */
-function showPending(action, done, total) {
-  return showToast(action, { type: 'pending', sticky: true, progress: { done, total } });
-}
 
 /* A message, optionally carrying the Undo for what it is reporting.
    `opts === true` is the shorthand the batch loops use for a sticky
@@ -4889,7 +4796,6 @@ function showToast(msg, opts = {}) {
   if (id == null) return null;
   toastId = id;
   decorateToast(id, undo);
-  if (o.progress) renderToastProgress(id, o.progress.done, o.progress.total);
   // A sticky *progress* line is a progress bar in words: a batch raises one
   // per photo, and forty dings across one upload is not a notification.
 // That is the whole reason for the rule, and it is about frequency, not
@@ -4910,9 +4816,9 @@ function showToast(msg, opts = {}) {
   return id;
 }
 
-// Failure detail is collected through a batch and surfaced once at the end,
-// because a per-item error toast is immediately overwritten by the next
-// progress toast and would never be seen.
+// Failure detail is collected through a batch and surfaced once at the end.
+// A per-item error toast would be overwritten by the next item's, and only
+// the last would ever be read — so the reasons are gathered and named once.
 function failureSuffix(failedNames) {
   if (!failedNames.length) return '';
   const shown = failedNames.slice(0, 3).join(', ');
@@ -4948,7 +4854,7 @@ function failureSuffix(failedNames) {
     sanitizeFilename, cssSafe, escapeHtml, escapeAttr,
 
     // Notifications
-    showToast, showPending, dismissToast,
+    showToast, dismissToast,
 
     // Walkthrough gate
     shouldRequireWalkthrough, WALKTHROUGH_SEEN_KEY,
