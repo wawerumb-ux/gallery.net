@@ -136,6 +136,34 @@ describe('Opening the viewer from a card', () => {
     assert.strictEqual(h.lightboxIndexFor('F1', 2), 2, 'no translation outside the wall');
     assert.strictEqual(h.lightboxIndexFor('F1', 9), -1, 'but still bounds-checked');
   });
+
+  /* The reported failure, in the one view that could still produce it.
+     In an album the raw slot WAS the answer, so a card whose number no longer
+     matched the data opened whatever photo had taken that slot — the tap, the
+     neighbour, no error. Identity now decides, not position. */
+  test('a stale album card opens its own photo, not the one that moved into its slot', () => {
+    // The album as it is NOW: 'a' was deleted, 'b' slid down into slot 0.
+    const items = ['b', 'c'].map(n => photo(`${n}.jpg`, 'F1'));
+    const h = harness({ view: 'phases', folders: { F1: items }, picturesList: [] });
+    // A card rendered before the delete still says index 0 / a.jpg.
+    assert.strictEqual(h.lightboxIndexFor('F1', 0, 'images/F1/a.jpg'), -1,
+      'the deleted photo is gone — open nothing rather than open its neighbour');
+    // And the card that was showing 'b' still opens 'b'.
+    assert.strictEqual(h.lightboxIndexFor('F1', 0, 'images/F1/b.jpg'), 0,
+      'an honest claim still resolves to its own photo');
+  });
+
+  test('on the wall a card that disagrees with the slot still opens its own photo', () => {
+    const items = ['a', 'b', 'c'].map(n => photo(`${n}.jpg`, 'F1'));
+    const wall = [items[2], items[0], items[1]].map(img => ({ img, folder: 'F1', index: 0 }));
+    const h = harness({ view: 'images', folders: { F1: items }, picturesList: wall });
+    // Slot 2 holds c, but the card claims a. Trust the card's identity.
+    assert.strictEqual(h.lightboxIndexFor('F1', 2, 'images/F1/a.jpg'), 1, 'resolved where a actually sits');
+    // A claim matching the slot is unchanged.
+    assert.strictEqual(h.lightboxIndexFor('F1', 2, 'images/F1/c.jpg'), 0);
+    // A photo that is not on the wall at all still opens nothing.
+    assert.strictEqual(h.lightboxIndexFor('F1', 2, 'images/F1/zzz.jpg'), -1);
+  });
 });
 
 describe('Finding a card by its path', () => {

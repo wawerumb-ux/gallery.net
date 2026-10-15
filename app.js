@@ -3821,18 +3821,38 @@ function lightboxItems(folder) {
 /* Cards report a folder-local index; on the Pictures tab translate it to the
    position of that same photo in the day-sorted list.
 
+   `said` is the path the tapped card claims. In an album the raw index is the
+   whole answer, so it used to be trusted outright — and a card that no longer
+   agrees with the data (a rename, a delete, a background reload shifting the
+   array) would open whatever photo now sat in that slot. That is exactly the
+   reported failure: tap one photo, see its neighbour, with no error anywhere.
+   So both views now resolve by identity — the claimed path decides which photo
+   opens, and the index is only used to find it. A card that cannot be matched
+   opens nothing.
+
    -1 means "that index does not name a photo in this list", which is not the
    same as position 0. It used to collapse a miss to 0, and 0 is a perfectly
    valid position for a completely different photo — so a lookup that failed
    quietly produced a viewer showing the wrong picture under the tapped
    photo's name. Callers must treat -1 as a failure, not an index. */
-function lightboxIndexFor(folder, index) {
+function lightboxIndexFor(folder, index, said) {
+  const items = state.folders[folder] || [];
   if (state.view !== 'images') {
-    const items = state.folders[folder] || [];
+    if (said) {
+      // Identity first: the slot only matters once the path is confirmed.
+      const at = items.findIndex(it => it.path === said);
+      return at;
+    }
     return index >= 0 && index < items.length ? index : -1;
   }
-  const target = (state.folders[folder] || [])[index];
+  const target = items[index];
   if (!target) return -1;
+  if (said && target.path !== said) {
+    // The card and the data disagree about who occupies this slot. Trust the
+    // card's identity and resolve it directly rather than opening a neighbour.
+    const at = items.findIndex(it => it.path === said);
+    return at < 0 ? -1 : (state.picturesList || []).findIndex(c => c.img.path === said);
+  }
   const at = (state.picturesList || []).findIndex(c => c.img.path === target.path);
   return at;   // -1 when the photo is not on the wall
 }
@@ -3886,7 +3906,7 @@ function galleryDiag() {
 
 function openLightbox(folder, index, startSrc, said) {
   state.lightboxFolder = folder;
-  const at = lightboxIndexFor(folder, index);
+  const at = lightboxIndexFor(folder, index, said);
   // A tap on a card that no longer maps to a photo opens nothing rather than
   // opening the wrong one.
   if (at < 0) {
