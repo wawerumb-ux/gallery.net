@@ -929,7 +929,7 @@ describe('C — confirmation and the unlock hand-off', () => {
     h.advance(h.X.D.base - 1);
     assert.equal(textTree(card), 'Skip this stepEnd tour1 / 2Step s1Do the s1 thing.PreviousNext'); // not yet re-populated
     h.advance(1);                                // unlock fires
-    assert.equal(textTree(card), 'Skip this stepEnd tour2 / 2Step s2Do the s2 thing.PreviousFinish'); // next step's text exists now, count and title together
+    assert.equal(textTree(card), 'Skip this stepEnd tour2 / 2Step s2Do the s2 thing.PreviousGot it'); // next step's text exists now, count and title together
   });
 
   test('C3 — no overlap between outgoing and incoming prompt cards', () => {
@@ -2140,7 +2140,7 @@ describe('L — the card carries its own navigation', () => {
     assert.equal(h.document.querySelector('.tour-card-btn-prev').disabled, false);
   });
 
-  test('L6 — Next reads Finish on the last step', () => {
+  test('L6 — the last step drops Previous and shows one Got it', () => {
     const h = setup();
     const tour = h.X.createGuidedTour({ steps: threeSteps() });
     tour.start();
@@ -2149,8 +2149,69 @@ describe('L — the card carries its own navigation', () => {
       h.window.dispatchEvent('keydown', { key: 'ArrowRight' });
       h.advance(h.X.D.base);
     }
-    assert.equal(tour.getCurrentStepId(), 's3');
-    assert.equal(h.document.querySelector('.tour-card-btn-next')._textContent, 'Finish');
+    assert.equal(tour.getCurrentStepId(), 's3', 'on the last step');
+    // Previous is hidden, not disabled: on the last step there is nothing
+    // worth going back to, so it is removed rather than shown inert.
+    assert.equal(h.document.querySelector('.tour-card-btn-prev').hidden, true,
+      'Previous must be gone on the last step, not merely inert');
+    assert.equal(h.document.querySelector('.tour-card-btn-next')._textContent, 'Got it');
+    // Exactly one control is left standing.
+    const shown = h.document.querySelectorAll('.tour-card-btn')
+      .filter(b => !b.hidden);
+    assert.equal(shown.length, 1, 'a single button, not a pair');
+  });
+
+  test('L6b — Got it finishes the tour as a completion, not an escape', () => {
+    const h = setup();
+    const tour = h.X.createGuidedTour({ steps: threeSteps() });
+    tour.start();
+    h.advance(h.X.D.base);
+    for (let i = 0; i < 2; i++) {
+      h.window.dispatchEvent('keydown', { key: 'ArrowRight' });
+      h.advance(h.X.D.base);
+    }
+    h.document.querySelector('.tour-card-btn-next').dispatch('click');
+    h.advance(h.X.D.base);
+
+    assert.equal(tour.getPhase(), 'complete');
+    const st = tour.getState();
+    assert.equal(st.finished, true, 'the tour is finished');
+    assert.equal(st.escapedAt, null, 'and not recorded as abandoned');
+    // Got it says the walk is over, so the final step counts as done —
+    // this is the difference from skipAction, which records a skip.
+    assert.ok(st.completed.includes('s3'), 'the last step is completed');
+    assert.ok(!st.skipped.includes('s3'), 'and not recorded as skipped');
+  });
+
+  test('L6c — Right agrees with Got it on the last step', () => {
+    const h = setup();
+    const tour = h.X.createGuidedTour({ steps: threeSteps() });
+    tour.start();
+    h.advance(h.X.D.base);
+    for (let i = 0; i < 2; i++) {
+      h.window.dispatchEvent('keydown', { key: 'ArrowRight' });
+      h.advance(h.X.D.base);
+    }
+    h.window.dispatchEvent('keydown', { key: 'ArrowRight' });
+    h.advance(h.X.D.base);
+    assert.equal(tour.getPhase(), 'complete');
+    const st = tour.getState();
+    assert.ok(st.completed.includes('s3'),
+      'the arrow must not skip the final step while the button completes it');
+    assert.equal(st.escapedAt, null);
+  });
+
+  test('L6d — Next and Previous are both present on a middle step', () => {
+    const h = setup();
+    const tour = h.X.createGuidedTour({ steps: threeSteps() });
+    tour.start();
+    h.advance(h.X.D.base);
+    h.window.dispatchEvent('keydown', { key: 'ArrowRight' });
+    h.advance(h.X.D.base);
+    assert.equal(tour.getCurrentStepId(), 's2');
+    const shown = h.document.querySelectorAll('.tour-card-btn').filter(b => !b.hidden);
+    assert.equal(shown.length, 2, 'a middle step keeps both controls');
+    assert.equal(h.document.querySelector('.tour-card-btn-next')._textContent, 'Next');
   });
 
   test('L7 — clicking Next advances, clicking Previous goes back', () => {

@@ -265,7 +265,13 @@ function createGuidedTour(config) {
     navNext.type = 'button';
     navNext.className = 'tour-card-btn tour-card-btn-next';
     navNext.textContent = 'Next';
-    navNext.addEventListener('click', () => tourNext());
+    navNext.addEventListener('click', () => {
+      // The last step has no "next" — it is the end of the walk, and it says
+      // so. One button, and pressing it ends the tour properly rather than
+      // skipping past the final step and leaving it looking unfinished.
+      if (index >= steps.length - 1) tourComplete();
+      else tourNext();
+    });
     cardNav.appendChild(navPrev);
     cardNav.appendChild(navNext);
     card.appendChild(cardEscapes);
@@ -935,6 +941,10 @@ function createGuidedTour(config) {
 
   function tourNext() {
     if (ended) return;
+    // On the last step there is no next to move to — the same place the
+    // card's single "Got it" button lives. Both routes finish identically,
+    // so the arrow cannot skip the final step while the button completes it.
+    if (index >= steps.length - 1) return tourComplete();
     // Skipping the current step without performing it is precisely what
     // skipAction already means: the step is left behind and recorded as
     // skipped, not silently counted as completed. Reusing it keeps one
@@ -959,18 +969,43 @@ function createGuidedTour(config) {
     renderStep(index - 1);
   }
 
-  /* The step buttons say where this step is in the run. Previous is genuinely
-     inert on the first step — pressing it there does nothing at all, rather
-     than walking past the tour's first entry and exiting — so the button has
-     to look it, not merely decline when pressed. Next reads Finish on the
-     last step, because that is what pressing it does. */
+  /* The step buttons say where this step is in the run.
+
+     On every step but the last: Previous and Next. Previous is inert on the
+     first step — pressing it there does nothing at all, rather than walking
+     past the tour's first entry and exiting — so it has to look it, not
+     merely decline when pressed.
+
+     On the last step there is no next and no previous worth offering. Both
+     are removed and one button is left: the walk is over, and the only
+     honest thing left to say is that you have got it. */
   function syncNav() {
     if (!navPrev || !navNext) return;
+    const last = index >= steps.length - 1;
+    navPrev.hidden = last;
+    navNext.classList.toggle('tour-card-btn-done', last);
+    if (last) { navNext.textContent = 'Got it'; return; }
     const first = index <= 0;
     navPrev.disabled = first;
     navPrev.setAttribute('aria-disabled', first ? 'true' : 'false');
-    const last = index >= steps.length - 1;
-    navNext.textContent = last ? 'Finish' : 'Next';
+    navNext.textContent = 'Next';
+  }
+
+  /* The end of the walk, pressed deliberately on the last card. Distinct
+     from skipAction: that moves PAST a step and records it as skipped,
+     because the visitor never did the thing. This one is the visitor
+     saying they are done, so the step is recorded as completed and the
+     tour ends as a completion — not as an escape, and not leaving the
+     final step looking skipped. */
+  function tourComplete() {
+    if (ended) return;
+    if (phase !== 'waiting' && phase !== 'prompting') return;
+    if (settleTimer) { clearTimeout(settleTimer); settleTimer = null; }
+    if (detachAction) { detachAction(); detachAction = null; }
+    if (detachAnchor) { detachAnchor(); detachAnchor = null; }
+    if (target) { target.removeAttribute('aria-describedby'); unfocusable(target); }
+    if (step) saveState({ completed: [step.id] });
+    finishTour();
   }
 
   /* True while the visitor is typing somewhere: arrows belong to the field,

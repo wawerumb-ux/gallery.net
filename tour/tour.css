@@ -126,6 +126,13 @@
   background: var(--accent);
   color: var(--on-accent);
 }
+/* The closing button, alone on the last step. Full width, because it is the
+   only thing left to press and it should not read as one half of a pair. */
+.tour-card-btn-done {
+  flex: 1 1 100%;
+  padding: 10px 12px;
+  font-weight: 600;
+}
 .tour-card-btn:focus-visible {
   outline: 2px solid var(--accent-text);
   outline-offset: 2px;
