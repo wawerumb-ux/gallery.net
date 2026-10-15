@@ -954,9 +954,6 @@ applyFont(storedFont(), false);
 // remembered background never flashes pure black on the way in.
 applyComfortTheme(storedComfortTheme(), false);
 
-// Seed the history stack once so back/forward navigation has a base
-if (GalleryNav.supported) GalleryNav.seed({ galleryView: 'images' });
-
 document.addEventListener('DOMContentLoaded', init);
 
 async function init() {
@@ -1003,11 +1000,14 @@ async function init() {
   // photo" and then correct itself.
   maybeShowWelcome();
 
-  // Restore gallery view from history state (for refresh/back/forward navigation)
+  /* Initial history entry: push so back goes to previous tab, not the page before gallery.
+     If there's already a galleryNav state, restore it. Otherwise push initial view. */
   if (GalleryNav.supported) {
     const stateObj = GalleryNav.current || {};
     if (stateObj.galleryView && (stateObj.galleryView === 'images' || stateObj.galleryView === 'phases')) {
       setView(stateObj.galleryView, { pushHistory: false });
+    } else {
+      GalleryNav.push({ galleryView: 'images' });
     }
   }
 }
@@ -1895,8 +1895,8 @@ GalleryNav.subscribe((state, ours) => {
   if (ours) return;
   const id = overlayStack.pop();
   if (id) overlayHide(id);
-  // Restore gallery view from history state
-  if (state.galleryView && state.galleryView !== 'images' && state.galleryView !== 'phases') {
+  // Restore gallery view from history state (both tabs are valid views)
+  if (state.galleryView && (state.galleryView === 'images' || state.galleryView === 'phases')) {
     setView(state.galleryView, { pushHistory: false });
   }
 });
