@@ -4006,9 +4006,14 @@ function fillWindow(items, index) {
   const nodes = slideNodes();
   if (nodes.length < 3) return;
   const many = items.length > 1;
-  fillSlot(nodes[1], windowItem(items, index));
-  fillSlot(nodes[0], many ? windowItem(items, index - 1) : null);
-  fillSlot(nodes[2], many ? windowItem(items, index + 1) : null);
+  // Find slots by role, not position — the track DOM order may be rotated
+  // after swipes. The center slot always has class 'is-current'.
+  const center = nodes.find(n => n.classList.contains('is-current')) || nodes[1];
+  const prev = nodes.find(n => n.classList.contains('is-prev')) || nodes[0];
+  const next = nodes.find(n => n.classList.contains('is-next')) || nodes[2];
+  fillSlot(center, windowItem(items, index));
+  fillSlot(prev, many ? windowItem(items, index - 1) : null);
+  fillSlot(next, many ? windowItem(items, index + 1) : null);
 }
 /* Labels, counter and the download target for the photo now on screen. */
 function paintViewerChrome(img, items) {
