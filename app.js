@@ -954,6 +954,9 @@ applyFont(storedFont(), false);
 // remembered background never flashes pure black on the way in.
 applyComfortTheme(storedComfortTheme(), false);
 
+// Seed the history stack once so back/forward navigation has a base
+if (GalleryNav.supported) GalleryNav.seed({ galleryView: 'images' });
+
 document.addEventListener('DOMContentLoaded', init);
 
 async function init() {
@@ -1432,7 +1435,7 @@ function setView(view, { pushHistory = true } = {}) {
 
   if (pushHistory && GalleryNav.supported) {
     const stateObj = Object.assign({}, GalleryNav.current, { galleryView: view });
-    GalleryNav.replace(stateObj);
+    GalleryNav.push(stateObj);
   }
 }
 
