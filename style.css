@@ -83,6 +83,7 @@
   --col: 480px;              /* the phone column every screen centers on */
   --tabbar-h: 60px;
   --radius-tile: 4px;        /* mobile grid tiles: almost sharp */
+  --radius-hover: 14px;      /* tiles round out on hover into a soft frame */
   --radius-cover: 16px;      /* album covers */
   --radius-sheet: 26px;      /* sheets & dialogs */
   --radius-pill: 9999px;
@@ -94,6 +95,8 @@
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --duration-fast: 0.18s;
   --duration-normal: 0.28s;
+  --duration-hover: 0.2s;    /* card hover: ~200ms is the sweet spot —
+                               faster reads twitchy, slower feels stuck */
 }
 
 * { box-sizing: border-box; }
@@ -617,45 +620,79 @@ body.is-selecting .tabbar, body.is-selecting .fab { transform: translateY(110%);
   overflow: hidden;
   cursor: pointer;
   transform: translateZ(0);
-  transition: transform var(--duration-fast) var(--ease-spring),
-              box-shadow var(--duration-fast) var(--ease-spring);
-  will-change: transform;
+  /* The resting ring is a transparent zero-spread shadow, not `none`, so the
+     accent ring can grow in on hover instead of snapping on. `none` has no
+     interpolable value — the ring would appear in one frame. */
+  box-shadow: 0 0 0 0 rgba(0, 114, 239, 0);
+  transition: transform var(--duration-hover) var(--ease-out),
+              box-shadow var(--duration-hover) var(--ease-out),
+              border-radius var(--duration-hover) var(--ease-out);
 }
 .card:active { transform: scale(0.96) translateZ(0); transition-duration: 0.08s; }
 
-/* Hover ring — pointer devices only.
-   This is a phone-first archive, and an unguarded :hover sticks after a tap
-   on touch: you would open a photo and come back to it still ringed. The ring
-   is an inset shadow rather than a border so it never reflows the 2px grid,
-   and it inherits the tile's radius so it traces the photo's rounded shape
-   exactly instead of floating outside it. */
+/* Hover — the Dribbble / UI-Layouts card vocabulary: claim the cursor with a
+   growing accent ring, then give the card weight with a small lift and a
+   stretched shadow. The photo itself presses outward inside the frame, which
+   is what makes it read as alive rather than just outlined.
+
+   Pointer devices only, and that guard is the point: this is a phone-first
+   archive, where an unguarded :hover sticks after a tap and would leave the
+   photo you just opened still ringed. */
 @media (hover: hover) and (pointer: fine) {
+  /* The card holds its footprint — only a few px of lift. The grid gap here
+     is 2px, so the full 8px lift these cards usually get would make neighbours
+     collide; the image scale carries most of the effect instead. */
   .card:hover {
-    box-shadow: inset 0 0 0 2px var(--accent),
-                0 6px 18px var(--accent-glow);
-    transform: translateY(-2px) translateZ(0);
+    border-radius: var(--radius-hover);
+    box-shadow: 0 0 0 2px var(--accent),
+                0 10px 24px var(--accent-glow),
+                0 2px 6px var(--shadow-soft);
+    transform: translateY(-3px) translateZ(0);
   }
+  /* Press the photo outward against its frame. */
+  .card:hover img { transform: scale(1.06); }
+
   /* Selection already draws its own ring (.card-selected::after). Stacking a
      second one on the tile the badge already marks just reads as noise.
-     Note this rule outranks .card-selected (0,3,1 vs 0,2,0), so the selected
-     tile's own scale has to be re-asserted or picking a photo would un-pick
-     it visually the moment the mouse crossed it. */
+     Note these rules outrank .card-selected (0,3,1 / 0,4,2 vs 0,2,0), so the
+     selected tile's own scale is re-asserted rather than left to cascade
+     order — otherwise picking a photo would un-pick it visually the moment
+     the mouse crossed it. */
   body.is-selecting .card:hover {
-    box-shadow: none;
+    border-radius: var(--radius-tile);
+    box-shadow: 0 0 0 0 rgba(0, 114, 239, 0);
     transform: none;
   }
+  body.is-selecting .card:hover img { transform: none; }
   body.is-selecting .card.card-selected:hover {
     transform: scale(0.94) translateZ(0);
   }
-  /* Keyboard users get the ring too — a pointer-only affordance would make
-     the tiles unreachable to see as focused. */
+
+  /* Keyboard users get the same treatment — a pointer-only affordance would
+     make the wall unreadable by keyboard, and focus is the one case where
+     this elevation is unambiguously wanted. */
   .card:focus-visible {
-    box-shadow: inset 0 0 0 2px var(--accent-text),
-                0 6px 18px var(--accent-glow);
+    border-radius: var(--radius-hover);
+    box-shadow: 0 0 0 2px var(--accent-text),
+                0 10px 24px var(--accent-glow);
+    transform: translateY(-3px) translateZ(0);
   }
+  .card:focus-visible img { transform: scale(1.06); }
+
+  /* Press. Re-declared inside this block so it outranks the hover rules
+     above — both are (0,2,0), and the press has to win while the pointer is
+     down or the tile stops acknowledging the click. */
+  .card:active {
+    transform: scale(0.96) translateZ(0);
+    transition-duration: 0.08s;
+  }
+  .card:active img { transform: scale(1); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .card:hover { transform: none; }
+  .card:hover,
+  .card:focus-visible { transform: none; }
+  .card:hover img,
+  .card:focus-visible img { transform: none; }
 }
 
 .card-needs-review { outline: 1.5px dashed rgba(242, 163, 60, 0.6); outline-offset: -1.5px; }
@@ -664,7 +701,12 @@ body.is-selecting .tabbar, body.is-selecting .fab { transform: translateY(110%);
   aspect-ratio: 1 / 1;
   object-fit: cover; object-position: center;
   background: var(--surface);
-  transition: opacity 0.4s var(--ease-out), filter 0.5s var(--ease-out);
+  /* transform joins the transition so the photo can press outward inside its
+     frame on hover. Clipped by the card's overflow: hidden, so it scales
+     against the frame rather than resizing the card — the card keeps its
+     grid footprint and its neighbours never move. */
+  transition: opacity 0.4s var(--ease-out), filter 0.5s var(--ease-out),
+              transform var(--duration-hover) var(--ease-out);
 }
 .card img:not(.is-loaded) { filter: blur(12px); opacity: 0.75; }
 .card img.is-loaded { filter: none; opacity: 1; }
