@@ -904,6 +904,61 @@ function createGuidedTour(config) {
     anchorObserver.observe(target);
   }
 
+  /* ── Keyboard step navigation ──────────────────────────────────
+     Right arrow steps forward, left arrow steps back. Each follows the
+     mechanism the tour already uses for that direction rather than inventing
+     a parallel one, so the history stack and the visible step cannot drift
+     apart. */
+
+  function tourNext() {
+    if (ended) return;
+    // Skipping the current step without performing it is precisely what
+    // skipAction already means: the step is left behind and recorded as
+    // skipped, not silently counted as completed. Reusing it keeps one
+    // definition of "moved on without doing it".
+    skipAction();
+  }
+
+  function tourPrev() {
+    if (ended) return;
+    if (phase !== 'waiting' && phase !== 'prompting') return;
+    // The first step has nothing before it. Pressing previous here does
+    // nothing at all: walking past the tour's first entry would exit the
+    // tour, and an explicit key should not quietly abandon it.
+    if (index <= 0) return;
+    if (settleTimer) { clearTimeout(settleTimer); settleTimer = null; }
+    // Unwind the entry that brought us here, then render the earlier step
+    // ourselves. GalleryNav.back() flags its own popstate as "ours", so both
+    // subscribers ignore it — correct when the gallery closes its own
+    // overlay, but here the tour is the one that has to do the work. History
+    // ends on the previous step's entry and the DOM shows the previous step.
+    GalleryNav.back();
+    renderStep(index - 1);
+  }
+
+  /* True while the visitor is typing somewhere: arrows belong to the field,
+     not to the tour. Without this, Next inside the tag field would change
+     steps instead of moving the caret. */
+  function isTypingTarget(t) {
+    if (!t) return false;
+    if (t.isContentEditable) return true;
+    return /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName || '');
+  }
+
+  function onKeyDown(e) {
+    if (e.key === 'Escape') {
+      e.stopPropagation(); // reserved for the escape menu during a tour
+      toggleEscapeMenu();
+      return;
+    }
+    // Leave browser and OS shortcuts alone.
+    if (e.altKey || e.ctrlKey || e.metaKey) return;
+    if (isTypingTarget(e.target)) return;
+    if (e.key === 'ArrowRight') { tourNext(); e.preventDefault(); return; }
+    if (e.key === 'ArrowLeft') { tourPrev(); e.preventDefault(); return; }
+    // Everything else — Tab included — passes through untouched.
+  }
+
   /* ── Global listeners: Escape opens the hatch menu, back exits,
         scroll/resize re-anchor. Focus is never trapped. ────── */
 
@@ -923,14 +978,6 @@ function createGuidedTour(config) {
     window.removeEventListener('scroll', onAnchor, true);
     if (anchorObserver) { anchorObserver.disconnect(); anchorObserver = null; }
     if (escapeMenu) escapeMenu.hidden = true;
-  }
-
-  function onKeyDown(e) {
-    if (e.key === 'Escape') {
-      e.stopPropagation(); // reserved for the escape menu during a tour
-      toggleEscapeMenu();
-    }
-    // Everything else — Tab included — passes through untouched.
   }
 
   function toggleEscapeMenu() {

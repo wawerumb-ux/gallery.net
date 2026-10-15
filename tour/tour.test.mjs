@@ -468,6 +468,16 @@ function setup({ reducedMotion = false, multiplierPatch = null, seedState = null
     // to render the step it lands on, not ignore it.
     back() { if (cursor > 0) { cursor--; firePop(false); } },
     forward() { if (cursor < historyStack.length - 1) { cursor++; firePop(false); } },
+    // go(n) is how a real browser moves on, and it is what GalleryNav.back()
+    // navigates. Without it the try/catch in nav.js swallows a TypeError and
+    // back() silently does nothing, so any test of "goes back" would pass
+    // without ever moving the history cursor. The popstate it fires carries
+    // no `ours` flag — nav.js reads its own `suppress` latch, which
+    // GalleryNav.back() has already set, exactly as in a browser.
+    go(n) {
+      if (n === -1) { if (cursor > 0) { cursor--; firePop(); } }
+      else if (n === 1) { if (cursor < historyStack.length - 1) { cursor++; firePop(); } }
+    },
     landOn(i) { cursor = i; historyStack.length = i + 1; },
     get length() { return historyStack.length; },
     get cursor() { return cursor; },
@@ -1916,5 +1926,139 @@ describe('U — every button is toured', () => {
       assert.ok(/skip/i.test(s.prompt), id + ' prompt must offer the way past');
       assert.ok(/real/i.test(s.hint), id + ' hint must say the click is real');
     }
+  });
+});
+
+/* ──────────────────────────────────────────────────────────────────
+   K — keyboard step navigation: Right advances, Left goes back.
+
+   Each arrow follows the mechanism the tour already had for that
+   direction rather than a parallel one, so the history stack and the
+   visible step cannot drift apart. Left is the interesting case: it has
+   to unwind the entry that brought us here, and GalleryNav.back() marks
+   its own popstate as "ours" so both subscribers ignore it — which is
+   right when the gallery closes its own overlay and means the tour has
+   to render the earlier step itself. ────────────────────────────────── */
+
+describe('K — arrow keys walk the tour', () => {
+  const threeSteps = () => tourOf(
+    clickStep('s1', 1, 'tab-albums'),
+    clickStep('s2', 2, 'album-cover'),
+    clickStep('s3', 3, 'tab-pictures'),
+  );
+
+  test('K1 — Right advances to the next step', () => {
+    const h = setup();
+    const tour = h.X.createGuidedTour({ steps: threeSteps() });
+    tour.start();
+    h.advance(h.X.D.base);
+    assert.equal(tour.getPhase(), 'waiting');
+    assert.equal(tour.getCurrentStepId(), 's1');
+
+    h.window.dispatchEvent('keydown', { key: 'ArrowRight' });
+    h.advance(h.X.D.base); // unlock hand-off
+
+    assert.equal(tour.getCurrentStepId(), 's2');
+    assert.equal(h.document.querySelectorAll('.tour-card .tour-card-title')[0]._textContent, 'Step s2');
+  });
+
+  test('K2 — Right on the last step finishes the tour', () => {
+    const h = setup();
+    const tour = h.X.createGuidedTour({ steps: threeSteps() });
+    tour.start();
+    h.advance(h.X.D.base);
+    for (let i = 0; i < 3; i++) {
+      h.window.dispatchEvent('keydown', { key: 'ArrowRight' });
+      h.advance(h.X.D.base);
+    }
+    assert.equal(tour.getPhase(), 'complete');
+  });
+
+  test('K3 — Left returns to the previous step', () => {
+    const h = setup();
+    const tour = h.X.createGuidedTour({ steps: threeSteps() });
+    tour.start();
+    h.advance(h.X.D.base);
+    // Get to s2 the normal way.
+    h.window.dispatchEvent('keydown', { key: 'ArrowRight' });
+    h.advance(h.X.D.base);
+    assert.equal(tour.getCurrentStepId(), 's2');
+
+    h.window.dispatchEvent('keydown', { key: 'ArrowLeft' });
+    h.advance(h.X.D.base);
+
+    assert.equal(tour.getCurrentStepId(), 's1');
+    assert.equal(h.document.querySelectorAll('.tour-card .tour-card-title')[0]._textContent, 'Step s1');
+  });
+
+  test('K4 — Left moves the history cursor back, it does not push forwards', () => {
+    const h = setup();
+    const tour = h.X.createGuidedTour({ steps: threeSteps() });
+    tour.start();
+    h.advance(h.X.D.base);
+    h.window.dispatchEvent('keydown', { key: 'ArrowRight' });
+    h.advance(h.X.D.base);
+    assert.equal(tour.getCurrentStepId(), 's2');
+    const pushed = h.pushStates.length;
+
+    h.window.dispatchEvent('keydown', { key: 'ArrowLeft' });
+    h.advance(h.X.D.base);
+
+    assert.equal(h.pushStates.length, pushed,
+      'going back must unwind history, not grow it forwards');
+    assert.ok(h.history.cursor < h.history.length,
+      'the cursor must have moved, or back() was a silent no-op');
+  });
+
+  test('K5 — Left on the first step does nothing at all', () => {
+    const h = setup();
+    const tour = h.X.createGuidedTour({ steps: threeSteps() });
+    tour.start();
+    h.advance(h.X.D.base);
+    assert.equal(tour.getCurrentStepId(), 's1');
+
+    h.window.dispatchEvent('keydown', { key: 'ArrowLeft' });
+    h.advance(h.X.D.base);
+
+    assert.equal(tour.getCurrentStepId(), 's1', 'still on the first step');
+    assert.notEqual(tour.getPhase(), 'idle',
+      'and the tour must not have been quietly abandoned');
+  });
+
+  test('K6 — arrows are ignored while the visitor is typing', () => {
+    const h = setup();
+    const tour = h.X.createGuidedTour({ steps: threeSteps() });
+    tour.start();
+    h.advance(h.X.D.base);
+    assert.equal(tour.getCurrentStepId(), 's1');
+
+    const field = h.document.createElement('input');
+    h.window.dispatchEvent('keydown', { key: 'ArrowRight', target: field });
+    h.advance(h.X.D.base);
+
+    assert.equal(tour.getCurrentStepId(), 's1',
+      'the caret needs the arrow keys more than the tour does');
+  });
+
+  test('K7 — modified arrow keys are left to the browser', () => {
+    const h = setup();
+    const tour = h.X.createGuidedTour({ steps: threeSteps() });
+    tour.start();
+    h.advance(h.X.D.base);
+    for (const mod of ['metaKey', 'ctrlKey', 'altKey']) {
+      h.window.dispatchEvent('keydown', { key: 'ArrowRight', [mod]: true });
+      h.advance(h.X.D.base);
+    }
+    assert.equal(tour.getCurrentStepId(), 's1');
+  });
+
+  test('K8 — Escape still opens the escape menu, arrows did not steal it', () => {
+    const h = setup();
+    const tour = h.X.createGuidedTour({ steps: threeSteps() });
+    tour.start();
+    h.advance(h.X.D.base);
+    h.window.dispatchEvent('keydown', { key: 'Escape' });
+    assert.equal(h.document.querySelectorAll('.tour-escape-menu').length > 0, true,
+      'Escape must keep working');
   });
 });
