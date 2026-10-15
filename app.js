@@ -3859,6 +3859,7 @@ function openLightbox(folder, index, startSrc, said) {
   }
   state.lightboxIndex = at;
   state.lightboxStartSrc = startSrc || null;
+  resetSlideTrack();
   updateLightbox();
   const shown = (lightboxItems(folder)[at] || {}).path || null;
   diagTap({ what: 'viewer', said, index, resolved: at, shown, ok: shown === said });
@@ -3894,6 +3895,23 @@ let slideAnimating = false;
 function slideNodes() {
   const track = el('lightboxTrack');
   return track ? Array.from(track.children) : [];
+}
+
+/* Ensure the track DOM is in canonical order: [prev, current, next].
+   The track's DOM order can be rotated by commitSlide; this restores the
+   canonical order so fillWindow's slot assumptions hold. */
+function resetSlideTrack() {
+  const track = el('lightboxTrack');
+  if (!track) return;
+  const prev = track.querySelector('#lightboxImgPrev');
+  const current = track.querySelector('#lightboxImg');
+  const next = track.querySelector('#lightboxImgNext');
+  if (prev && current && next) {
+    // Ensure canonical order: prev, current, next
+    if (track.children[0] !== prev) track.insertBefore(prev, track.firstChild);
+    if (track.children[1] !== current) track.insertBefore(current, next);
+    if (track.children[2] !== next) track.appendChild(next);
+  }
 }
 /* Roles follow DOM position, so a rotation only has to re-stamp them. */
 function applySlideRoles() {
@@ -4004,6 +4022,7 @@ function updateLightbox() {
   lb.onerror = () => { if (lb.src !== lb.dataset.full && lb.dataset.full) lb.src = lb.dataset.full; };
   lb.alt = prettyName(img.name);
   applySlideRoles();
+  resetSlideTrack();
   fillWindow(items, state.lightboxIndex);
   paintViewerChrome(img, items);
 }
@@ -4036,6 +4055,7 @@ function closeLightbox() {
     track.classList.remove('is-moving');
     track.style.transform = '';
     track.style.willChange = '';
+    resetSlideTrack();
   }
   slideAnimating = false;
   for (const node of slideNodes()) releaseSlot(node);
