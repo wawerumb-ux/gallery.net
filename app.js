@@ -3763,8 +3763,25 @@ async function githubDelete(path, sha, message) {
     body: JSON.stringify({ message, sha, branch: CONFIG.branch }),
   });
   if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.message || `Delete failed (${res.status})`);
+    // If the SHA is stale (409/422), fetch the current SHA and retry once
+    if (res.status === 409 || res.status === 422) {
+      const current = await githubFetch(contentsUrl(path), {
+        headers: { Authorization: `Bearer ${state.token}` },
+      });
+      if (current.ok) {
+        const data = await current.json().catch(() => ({}));
+        if (data && data.sha) {
+          const retry = await githubFetch(contentsUrl(path), {
+            method: 'DELETE',
+            headers: { Authorization: `Bearer ${state.token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ message, sha: data.sha, branch: CONFIG.branch }),
+          });
+          if (retry.ok) return;
+        }
+      }
+    }
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(errData.message || `Delete failed (${res.status})`);
   }
 }
 
