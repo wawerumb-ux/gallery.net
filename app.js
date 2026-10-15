@@ -687,17 +687,16 @@ function wireComfortPopover() {
 }
 
 /* ── Typeface ──────────────────────────────────────────────────────
-   Samsung's S10 runs One UI on SamsungOne, which cannot be shipped — it
-   is a system font licensed to the handset — so the way to get the
-   Galaxy's own typography is to ask the device for the one it already
-   has: system-ui resolves to SamsungOne on a Galaxy and to Segoe or San
-   Francisco everywhere else, at no download. That is the option the
-   picker leads with, and it is the reason it is worth offering at all.
+   The gallery uses system-ui which resolves to the platform's native
+   system font (SamsungOne on Galaxy, San Francisco on iOS, Segoe on
+   Windows, etc.) at no download cost. This is the option the picker
+   leads with.
 
-   The style names come from LingoJam's text-style generator, which is
-   where the vocabulary was sourced — bold, italic, bold italic, cursive,
-   monospace, small caps, gothic/fraktur, old English, double-struck,
-   circled. The faces behind those names do not: LingoJam publishes no
+   The style names come from a text-style generator, which is where the
+   vocabulary was sourced — bold, italic, bold italic, cursive, monospace,
+   small caps, gothic/fraktur, old English, double-struck, circled. The
+   faces behind those names do not: the generator publishes no fonts
+   itself; it merely maps names to whatever system-ui provides.
    font files at all. Its "fonts" are Unicode symbol mappings (the
    Mathematical Bold Italic and neighbouring blocks), which only render
    as styled text on a device that happens to cover those ranges and
@@ -1541,7 +1540,7 @@ function applyAdminFilter() {
   el('adminSearchCount').textContent = q ? `${visible}/${total}` : '';
 }
 
-/* One tile in the Pictures wall — S10 style: just the photo, no caption.
+/* One tile in the Pictures wall — just the photo, no caption.
    Every card carries its folder and folder-local index so the viewer, the
    admin search and the upload flows all address it the same way. Selection
    mode adds the circular badge (top-left, blue when picked). */
@@ -1589,8 +1588,8 @@ function allImageCards() {
 }
 
 /* Pictures tab: every photo on one wall, grouped by day taken (newest first),
-   exactly like the S10 Gallery. Day order comes from the camera/WhatsApp
-   timestamp in the filename; unparseable names land in "Undated" at the end. */
+   day order comes from the camera/WhatsApp timestamp in the filename;
+   unparseable names land in "Undated" at the end. */
 function picturesCards() {
   return allImageCards().sort((a, b) => {
     const ta = photoTs(a.img.name), tb = photoTs(b.img.name);
@@ -1637,7 +1636,7 @@ function renderAlbums() {
 }
 
 /* ── Album detail: one tap on a cover reveals that phase's photos in
-       an inline grid (Samsung Gallery) — the cover no longer jumps
+       an inline grid — the cover no longer jumps
        straight into the viewer; tapping a photo inside the grid does. */
 function openAlbumDetail(folder) {
   const items = state.folders[folder] || [];
@@ -1778,7 +1777,7 @@ function wireGalleryEvents() {
   });
 }
 
-/* S10 selection gesture: long-press a photo (touch) or right-click it
+/* mobile selection gesture: long-press a photo (touch) or right-click it
    (desktop) to enter selection mode with that photo picked. */
 /* Long-press opens selection. The timings are one gesture: a tap must not
    reach this at all (browsers fire touchstart on tap, so the press has to
@@ -2099,7 +2098,7 @@ function wireStaticEvents() {
   el('lightboxDownloadSlot').appendChild(viewerDownload.el);
   el('lightboxTag').addEventListener('click', viewerTag);
   el('lightboxDelete').addEventListener('click', viewerDelete);
-  // Tap anywhere on the photo toggles the S10 immersive chrome.
+  // Tap anywhere on the photo toggles the mobile immersive chrome.
   el('lightboxViewport').addEventListener('click', () => {
     el('lightbox').classList.toggle('chrome-off');
   });
@@ -2772,7 +2771,7 @@ function slugify(s) {
   return s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
 }
 
-/* Selection mode (S10 long-press select). Entry points: the ⋮ menu's
+/* Selection mode (mobile long-press select). Entry points: the ⋮ menu's
    "Select photos", a long-press on a tile, or a right-click. The contextual
    top bar offers Move (into an album) and Delete, like the phone does. */
 function enterSelectMode(path) {

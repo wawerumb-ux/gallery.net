@@ -1,7 +1,7 @@
 # Structured Cabling — Project Archive
 
 A gallery site for your networking install photos, grouped by phase, hosted on
-GitHub Pages. The interface follows the Samsung Gallery app (One UI, dark):
+GitHub Pages. The interface follows the gallery app (One UI, dark):
 a **Pictures** tab with every photo on a day-grouped wall, an **Albums** tab
 with one cover per phase, a bottom tab bar, and a fullscreen swipe
 viewer. Desktop defaults to a landscape layout (wide column, denser
@@ -27,11 +27,11 @@ and the `walkthrough:journey-end` event.
 ## Typeface
 
 The app bar's `ff` toggle offers twelve faces. **One UI Sans** is the one
-that matters for a Samsung device: the S10 runs One UI on SamsungOne,
+that matters for a mobile device: the device runs system-ui on Galaxy,
 which cannot be shipped on a website because it is a system font
 licensed to the handset — but `system-ui` *resolves* to it on a Galaxy,
 and to Segoe or San Francisco everywhere else, at no download. On a
-desktop that option looks like your OS font, not the S10's; that is the
+desktop that option looks like your OS font, not the device's; that is the
 honest ceiling.
 
 **Roboto** stays the default so an untouched archive is byte-identical.

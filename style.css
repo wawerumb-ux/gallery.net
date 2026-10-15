@@ -1,6 +1,6 @@
 /* ────────────────────────────────────────────────────────────────────
    Structured Cabling — Project Archive
-   Design language: Samsung Galaxy S10 Gallery (One UI, dark).
+   Design language: mobile gallery (dark mode).
    True-black OLED canvas, collapsible hero header, bottom tab bar,
    bottom sheets, FAB. Phones and tablets keep the phone-width column
    and follow the device orientation; desktop defaults to the
@@ -82,7 +82,7 @@
   /* Geometry */
   --col: 480px;              /* the phone column every screen centers on */
   --tabbar-h: 60px;
-  --radius-tile: 4px;        /* S10 grid tiles: almost sharp */
+  --radius-tile: 4px;        /* mobile grid tiles: almost sharp */
   --radius-cover: 16px;      /* album covers */
   --radius-sheet: 26px;      /* sheets & dialogs */
   --radius-pill: 9999px;
@@ -633,7 +633,7 @@ body.is-selecting .tabbar, body.is-selecting .fab { transform: translateY(110%);
 .card img:not(.is-loaded) { filter: blur(12px); opacity: 0.75; }
 .card img.is-loaded { filter: none; opacity: 1; }
 
-/* Selection: circular badge top-left, blue fill when picked (S10) */
+/* Selection: circular badge top-left, blue fill when picked (mobile) */
 .card.card-selectable { cursor: pointer; }
 .card.card-selected { transform: scale(0.94) translateZ(0); }
 .card.card-selected::after {
@@ -1067,7 +1067,7 @@ body.is-selecting .tabbar, body.is-selecting .fab { transform: translateY(110%);
 .viewer-action:active { transform: scale(0.92); }
 .viewer-action span { color: var(--media-ink-label); }
 
-/* Tap the photo: chrome slides away like the S10 immersive mode */
+/* Tap the photo: chrome slides away like immersive mode */
 .viewer.chrome-off .viewer-top,
 .viewer.chrome-off .viewer-bottom { opacity: 0; pointer-events: none; }
 .viewer.chrome-off .viewer-top { transform: translateY(-10px); }
@@ -1644,10 +1644,10 @@ select.text-input option { background: var(--surface-3); color: var(--text); }
 
 /* ── Typeface ────────────────────────────────────────────────────
    Picked from the app bar toggle (fontBtn) and written to
-   <html data-font>. Samsung's S10 runs One UI on SamsungOne, which is
+   <html data-font>. device runs system-ui on Galaxy, which is
    not something a website can ship: it is a system face, licensed to
    the handset. So the honest way to get it is to ask the device for
-   what it already has — `system-ui` resolves to SamsungOne on a Galaxy
+   what it already has — `system-ui` resolves to the platform's native font
    and to Segoe or San Francisco everywhere else, at no download cost.
    The rest are the closest free stand-ins for its humanist-geometric
    voice: Roboto (the stylesheet's own default, already loaded), Inter
