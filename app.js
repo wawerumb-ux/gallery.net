@@ -687,16 +687,32 @@ function wireComfortPopover() {
 }
 
 /* ── Typeface ──────────────────────────────────────────────────────
-   The gallery uses system-ui which resolves to the platform's native
-   system font (SamsungOne on Galaxy, San Francisco on iOS, Segoe on
-   Windows, etc.) at no download cost. This is the option the picker
-   leads with.
+   Samsung's S10 runs One UI on SamsungOne, which cannot be shipped — it
+   is a system font licensed to the handset — so the way to get the
+   Galaxy's own typography is to ask the device for the one it already
+   has: system-ui resolves to SamsungOne on a Galaxy and to Segoe or San
+   Francisco everywhere else, at no download cost. That is the option the
+   picker leads with, and it is the reason it is worth offering at all.
 
-   The style names come from a text-style generator, which is where the
-   vocabulary was sourced — bold, italic, bold italic, cursive, monospace,
-   small caps, gothic/fraktur, old English, double-struck, circled. The
-   faces behind those names do not: the generator publishes no fonts
-   itself; it merely maps names to whatever system-ui provides.
+   The style names come from LingoJam's text-style generator, which is
+   where the vocabulary was sourced — bold, italic, bold italic, cursive,
+   monospace, small caps, gothic/fraktur, old English, double-struck,
+   circled. The faces behind those names do not: LingoJam publishes no
+   font files at all. Its "fonts" are Unicode symbol mappings (the
+   Mathematical Bold Italic and neighbouring blocks), which only render
+   as styled text on a device that happens to cover those ranges and
+   show as tofu squares where it does not. So every name here is backed
+   by a real, properly-licensed face from Google Fonts, which is where
+   this archive already gets Roboto and IBM Plex Mono from.
+
+   Only --font-sans is touched. The mono stack is not offered — the
+   filenames, counts and load bars in this interface read as code in any
+   of them, and a script set over them would be unreadable.
+
+   Nothing loads up front. The archive ships a render-blocking Google
+   Fonts stylesheet for Roboto and IBM Plex Mono; every face below is
+   appended at the moment it is first wanted, so a visitor who never
+   opens the picker pays nothing for any of it.
    font files at all. Its "fonts" are Unicode symbol mappings (the
    Mathematical Bold Italic and neighbouring blocks), which only render
    as styled text on a device that happens to cover those ranges and
@@ -1540,7 +1556,7 @@ function applyAdminFilter() {
   el('adminSearchCount').textContent = q ? `${visible}/${total}` : '';
 }
 
-/* One tile in the Pictures wall — just the photo, no caption.
+/* One tile in the Pictures wall — S10 style: just the photo, no caption.
    Every card carries its folder and folder-local index so the viewer, the
    admin search and the upload flows all address it the same way. Selection
    mode adds the circular badge (top-left, blue when picked). */
@@ -1588,8 +1604,8 @@ function allImageCards() {
 }
 
 /* Pictures tab: every photo on one wall, grouped by day taken (newest first),
-   day order comes from the camera/WhatsApp timestamp in the filename;
-   unparseable names land in "Undated" at the end. */
+   exactly like the S10 Gallery. Day order comes from the camera/WhatsApp
+   timestamp in the filename; unparseable names land in "Undated" at the end. */
 function picturesCards() {
   return allImageCards().sort((a, b) => {
     const ta = photoTs(a.img.name), tb = photoTs(b.img.name);
@@ -1635,9 +1651,9 @@ function renderAlbums() {
   el('albumsView').innerHTML = `<div class="grid-albums">${state.order.map(albumCardMarkup).join('')}</div>`;
 }
 
-/* ── Album detail: one tap on a cover reveals that phase's photos in
-       an inline grid — the cover no longer jumps
-       straight into the viewer; tapping a photo inside the grid does. */
+/* Album detail: one tap on a cover reveals that phase's photos in
+   an inline grid (Samsung Gallery) — the cover no longer jumps
+   straight into the viewer; tapping a photo inside the grid does. */
 function openAlbumDetail(folder) {
   const items = state.folders[folder] || [];
   if (!items.length) return;
@@ -1697,14 +1713,9 @@ function renderAlbumDetail() {
       const said = fig.dataset.path;
       const folder = fig.dataset.folder;
       const index = Number(fig.dataset.index);
-      const at = lightboxIndexFor(folder, index);
-      if (at >= 0) {
-        const items = lightboxItems(folder);
-        const resolved = items[at]?.path || null;
-        if (resolved !== said) {
-          console.warn('[gallery] album click mismatch:', { said, resolved, folder, index, resolvedAt: at });
-        }
-      }
+      // openLightbox records the tap (claim, resolved slot, painted file) and
+      // is the only place that knows what it actually painted — so it does not
+      // duplicate the verdict here, where nothing has been painted yet.
       openLightbox(folder, index, startSrcFor(fig, said), said);
     });
     wireLongPress(fig);
@@ -1725,12 +1736,7 @@ function renderAlbumDetail() {
 function wireGalleryEvents() {
   const gallery = el('gallery');
   gallery.querySelectorAll('img[data-full]').forEach(img => {
-    // Blur-up: when the tiny thumb finishes, swap in the full-res image and
-    // fade it in (CSS adds the blur + transition). Revisit with SW = instant.
     img.addEventListener('load', () => {
-      // Reveal the moment the tiny thumb finishes — never gate the blur-clear
-      // on the heavier sharp tier. The upgrade then happens in the background;
-      // on 1x screens src and data-full are the same file, so no 2nd fetch.
       if (!img.classList.contains('is-loaded')) img.classList.add('is-loaded');
       if (img.src !== img.dataset.full && img.dataset.full) img.src = img.dataset.full;
       loadProg.imageLoaded();
@@ -1750,14 +1756,8 @@ function wireGalleryEvents() {
       const said = fig.dataset.path;
       const folder = fig.dataset.folder;
       const index = Number(fig.dataset.index);
-      const at = lightboxIndexFor(folder, index);
-      if (at >= 0) {
-        const items = lightboxItems(folder);
-        const resolved = items[at]?.path || null;
-        if (resolved !== said) {
-          console.warn('[gallery] click mismatch:', { said, resolved, folder, index, resolvedAt: at });
-        }
-      }
+      // The tap record is written by openLightbox, which is the only place
+      // that knows which file the viewer actually painted.
       openLightbox(folder, index, startSrcFor(fig, said), said);
     });
     wireLongPress(fig);
@@ -2098,7 +2098,7 @@ function wireStaticEvents() {
   el('lightboxDownloadSlot').appendChild(viewerDownload.el);
   el('lightboxTag').addEventListener('click', viewerTag);
   el('lightboxDelete').addEventListener('click', viewerDelete);
-  // Tap anywhere on the photo toggles the mobile immersive chrome.
+  // Tap anywhere on the photo toggles the S10 immersive chrome.
   el('lightboxViewport').addEventListener('click', () => {
     el('lightbox').classList.toggle('chrome-off');
   });
@@ -2771,7 +2771,7 @@ function slugify(s) {
   return s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '');
 }
 
-/* Selection mode (mobile long-press select). Entry points: the ⋮ menu's
+/* Selection mode (S10 long-press select). Entry points: the ⋮ menu's
    "Select photos", a long-press on a tile, or a right-click. The contextual
    top bar offers Move (into an album) and Delete, like the phone does. */
 function enterSelectMode(path) {

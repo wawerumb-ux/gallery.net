@@ -100,10 +100,19 @@ function boot() {
   const viewBlock = app.slice(app.indexOf('function lightboxItems'), app.indexOf('function updateLightbox'));
 
   const sandbox = {
-    window, document, console,
+    window: {
+      document,
+      console,
+      addEventListener() {},
+      scrollTo: () => {},
+    },
+    console,
+    document,
     CONFIG,
     state: null,
+    keepY: 0,
     localStorage: { getItem: () => null, setItem() {} },
+    scrollTo: () => {},
     getComputedStyle: () => ({ objectFit: 'cover', objectPosition: 'center', borderRadius: '6px' }),
     requestAnimationFrame: () => 0, cancelAnimationFrame() {},
     setTimeout: () => 0, clearTimeout() {},
@@ -221,12 +230,13 @@ describe('Tapping a card opens that card', () => {
     const cards = [...document.querySelectorAll('#picturesView .card')];
     // The log is capped at 40 and is shared by every boot's window, so start
     // from a clean slate rather than counting what earlier tests left.
-    window.__galleryDiagLog = [];
+    // Inside the slice `window` is sandbox.window, not the sandbox root.
+    sandbox.window.__galleryDiagLog = [];
     for (const card of cards) {
       st.lightboxIndex = -1;
       card.dispatchEvent(new window.Event('click'));
     }
-    const log = window.__galleryDiagLog;
+    const log = sandbox.window.__galleryDiagLog;
     assert.ok(Array.isArray(log), 'taps must be recorded');
     assert.strictEqual(log.length, cards.length, 'one record per tap');
     for (const e of log) {
