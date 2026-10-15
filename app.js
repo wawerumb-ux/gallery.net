@@ -999,6 +999,14 @@ async function init() {
   // gallery with nothing loaded yet would greet the visitor with "every
   // photo" and then correct itself.
   maybeShowWelcome();
+
+  // Restore gallery view from history state (for refresh/back/forward navigation)
+  if (GalleryNav.supported) {
+    const stateObj = GalleryNav.current || {};
+    if (stateObj.galleryView && (stateObj.galleryView === 'images' || stateObj.galleryView === 'phases')) {
+      setView(stateObj.galleryView, { pushHistory: false });
+    }
+  }
 }
 
 /* ── Reading the repo ─────────────────────────────────────────── */
@@ -1403,7 +1411,7 @@ function render() {
 /* ── Bottom tabs (Pictures / Albums) ───────────────────────────────
    Both views are always rendered; a tab switch just reveals one and
    restores its scroll position, so flipping tabs never loses place. */
-function setView(view) {
+function setView(view, { pushHistory = true } = {}) {
   if (view !== 'images' && view !== 'phases') return;
   if (state.view === view) return;
   // The album detail lives inside the Albums tab — switching tabs leaves it.
@@ -1421,6 +1429,11 @@ function setView(view) {
   if (!el('lightbox').hidden) overlayClose('lightbox');
   window.scrollTo(0, state._tabScroll[view] || 0);
   syncAppbar();
+
+  if (pushHistory && GalleryNav.supported) {
+    const stateObj = Object.assign({}, GalleryNav.current, { galleryView: view });
+    GalleryNav.replace(stateObj);
+  }
 }
 
 /* The title the app bar last painted. The scroll listener calls
@@ -1879,6 +1892,10 @@ GalleryNav.subscribe((state, ours) => {
   if (ours) return;
   const id = overlayStack.pop();
   if (id) overlayHide(id);
+  // Restore gallery view from history state
+  if (state.galleryView && state.galleryView !== 'images' && state.galleryView !== 'phases') {
+    setView(state.galleryView, { pushHistory: false });
+  }
 });
 
 /* ── Confirming a destructive action ────────────────────────────────
