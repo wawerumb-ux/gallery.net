@@ -4194,7 +4194,12 @@ function lightboxStep(delta) {
   state.lightboxIndex = (state.lightboxIndex + delta + items.length) % items.length;
   state.lightboxStepDir = delta;
   track.style.willChange = 'transform';
-  track.style.transform = `translateX(${-delta * 100}%)`;
+  // Offset is relative to the resting position, which is translateX(-100%)
+  // in CSS because the current photo is the second of three slots. Stepping
+  // forward slides toward the next slot, so -200%; back toward the previous,
+  // so 0%. Measured from 0 instead — as this used to be — the track animated
+  // one slot short of its target and the viewer settled on the wrong photo.
+  track.style.transform = `translateX(${-100 - delta * 100}%)`;
   track.classList.add('is-moving');
   slideAnimating = true;
   const done = (e) => {

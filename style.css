@@ -1088,6 +1088,14 @@ body.is-selecting .tabbar, body.is-selecting .fab { transform: translateY(110%);
   display: flex;
   width: 100%; height: 100%;
   will-change: auto;               /* a layer is only worth its RAM while moving */
+  /* THE resting offset, and the invariant the whole slider hangs off: the
+     current photo is the SECOND of three slots, so at rest the track sits one
+     slot to the left to bring slot 1 under the stage. Nothing else anywhere
+     positions it — at translateX(0) the stage shows slot 0, the PREVIOUS
+     photo, which is why every tap appeared to open its neighbour.
+     commitSlide and closeLightbox clear the inline transform, which lands
+     back here; lightboxStep rebases its offset on top of it. */
+  transform: translateX(-100%);
 }
 .viewer-track.is-moving { transition: transform 320ms var(--ease-out); }
 .viewer-track.is-moving { will-change: transform; }
