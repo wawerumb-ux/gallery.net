@@ -1679,8 +1679,18 @@ function renderAlbumDetail() {
     fig.addEventListener('click', () => {
       if (Date.now() < (state._suppressClickUntil || 0)) return;
       if (state.adminMode && state.batchSelect) { toggleBatchSelect(fig.dataset.path); return; }
-      openLightbox(fig.dataset.folder, Number(fig.dataset.index),
-        startSrcFor(fig, fig.dataset.path), fig.dataset.path);
+      const said = fig.dataset.path;
+      const folder = fig.dataset.folder;
+      const index = Number(fig.dataset.index);
+      const at = lightboxIndexFor(folder, index);
+      if (at >= 0) {
+        const items = lightboxItems(folder);
+        const resolved = items[at]?.path || null;
+        if (resolved !== said) {
+          console.warn('[gallery] album click mismatch:', { said, resolved, folder, index, resolvedAt: at });
+        }
+      }
+      openLightbox(folder, index, startSrcFor(fig, said), said);
     });
     wireLongPress(fig);
   });
@@ -1722,8 +1732,18 @@ function wireGalleryEvents() {
       // Hand the lightbox the exact image the card already loaded (a cache
       // hit = instant, no re-download, no blur flash) — but only once that
       // card has been confirmed to be the photo the tap resolves to.
-      openLightbox(fig.dataset.folder, Number(fig.dataset.index),
-        startSrcFor(fig, fig.dataset.path), fig.dataset.path);
+      const said = fig.dataset.path;
+      const folder = fig.dataset.folder;
+      const index = Number(fig.dataset.index);
+      const at = lightboxIndexFor(folder, index);
+      if (at >= 0) {
+        const items = lightboxItems(folder);
+        const resolved = items[at]?.path || null;
+        if (resolved !== said) {
+          console.warn('[gallery] click mismatch:', { said, resolved, folder, index, resolvedAt: at });
+        }
+      }
+      openLightbox(folder, index, startSrcFor(fig, said), said);
     });
     wireLongPress(fig);
   });
