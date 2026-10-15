@@ -75,11 +75,13 @@
 }
 
 /* Escape hatches: muted text links, never buttons, never the
-   accent color, and they do not animate in. */
+   accent color, and they do not animate in. They sit at the TOP of the
+   card, above the step counter — they are the way out, and at the foot
+   of the card they read as another way on. */
 .tour-card-escapes {
   display: flex;
   gap: 16px;
-  margin-top: 10px;
+  margin-bottom: 10px;
 }
 .tour-escape-link {
   background: none;
@@ -93,6 +95,48 @@
   cursor: pointer;
 }
 .tour-escape-link:hover { color: var(--text-dim); }
+
+/* Step navigation, at the foot of the card under the prompt — what you
+   reach for once you have read what the step asks for, and the same two
+   moves the arrow keys make. Real buttons, because for anyone not using
+   the keyboard they are the only way through; but deliberately quieter
+   than the step's own action, which stays the thing the tour is asking
+   you to do. Next carries the accent because it is the direction the
+   tour wants you going. */
+.tour-card-nav {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+.tour-card-btn {
+  flex: 1;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 500;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--hairline-strong);
+  background: var(--surface-2);
+  color: var(--text);
+  cursor: pointer;
+  transition: opacity var(--duration-fast, 0.18s) ease;
+}
+.tour-card-btn-next {
+  border-color: transparent;
+  background: var(--accent);
+  color: var(--on-accent);
+}
+.tour-card-btn:focus-visible {
+  outline: 2px solid var(--accent-text);
+  outline-offset: 2px;
+}
+/* Previous on the first step is inert by design — pressing it there does
+   nothing, because walking past the tour's first entry would exit it.
+   It reads as unavailable rather than offering a key that misleads. */
+.tour-card-btn:disabled {
+  opacity: 0.38;
+  cursor: default;
+}
 
 /* The tail: a soft rotated square on the card edge nearest the
    target — positioned by tour.js, no hard lines. */

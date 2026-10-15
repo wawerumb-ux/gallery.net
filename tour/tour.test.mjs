@@ -925,11 +925,11 @@ describe('C — confirmation and the unlock hand-off', () => {
     h.advance(h.X.D.base + h.X.D.short); // confirm done → unlocking starts (fade over D.base)
     assert.equal(tour.getPhase(), 'unlocking');
     assert.equal(card.style.opacity, '0');      // fully faded…
-    assert.equal(textTree(card), '1 / 2Step s1Do the s1 thing.Skip this stepEnd tour'); // …and still step 1's text
+    assert.equal(textTree(card), 'Skip this stepEnd tour1 / 2Step s1Do the s1 thing.PreviousNext'); // …and still step 1's text
     h.advance(h.X.D.base - 1);
-    assert.equal(textTree(card), '1 / 2Step s1Do the s1 thing.Skip this stepEnd tour'); // not yet re-populated
+    assert.equal(textTree(card), 'Skip this stepEnd tour1 / 2Step s1Do the s1 thing.PreviousNext'); // not yet re-populated
     h.advance(1);                                // unlock fires
-    assert.equal(textTree(card), '2 / 2Step s2Do the s2 thing.Skip this stepEnd tour'); // next step's text exists now, count and title together
+    assert.equal(textTree(card), 'Skip this stepEnd tour2 / 2Step s2Do the s2 thing.PreviousFinish'); // next step's text exists now, count and title together
   });
 
   test('C3 — no overlap between outgoing and incoming prompt cards', () => {
@@ -2060,5 +2060,139 @@ describe('K — arrow keys walk the tour', () => {
     h.window.dispatchEvent('keydown', { key: 'Escape' });
     assert.equal(h.document.querySelectorAll('.tour-escape-menu').length > 0, true,
       'Escape must keep working');
+  });
+});
+
+/* ──────────────────────────────────────────────────────────────────
+   L — the card's own navigation: escapes at the top, step buttons at
+   the bottom.
+
+   These are the same two moves as the arrow keys, made visible. The
+   ordering is the point: "Skip this step / End tour" at the foot of the
+   card read as another way on, because at the foot of the card is where
+   the way on now lives. Same links, opposite ends. ────────────────── */
+
+describe('L — the card carries its own navigation', () => {
+  const threeSteps = () => tourOf(
+    clickStep('s1', 1, 'tab-albums'),
+    clickStep('s2', 2, 'album-cover'),
+    clickStep('s3', 3, 'tab-pictures'),
+  );
+
+  test('L1 — the card has Previous and Next buttons', () => {
+    const h = setup();
+    const tour = h.X.createGuidedTour({ steps: threeSteps() });
+    tour.start();
+    h.advance(h.X.D.base);
+    const btns = h.document.querySelectorAll('.tour-card-btn');
+    assert.equal(btns.length, 2, 'exactly two step buttons');
+    const labels = btns.map(b => b._textContent);
+    assert.deepEqual(labels, ['Previous', 'Next']);
+  });
+
+  test('L2 — escape hatches are the FIRST thing in the card', () => {
+    const h = setup();
+    const tour = h.X.createGuidedTour({ steps: threeSteps() });
+    tour.start();
+    h.advance(h.X.D.base);
+    const first = h.document.querySelector('.tour-card').children[0];
+    assert.ok(first.classList.contains('tour-card-escapes'),
+      'Skip/End must sit above the step counter, not below the prompt');
+    const last = h.document.querySelector('.tour-card').children
+      [h.document.querySelector('.tour-card').children.length - 1];
+    assert.ok(!last.classList.contains('tour-card-escapes'),
+      'and must not also still be at the foot');
+  });
+
+  test('L3 — the step buttons are at the BOTTOM, after the prompt and hint', () => {
+    const h = setup();
+    const tour = h.X.createGuidedTour({ steps: threeSteps() });
+    tour.start();
+    h.advance(h.X.D.base);
+    const kids = [...h.document.querySelector('.tour-card').children];
+    const navAt = kids.findIndex(k => k.classList.contains('tour-card-nav'));
+    const promptAt = kids.findIndex(k => k.classList.contains('tour-card-prompt'));
+    const hintAt = kids.findIndex(k => k.classList.contains('tour-card-hint'));
+    assert.ok(navAt > promptAt, 'nav must come after the prompt');
+    assert.ok(navAt > hintAt, 'nav must come after the hint');
+    // Only the decorative tail may follow it.
+    assert.equal(kids.length - navAt, 2, 'nav, then the tail, and nothing else');
+  });
+
+  test('L4 — Previous is disabled on the first step', () => {
+    const h = setup();
+    const tour = h.X.createGuidedTour({ steps: threeSteps() });
+    tour.start();
+    h.advance(h.X.D.base);
+    const prev = h.document.querySelector('.tour-card-btn-prev');
+    assert.equal(prev.disabled, true,
+      'there is nothing before step 1, and pressing it would exit the tour');
+    assert.equal(prev.getAttribute('aria-disabled'), 'true');
+  });
+
+  test('L5 — Previous is enabled once past the first step', () => {
+    const h = setup();
+    const tour = h.X.createGuidedTour({ steps: threeSteps() });
+    tour.start();
+    h.advance(h.X.D.base);
+    h.window.dispatchEvent('keydown', { key: 'ArrowRight' });
+    h.advance(h.X.D.base);
+    assert.equal(h.document.querySelector('.tour-card-btn-prev').disabled, false);
+  });
+
+  test('L6 — Next reads Finish on the last step', () => {
+    const h = setup();
+    const tour = h.X.createGuidedTour({ steps: threeSteps() });
+    tour.start();
+    h.advance(h.X.D.base);
+    for (let i = 0; i < 2; i++) {
+      h.window.dispatchEvent('keydown', { key: 'ArrowRight' });
+      h.advance(h.X.D.base);
+    }
+    assert.equal(tour.getCurrentStepId(), 's3');
+    assert.equal(h.document.querySelector('.tour-card-btn-next')._textContent, 'Finish');
+  });
+
+  test('L7 — clicking Next advances, clicking Previous goes back', () => {
+    const h = setup();
+    const tour = h.X.createGuidedTour({ steps: threeSteps() });
+    tour.start();
+    h.advance(h.X.D.base);
+
+    h.document.querySelector('.tour-card-btn-next').dispatch('click');
+    h.advance(h.X.D.base);
+    assert.equal(tour.getCurrentStepId(), 's2');
+
+    h.document.querySelector('.tour-card-btn-prev').dispatch('click');
+    h.advance(h.X.D.base);
+    assert.equal(tour.getCurrentStepId(), 's1');
+  });
+
+  test('L8 — clicking Previous on the first step does nothing', () => {
+    const h = setup();
+    const tour = h.X.createGuidedTour({ steps: threeSteps() });
+    tour.start();
+    h.advance(h.X.D.base);
+    // A disabled button does not fire in a browser; force the call anyway to
+    // prove the handler itself is a no-op rather than relying on the attribute.
+    const prev = h.document.querySelector('.tour-card-btn-prev');
+    prev.listeners.click.forEach(fn => fn({ preventDefault() {} }));
+    h.advance(h.X.D.base);
+    assert.equal(tour.getCurrentStepId(), 's1');
+    assert.notEqual(tour.getPhase(), 'idle', 'the tour must survive');
+  });
+
+  test('L9 — the buttons do not fire the step\'s own action', () => {
+    const h = setup();
+    const tour = h.X.createGuidedTour({ steps: threeSteps() });
+    tour.start();
+    h.advance(h.X.D.base);
+    // Next is skipAction: it moves on WITHOUT recording the step completed.
+    h.document.querySelector('.tour-card-btn-next').dispatch('click');
+    h.advance(h.X.D.base);
+    const state = tour.getState();
+    assert.ok(!state.completed.includes('s1'),
+      'stepping past a step must not count as having done it');
+    assert.ok(state.skipped.includes('s1'), 'it is recorded as skipped');
   });
 });

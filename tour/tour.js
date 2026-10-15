@@ -208,7 +208,8 @@ function createGuidedTour(config) {
   /* ── Overlay DOM (built once per tour, reused per step) ────── */
 
   let root, dim, ringSvg, ringRect, ringCheck, card, cardCount, cardTitle,
-      cardPrompt, cardHint, cardEscapes, toast, escapeMenu;
+      cardPrompt, cardHint, cardEscapes, cardNav, navPrev, navNext,
+      toast, escapeMenu;
 
   function buildOverlay() {
     root = document.createElement('div');
@@ -248,11 +249,31 @@ function createGuidedTour(config) {
     cardHint.className = 'tour-card-hint';
     cardEscapes = document.createElement('div');
     cardEscapes.className = 'tour-card-escapes';
+    // Step navigation sits at the BOTTOM, under the prompt: it is what you
+    // reach for once you have read what the step is asking for. The escape
+    // hatches sit at the TOP, above the step counter — they are the way out,
+    // and at the foot of the card they read as another way on. Same links,
+    // opposite ends, so the two can never be confused for each other.
+    cardNav = document.createElement('div');
+    cardNav.className = 'tour-card-nav';
+    navPrev = document.createElement('button');
+    navPrev.type = 'button';
+    navPrev.className = 'tour-card-btn tour-card-btn-prev';
+    navPrev.textContent = 'Previous';
+    navPrev.addEventListener('click', () => tourPrev());
+    navNext = document.createElement('button');
+    navNext.type = 'button';
+    navNext.className = 'tour-card-btn tour-card-btn-next';
+    navNext.textContent = 'Next';
+    navNext.addEventListener('click', () => tourNext());
+    cardNav.appendChild(navPrev);
+    cardNav.appendChild(navNext);
+    card.appendChild(cardEscapes);
     card.appendChild(cardCount);
     card.appendChild(cardTitle);
     card.appendChild(cardPrompt);
     card.appendChild(cardHint);
-    card.appendChild(cardEscapes);
+    card.appendChild(cardNav);
     const tail = document.createElement('span');
     tail.className = 'tour-card-tail';
     card.appendChild(tail);
@@ -286,6 +307,7 @@ function createGuidedTour(config) {
     if (root && root.parentNode) root.parentNode.removeChild(root);
     root = dim = ringSvg = ringRect = ringCheck = card = cardCount =
       cardTitle = cardPrompt = cardHint = cardEscapes = toast = escapeMenu = null;
+    cardNav = navPrev = navNext = null;
   }
 
   /* ── Target resolution ─────────────────────────────────────── */
@@ -434,6 +456,7 @@ function createGuidedTour(config) {
       cardHint.textContent = step.hint || '';
       cardHint.hidden = !step.hint;
       renderEscapes(cardEscapes);
+      syncNav();
       // Fade the card in over D.base; dim and ring fade with it.
       card.style.transition = 'opacity ' + dur(D.base) + 'ms ' + ONE_UI_EASING;
       dim.style.transition = 'opacity ' + dur(D.base) + 'ms ' + ONE_UI_EASING;
@@ -934,6 +957,20 @@ function createGuidedTour(config) {
     // ends on the previous step's entry and the DOM shows the previous step.
     GalleryNav.back();
     renderStep(index - 1);
+  }
+
+  /* The step buttons say where this step is in the run. Previous is genuinely
+     inert on the first step — pressing it there does nothing at all, rather
+     than walking past the tour's first entry and exiting — so the button has
+     to look it, not merely decline when pressed. Next reads Finish on the
+     last step, because that is what pressing it does. */
+  function syncNav() {
+    if (!navPrev || !navNext) return;
+    const first = index <= 0;
+    navPrev.disabled = first;
+    navPrev.setAttribute('aria-disabled', first ? 'true' : 'false');
+    const last = index >= steps.length - 1;
+    navNext.textContent = last ? 'Finish' : 'Next';
   }
 
   /* True while the visitor is typing somewhere: arrows belong to the field,
