@@ -299,7 +299,12 @@
 
      The bin is the anchor of the whole interaction: it pops up with the
      dialog, and on accept the photo is swallowed into this one rather
-     than off at the edge of the screen. -->
+     than off at the edge of the screen.
+
+     Cancel carries a tour target because two of the questions asked here
+     are asked FROM Album settings, which steps out of the way while they
+     are up — cancelling is the step that brings it back. The accept button
+     has none, on purpose: no step may remove an album or a photo. -->
 <div class="modal-overlay" id="confirmOverlay" hidden>
   <div class="modal modal-confirm" role="alertdialog" aria-modal="true" aria-labelledby="confirmTitle" aria-describedby="confirmBody">
     <span class="confirm-bin" id="confirmBin" aria-hidden="true">
@@ -308,7 +313,7 @@
     <h2 id="confirmTitle">Are you sure?</h2>
     <p class="modal-copy" id="confirmBody"></p>
     <div class="modal-actions">
-      <button class="btn btn-ghost" id="confirmCancel">Cancel</button>
+      <button class="btn btn-ghost" id="confirmCancel" data-tour-target="confirm-cancel">Cancel</button>
       <button class="btn btn-danger" id="confirmOk">Delete</button>
     </div>
   </div>

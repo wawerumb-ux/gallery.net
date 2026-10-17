@@ -2179,6 +2179,20 @@ function askConfirm({ title, body, okLabel = 'Delete', danger = true, onAccept =
   // stacking two dialogs the user then has to answer twice.
   if (confirmPending) confirmPending(false);
 
+  // A question asked from inside a dialog: that dialog steps out of the
+  // way. Both are modal overlays and the one later in the document wins the
+  // same z-index, so asking from Album settings painted the question UNDER
+  // it — measured at 412 wide, the settings card covered the confirm
+  // completely and focus went to a Cancel nobody could see. Hidden rather
+  // than closed: it keeps its place in the history stack and everything
+  // typed into it, so a No puts it back exactly as it was, and backing out
+  // of the question lands on it instead of at the wall.
+  const under = overlayStack[overlayStack.length - 1];
+  const parent = under && under !== 'confirmOverlay' ? el(under) : null;
+  const parentStepsOut = !!(parent && !parent.hidden && parent.classList
+    && parent.classList.contains('modal-overlay'));
+  if (parentStepsOut) parent.hidden = true;
+
   el('confirmTitle').textContent = title;
   el('confirmBody').innerHTML = body;
   const ok = el('confirmOk');
@@ -2200,6 +2214,11 @@ function askConfirm({ title, body, okLabel = 'Delete', danger = true, onAccept =
       confirmPending = null;
       confirmConfirm = null;
       confirmBusy = false;
+      // No: the dialog the question came from comes back into view. Only
+      // while it is still on the stack — a back-press that unwound it
+      // already closed it, and putting it back would leave a dialog on
+      // screen that neither Escape nor back could reach.
+      if (!value && parentStepsOut && overlayStack.indexOf(under) !== -1) parent.hidden = false;
       resolve(value);
     };
     confirmPending = settle;
@@ -3342,8 +3361,8 @@ async function removePhase() {
     // The bin takes the album card — the object being removed, not the word
     // on the button — while this dialog is still up. The card is looked up
     // here rather than before the dialog opened, because the settings modal
-    // is still on screen underneath and the Albums tab can change while the
-    // question is being read. It flies as a clone rather than lifted, because
+    // has stepped out of the way and the wall behind the question can change
+    // while it is being read. It flies as a clone rather than lifted, because
     // it has to keep its place in the grid until the album is really gone.
     // If the tab is not on screen there is nothing to fly and the album is
     // simply removed, same as any off-screen photo.

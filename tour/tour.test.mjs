@@ -351,6 +351,13 @@ function setup({ reducedMotion = false, multiplierPatch = null, seedState = null
   const settingsRevertBtn = reg(makeEl('button', { rect: { top: 560, left: 674, right: 784, bottom: 600, width: 110, height: 40 } }));
   settingsRevertBtn.id = 'settingsRevertBtn';
   settingsRevertBtn.setAttribute('data-tour-target', 'settings-revert');
+  // The shared confirmation's Cancel. Two questions are asked from Album
+  // settings — remove an album, revert every change — and each takes the
+  // screen while the settings step out of the way, so this is the button
+  // that puts the walk back where it was.
+  const confirmCancel = reg(makeEl('button', { rect: { top: 500, left: 544, right: 624, bottom: 540, width: 80, height: 40 } }));
+  confirmCancel.id = 'confirmCancel';
+  confirmCancel.setAttribute('data-tour-target', 'confirm-cancel');
   const tagSave = reg(makeEl('button', { rect: { top: 500, left: 664, right: 784, bottom: 540, width: 120, height: 40 } }));
   tagSave.id = 'tagSave';
   tagSave.setAttribute('data-tour-target', 'classify-save');
@@ -383,6 +390,7 @@ function setup({ reducedMotion = false, multiplierPatch = null, seedState = null
   body.appendChild(settingsRemoveBtn);
   body.appendChild(settingsUndoBtn);
   body.appendChild(settingsRevertBtn);
+  body.appendChild(confirmCancel);
   body.appendChild(tagSave);
 
   class FakeDate {
@@ -596,6 +604,7 @@ function setup({ reducedMotion = false, multiplierPatch = null, seedState = null
     settingsRemoveBtn,
     settingsUndoBtn,
     settingsRevertBtn,
+    confirmCancel,
     tagSave,
     tokenCancel,
     newAlbumCancel,
@@ -1364,9 +1373,9 @@ describe('S — the speed multiplier is the single timing source', () => {
 /* ── Integration: the real authored tour ──────────────────── */
 
 describe('T — the real TOUR_STEPS integration', () => {
-  test('T1 — the authored 60-step tour runs end to end on the real targets', () => {
+  test('T1 — the authored 62-step tour runs end to end on the real targets', () => {
     const h = setup();
-    assert.equal(h.X.TOUR_STEPS.length, 60);
+    assert.equal(h.X.TOUR_STEPS.length, 62);
     const tour = h.X.createGuidedTour({ steps: h.X.TOUR_STEPS });
     tour.start();
     // A step's action listener is bound when it reaches
@@ -1446,8 +1455,10 @@ describe('T — the real TOUR_STEPS integration', () => {
     step('menu-album-settings', h.menuAlbumSettings);
     step('settings-rename', h.settingsRenameBtn);
     step('settings-remove', h.settingsRemoveBtn);
+    step('remove-confirm', h.confirmCancel);
     step('settings-undo', h.settingsUndoBtn);
     step('settings-revert', h.settingsRevertBtn);
+    step('revert-confirm', h.confirmCancel);
     step('album-settings-cancel', h.settingsCancel);
     step('albums-tab-2', h.tabAlbums);
     step('album-menu-open', h.albumMore);
@@ -1480,8 +1491,8 @@ describe('T — the real TOUR_STEPS integration', () => {
       'menu-open-3', 'menu-select-photos', 'pick-photo',
       'select-move', 'move-confirm', 'move-cancel', 'select-delete',
       'select-close', 'menu-open-4', 'menu-album-settings',
-      'settings-rename', 'settings-remove', 'settings-undo',
-      'settings-revert', 'album-settings-cancel', 'albums-tab-2',
+      'settings-rename', 'settings-remove', 'remove-confirm', 'settings-undo',
+      'settings-revert', 'revert-confirm', 'album-settings-cancel', 'albums-tab-2',
       'album-menu-open', 'album-menu-add-photos', 'album-menu-open-2',
       'menu-album-settings-2', 'album-settings-cancel-2', 'pictures-tab-2',
       'wall-photo-2', 'viewer-download', 'viewer-classify',
@@ -1772,7 +1783,7 @@ describe('T — the real TOUR_STEPS integration', () => {
     assert.ok(visitor.every(s => !s.adminOnly));
     assert.ok(admin.every(s => !s.visitorOnly));
     assert.equal(visitor.length, 15);
-    assert.equal(admin.length, 58);
+    assert.equal(admin.length, 60);
     // Orders renumber 1..N for the audience's own walk.
     sameDeep(visitor.map(s => s.order), visitor.map((_, i) => i + 1));
     sameDeep(admin.map(s => s.order), admin.map((_, i) => i + 1));
@@ -1783,9 +1794,9 @@ describe('T — the real TOUR_STEPS integration', () => {
     assert.equal(visitor[visitor.length - 1].id, 'admin-modal-cancel');
     assert.equal(admin[admin.length - 1].id, 'menu-sign-out');
     // The authored array itself is never mutated.
-    assert.equal(h.X.TOUR_STEPS.length, 60);
+    assert.equal(h.X.TOUR_STEPS.length, 62);
     assert.equal(h.X.TOUR_STEPS[0].order, 1);
-    assert.equal(h.X.TOUR_STEPS[59].order, 60);
+    assert.equal(h.X.TOUR_STEPS[61].order, 62);
   });
 
   test('T4 — an input step with valueMatches "" counts only an empty box', () => {
@@ -1843,11 +1854,11 @@ describe('T — the real TOUR_STEPS integration', () => {
     sameDeep(
       h.X.TOUR_STEPS.filter(s => s.confirm.kind === 'toast').map(s => s.id),
       ['admin-modal-cancel', 'menu-sign-out']);
-    // The segments: 13 shared, 2 visitor-only, 45 admin-only. The shared
+    // The segments: 13 shared, 2 visitor-only, 47 admin-only. The shared
     // path grew when the two display preferences joined it — a typeface and
     // an eye-comfort background are a visitor's business, not an admin's.
     assert.equal(h.X.TOUR_STEPS.filter(s => s.visitorOnly).length, 2);
-    assert.equal(h.X.TOUR_STEPS.filter(s => s.adminOnly).length, 45);
+    assert.equal(h.X.TOUR_STEPS.filter(s => s.adminOnly).length, 47);
     assert.equal(h.X.TOUR_STEPS.filter(s => !s.adminOnly && !s.visitorOnly).length, 13);
   });
 });
@@ -1861,12 +1872,17 @@ describe('U — every button is toured', () => {
   // Three of these arrived after the audit was written and were never
   // added here, so U1 was reporting them as gaps on every run. Each is
   // excluded for what it is, not to silence a failure:
-  //   confirmOk / confirmCancel belong to the delete confirmation, and the
-  //     steps that reach them (viewer-delete, select-delete, settings-remove)
-  //     are gated on `confirm: { kind: 'pulse' }` — the tour takes the click
-  //     and is meant to leave the dialog sitting there. A step pointing at
-  //     either button would have to dismiss the dialog to advance, which is
-  //     the one thing that step is written not to do.
+  //   confirmOk belongs to the delete confirmation, and the steps that
+  //     reach it (viewer-delete, select-delete, settings-remove,
+  //     settings-revert) are gated on `confirm: { kind: 'pulse' }` — the
+  //     tour takes the click and is meant to leave the dialog sitting
+  //     there. A step pointing at it would have to accept, which is the
+  //     one thing no step may do: it deletes a photo, or an album, or the
+  //     whole gallery.
+  //     confirmCancel used to be excluded for the same reason. It is toured
+  //     now (remove-confirm / revert-confirm): the two questions asked from
+  //     Album settings take the screen while the settings step out of the
+  //     way, so cancelling is the step that puts the walk back where it was.
   //   welcomeCard / welcomeDismiss live in a panel that only renders once the
   //     walkthrough has run to its last card (maybeShowWelcome gates on
   //     walkthroughCompleted()). A visitor mid-tour has not finished it, so the
@@ -1874,7 +1890,6 @@ describe('U — every button is toured', () => {
   const EXCLUDED = {
     tokenSubmit: 'signing in needs a real repo token — a visitor cannot perform it',
     confirmOk: 'delete confirmation — its steps are gated on pulse and leave the dialog open',
-    confirmCancel: 'delete confirmation — its steps are gated on pulse and leave the dialog open',
     welcomeCard: 'welcome panel renders only after the walkthrough completes',
     welcomeDismiss: 'welcome panel renders only after the walkthrough completes',
   };

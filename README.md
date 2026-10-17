@@ -353,7 +353,7 @@ completed tour never restarts on its own.
 The tour has two audiences. Everyone walks the shared path: the photo wall,
 the viewer's arrows, the Albums tab, an album, and the ⋮ menu — including
 where admins sign in (15 steps). A user who is already signed in as admin when
-the tour starts walks **every admin control** instead (45 steps): add photos
+the tour starts walks **every admin control** instead (47 steps): add photos
 from the menu and from the + button, the upload dialog, search (type, view
 options, clear), new album, select → mark → move → delete, album settings (rename,
 remove, undo, revert), the per-album ⋮ menu, the viewer's download, classify
@@ -361,13 +361,20 @@ remove, undo, revert), the per-album ⋮ menu, the viewer's download, classify
 tour to see that walk. Admin steps are filtered out for visitors — the tour
 never renders a step the signed-out user cannot perform.
 
-Four buttons are deliberately not tour steps, and `tour/tour.test.mjs`
-names each: **Delete** and **Cancel** in the delete confirmation (the
-steps that reach them are gated on `confirm: { kind: 'pulse' }` and are
-written to leave that dialog sitting open), and the two in the welcome
-panel (it renders only once the walkthrough has run to its last card, so a
-visitor mid-tour has no such buttons in the document). **Sign in** is the
-fifth: signing in needs a real repo token, which a visitor cannot supply.
+Three buttons are deliberately not tour steps, and `tour/tour.test.mjs`
+names each: **Delete** in the delete confirmation (the steps that reach it
+are gated on `confirm: { kind: 'pulse' }` and are written to leave that
+dialog sitting open — and accepting one deletes a photo, an album, or the
+whole gallery), and the two in the welcome panel (it renders only once the
+walkthrough has run to its last card, so a visitor mid-tour has no such
+buttons in the document). **Sign in** is the fourth: signing in needs a real
+repo token, which a visitor cannot supply.
+
+The confirmation's **Cancel** *is* a step, twice (`remove-confirm`,
+`revert-confirm`). Remove an album and Revert every change are asked from
+inside Album settings, and a question asked from a dialog takes the screen:
+the settings step out of the way while it is up, and cancelling puts them
+back — so cancelling is the step that carries the walk on.
 
 Every button the tour clicks is either guarded by the app (it changes nothing:
 an empty-field toast, a `confirm()` the user cancels, or a real no-op) or is
@@ -380,7 +387,7 @@ Run the tour's test suite with `node --test` (Node 18+; same
 `node:test` + `vm`-sandbox harness as `tests/`). It covers gating, action
 detection (including synthetic-event rejection), the confirm/unlock
 hand-off, escapes, persistence, reduced-motion, a11y, the speed multiplier,
-the audience filter, and the full 60-step authored tour end to end — plus a
+the audience filter, and the full 62-step authored tour end to end — plus a
 coverage audit that fails if any button in `index.html` loses its tour step
 without appearing in that suite's `EXCLUDED` map.
 
