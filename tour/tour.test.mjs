@@ -291,11 +291,11 @@ function setup({ reducedMotion = false, multiplierPatch = null, seedState = null
   const adminSearch = reg(makeEl('input', { value: '' }));
   adminSearch.id = 'adminSearch';
   adminSearch.setAttribute('data-tour-target', 'admin-search');
-  const adminSearchFilter = reg(makeEl('select'));
-  adminSearchFilter.id = 'adminSearchFilter';
-  adminSearchFilter.setAttribute('data-tour-target', 'admin-search-filter');
+  const searchViewBtn = reg(makeEl('button'));
+  searchViewBtn.id = 'searchViewBtn';
+  searchViewBtn.setAttribute('data-tour-target', 'admin-search-filter');
   searchWrap.appendChild(adminSearch);
-  searchWrap.appendChild(adminSearchFilter);
+  searchWrap.appendChild(searchViewBtn);
   const selectBar = reg(makeEl('div'));
   selectBar.id = 'selectBar';
   const selectClose = reg(makeEl('button', { rect: { top: 20, left: 20, right: 64, bottom: 64, width: 44, height: 44 } }));
@@ -580,7 +580,7 @@ function setup({ reducedMotion = false, multiplierPatch = null, seedState = null
     menuAlbumSettings,
     menuSignOut,
     adminSearch,
-    adminSearchFilter,
+    searchViewBtn,
     selectClose,
     selectMove,
     selectDelete,
@@ -1419,11 +1419,8 @@ describe('T — the real TOUR_STEPS integration', () => {
     step('upload-cancel-2', h.uploadCancel);
     step('pictures-tab', h.tabPictures);
     type('search-type', 'sunset');
-    // The scope step is an input action on a <select>.
-    assert.equal(tour.getCurrentStepId(), 'search-scope');
-    h.adminSearchFilter.value = 'image';
-    h.adminSearchFilter.dispatch('input');
-    h.advance(arm);
+    // The scope picker is a button now: it opens the view panel.
+    step('search-scope', h.searchViewBtn);
     // The clear step counts only an EMPTY box: typing more
     // text fires input but never advances.
     assert.equal(tour.getCurrentStepId(), 'search-clear');
@@ -1814,19 +1811,18 @@ describe('T — the real TOUR_STEPS integration', () => {
     assert.equal(tour.getPhase(), 'complete');
   });
 
-  test('T5 — an input action works on a select (the scope picker)', () => {
+  test('T5 — the scope picker is a click target, not a select', () => {
     const h = setup();
     const scopeStep = {
       id: 'scope', order: 1, title: 'Pick a scope', prompt: 'Pick one.',
-      target: { kind: 'selector', selector: '[data-tour-target="admin-search-filter"]', label: 'scope dropdown' },
-      action: { kind: 'input' }, confirm: { kind: 'pulse' },
+      target: { kind: 'selector', selector: '[data-tour-target="admin-search-filter"]', label: 'view options button' },
+      action: { kind: 'click' }, confirm: { kind: 'pulse' },
     };
     const tour = h.X.createGuidedTour({ steps: tourOf(scopeStep) });
     tour.start();
     h.advance(h.X.D.base);
     assert.equal(tour.getPhase(), 'waiting');
-    h.adminSearchFilter.value = 'image';
-    h.adminSearchFilter.dispatch('input');
+    h.searchViewBtn.dispatch('click');
     assert.equal(tour.getPhase(), 'confirming');
   });
 
