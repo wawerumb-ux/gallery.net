@@ -293,7 +293,7 @@ function setup({ reducedMotion = false, multiplierPatch = null, seedState = null
   adminSearch.setAttribute('data-tour-target', 'admin-search');
   const searchViewBtn = reg(makeEl('button'));
   searchViewBtn.id = 'searchViewBtn';
-  searchViewBtn.setAttribute('data-tour-target', 'admin-search-filter');
+  searchViewBtn.setAttribute('data-tour-target', 'admin-view-options');
   searchWrap.appendChild(adminSearch);
   searchWrap.appendChild(searchViewBtn);
   const selectBar = reg(makeEl('div'));
@@ -1420,7 +1420,7 @@ describe('T — the real TOUR_STEPS integration', () => {
     step('pictures-tab', h.tabPictures);
     type('search-type', 'sunset');
     // The scope picker is a button now: it opens the view panel.
-    step('search-scope', h.searchViewBtn);
+    step('search-view', h.searchViewBtn);
     // The clear step counts only an EMPTY box: typing more
     // text fires input but never advances.
     assert.equal(tour.getCurrentStepId(), 'search-clear');
@@ -1475,7 +1475,7 @@ describe('T — the real TOUR_STEPS integration', () => {
       'menu-open', 'menu-admin-signin', 'admin-modal-cancel',
       'menu-add-photos', 'upload-confirm', 'upload-cancel',
       'fab-add', 'upload-cancel-2', 'pictures-tab',
-      'search-type', 'search-scope', 'search-clear',
+      'search-type', 'search-view', 'search-clear',
       'menu-open-2', 'menu-new-album', 'new-album-pick', 'new-album-cancel',
       'menu-open-3', 'menu-select-photos', 'pick-photo',
       'select-move', 'move-confirm', 'move-cancel', 'select-delete',
@@ -1815,7 +1815,7 @@ describe('T — the real TOUR_STEPS integration', () => {
     const h = setup();
     const scopeStep = {
       id: 'scope', order: 1, title: 'Pick a scope', prompt: 'Pick one.',
-      target: { kind: 'selector', selector: '[data-tour-target="admin-search-filter"]', label: 'view options button' },
+      target: { kind: 'selector', selector: '[data-tour-target="admin-view-options"]', label: 'view options button' },
       action: { kind: 'click' }, confirm: { kind: 'pulse' },
     };
     const tour = h.X.createGuidedTour({ steps: tourOf(scopeStep) });

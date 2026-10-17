@@ -338,25 +338,22 @@ code {
 .search-view {
   display: inline-flex;
   align-items: center;
-  gap: 2px;
-  padding: 4px 7px 4px 9px;
+  gap: 1px;
+  padding: 5px 6px 5px 8px;
   background: var(--surface-3);
   border: 1px solid var(--hairline);
   border-radius: 8px;
   color: var(--text-dim);
-  font-family: inherit;
-  font-size: 11.5px;
-  font-weight: 500;
   cursor: pointer;
   transition: color var(--duration-fast) ease, border-color var(--duration-fast) ease;
 }
 .search-view:hover { color: var(--text); }
 .search-view[aria-expanded='true'] { color: var(--text); border-color: var(--hairline-strong); }
-.search-view-label { white-space: nowrap; }
-.search-view-caret { transition: transform var(--duration-fast) var(--ease-spring); }
+.search-view-ic { display: block; }
+.search-view-caret { display: block; transition: transform var(--duration-fast) var(--ease-spring); }
 .search-view[aria-expanded='true'] .search-view-caret { transform: rotate(180deg); }
 
-/* The view panel: three groups of three tiles, the S10 Gallery's
+/* The view panel: two groups of three tiles, the S10 Gallery's
    view/arrangement chooser. It is the same tile idiom as the Eye-comfort
    picker — rounded tile, accent edge on the one in force — because it is
    the same kind of choice, and it drops from the button rather than

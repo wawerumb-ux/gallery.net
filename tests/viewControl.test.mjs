@@ -1,8 +1,8 @@
-/* The search pill's All dropdown was a native <select>: three options that
-   only chose what a query looked through. It is now the S10 Gallery's view
-   and arrangement chooser — Search in, View, Order — a panel of tiles that
-   drops from the button, and three preferences the archive remembers per
-   device.
+/* The search pill used to carry a scope <select> — All, Photos, Albums — and
+   the search now looks through both at once, the way its placeholder always
+   said. What the pill carries instead is the S10 Gallery's view and
+   arrangement chooser: a panel of tiles that drops from an icon button, and
+   two preferences the archive remembers per device.
 
    The markup is the easy half and the browser check covers it. What is
    worth guarding here is what the tiles DO, because a wrong sort ruins a
@@ -14,9 +14,9 @@
        once, and every date heading looks wrong.
      · View — Cozy and Large have to state a count at every breakpoint the
        base ladder does, or a phone gets one tile the width of the column.
-     · Search in — the filter has to read the remembered scope. A filter
-       still reaching for a <select> that no longer exists throws on the
-       first keystroke.
+     · No scope — the filter must judge photos and albums by the query alone.
+       A filter still branching on a scope no panel offers any more silently
+       hides half the archive.
 */
 
 import { test, describe } from 'node:test';
@@ -80,13 +80,18 @@ describe('the search pill offers a panel, not a select', () => {
     assert.ok(!/adminSearchFilter/.test(app), 'app.js still reaches for the select');
   });
 
-  test('the button carries the tour hook the select used to', () => {
+  test('the button carries the tour hook, and it is an icon button now', () => {
     const btn = html.match(/<button[^>]*id="searchViewBtn"[^>]*>/);
     assert.ok(btn, 'no searchViewBtn button');
-    assert.match(btn[0], /data-tour-target="admin-search-filter"/);
+    assert.match(btn[0], /data-tour-target="admin-view-options"/);
     assert.match(btn[0], /aria-haspopup="dialog"/);
     assert.match(btn[0], /aria-expanded="false"/);
-    assert.match(html, /id="searchViewLabel">All</);
+    assert.match(btn[0], /aria-label="View and arrange"/);
+    assert.match(btn[0], /title="View and arrange"/);
+    // With the scope gone the chip has no label to read; it is the tune
+    // glyph, the same one the ⋮ menus use for "adjust this".
+    assert.match(html, /class="search-view-ic"/);
+    assert.ok(!/searchViewLabel/.test(html + app), 'a scope label is still being written');
   });
 
   test('the panel starts hidden and lives inside the pill it drops from', () => {
@@ -115,26 +120,30 @@ describe('the search pill offers a panel, not a select', () => {
   });
 });
 
-describe('the filter reads the remembered scope', () => {
-  test('applyAdminFilter takes the scope from state, not from a control', () => {
-    const fn = app.slice(app.indexOf('function applyAdminFilter()'));
-    assert.match(fn.slice(0, 400), /const scope = state\.searchScope;/);
+describe('the search has no scope to pick, so it searches both', () => {
+  test('applyAdminFilter filters every kind of result by the query alone', () => {
+    const fn = app.slice(app.indexOf('function applyAdminFilter()'), app.indexOf('function cardMarkup('));
+    assert.ok(!/scope/.test(fn), 'the filter still branches on a scope');
+    // Both kinds of result are judged by the same rule: the query, or all.
+    assert.equal((fn.match(/const show = !q \|\| \(/g) || []).length, 3);
+    assert.ok(!/scope !== /.test(fn));
+    // And the scope preference is gone from the app entirely.
+    assert.ok(!/SEARCH_SCOPE|searchScope|applySearchScope/.test(app), 'a scope preference is still living in app.js');
   });
 
-  test('the three preferences have a home in state', () => {
-    assert.match(app, /searchScope: 'all'/);
+  test('the two view preferences have a home in state', () => {
     assert.match(app, /viewSize: 'comfy'/);
     assert.match(app, /viewOrder: 'newest'/);
   });
 
-  test('all three are read back before the first render, and persisted on a pick', () => {
+  test('both are read back before the first render, and persisted on a pick', () => {
     const loader = app.slice(app.indexOf('function loadViewPrefs()'), app.indexOf('function renderSearchMenu()'));
-    for (const key of ['SEARCH_SCOPE_KEY', 'VIEW_SIZE_KEY', 'VIEW_ORDER_KEY']) {
+    for (const key of ['VIEW_SIZE_KEY', 'VIEW_ORDER_KEY']) {
       assert.ok(loader.includes(key), `loadViewPrefs never reads ${key}`);
     }
-    for (const fn of ['applySearchScope', 'applyViewSize', 'applyViewOrder']) {
+    for (const fn of ['applyViewSize', 'applyViewOrder']) {
       const body = app.slice(app.indexOf(`function ${fn}(`));
-      assert.ok(body.slice(0, 600).includes(`rememberPref(`), `${fn} never persists`);
+      assert.ok(body.slice(0, 600).includes('rememberPref('), `${fn} never persists`);
     }
     // init(), ahead of the tree load — there is no frame of the default.
     const init = app.slice(app.indexOf('async function init()'));
@@ -142,9 +151,9 @@ describe('the filter reads the remembered scope', () => {
   });
 
   test('a remembered value the panel no longer offers falls back', () => {
-    for (const fn of ['applySearchScope', 'applyViewSize', 'applyViewOrder']) {
+    for (const fn of ['applyViewSize', 'applyViewOrder']) {
       const body = app.slice(app.indexOf(`function ${fn}(`));
-      assert.match(body.slice(0, 400), /offersId\('(scope|size|order)', id\)/, `${fn} trusts the stored value`);
+      assert.match(body.slice(0, 400), /offersId\('(size|order)', id\)/, `${fn} trusts the stored value`);
     }
   });
 });
@@ -363,48 +372,32 @@ describe('the View tiles set the wall density', () => {
   });
 });
 
-describe('the Search-in tiles set the scope on the button', () => {
-  test('the label follows the scope, and all three are offered', async () => {
-    const { api, els } = await boot();
-    const label = els.get('searchViewLabel');
-    for (const [id, text] of [['all', 'All'], ['image', 'Photos'], ['phase', 'Albums']]) {
-      api.applySearchScope(id, true);
-      assert.equal(api.state.searchScope, id);
-      assert.equal(label.textContent, text);
-    }
-  });
-
-  test('a pick remembers the scope on the device', async () => {
-    const { api, store } = await boot();
-    api.applySearchScope('phase', true);
-    assert.equal(store.get('gallery.searchScope'), 'phase');
-  });
-
-  test('a scope the panel no longer offers falls back to All', async () => {
-    const { api, els } = await boot();
-    api.applySearchScope('everything', false);
-    assert.equal(api.state.searchScope, 'all');
-    assert.equal(els.get('searchViewLabel').textContent, 'All');
+describe('the Search-in tiles are gone', () => {
+  test('the panel offers View and Order, and nothing else', async () => {
+    const { api } = await boot();
+    assert.deepEqual(api.SEARCH_MENU.map(g => g.group), ['size', 'order']);
+    assert.deepEqual(api.SEARCH_MENU.map(g => g.title), ['View', 'Order']);
+    assert.ok(!JSON.stringify(api.SEARCH_MENU).includes('scope'));
   });
 });
 
 describe('the panel itself', () => {
-  test('three groups of three tiles, one checked per group', async () => {
+  test('two groups of three tiles, one checked per group', async () => {
     const { api, els } = await boot();
     api.renderSearchMenu();
     const markup = els.get('searchMenu').innerHTML;
-    assert.equal((markup.match(/<button[^>]*class="search-tile[ "]/g) || []).length, 9);
-    assert.equal((markup.match(/role="radio"/g) || []).length, 9);
-    assert.equal((markup.match(/aria-checked="true"/g) || []).length, 3);
-    assert.equal((markup.match(/role="radiogroup"/g) || []).length, 3);
-    for (const title of ['Search in', 'View', 'Order']) {
+    assert.equal((markup.match(/<button[^>]*class="search-tile[ "]/g) || []).length, 6);
+    assert.equal((markup.match(/role="radio"/g) || []).length, 6);
+    assert.equal((markup.match(/aria-checked="true"/g) || []).length, 2);
+    assert.equal((markup.match(/role="radiogroup"/g) || []).length, 2);
+    for (const title of ['View', 'Order']) {
       assert.ok(markup.includes(`>${title}<`), `no "${title}" group`);
     }
+    assert.ok(!markup.includes('Search in'), 'the Search in group is still rendered');
   });
 
   test('the checked tile is always the one in force', async () => {
     const { api, els } = await boot();
-    api.applySearchScope('image', false);
     api.applyViewSize('large', false);
     api.applyViewOrder('oldest', false);
     api.renderSearchMenu();
@@ -412,6 +405,6 @@ describe('the panel itself', () => {
     const on = [...markup.matchAll(/<button([^>]*)>/g)]
       .map(m => m[1]).filter(a => /search-tile is-active/.test(a))
       .map(a => `${/data-group="([^"]+)"/.exec(a)[1]}:${/data-value="([^"]+)"/.exec(a)[1]}`);
-    assert.deepEqual(on.sort(), ['order:oldest', 'scope:image', 'size:large']);
+    assert.deepEqual(on.sort(), ['order:oldest', 'size:large']);
   });
 });

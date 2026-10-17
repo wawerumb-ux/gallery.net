@@ -287,8 +287,7 @@ const state = {
   adminMode: false,
   token: null,
   view: 'images', // 'images' = Pictures tab (day-grouped wall), 'phases' = Albums tab
-  searchScope: 'all',   // the search pill's panel: what a query looks through
-  viewSize: 'comfy',    // ...how many tiles a row holds, and
+  viewSize: 'comfy',    // the search pill's panel: how many tiles a row holds, and
   viewOrder: 'newest',  // ...which way the wall runs
   picturesList: [],   // flat [{img, folder, index}] in view order — the Pictures tab order
   _tabScroll: {},     // per-tab scroll positions, restored on tab switch
@@ -1525,19 +1524,21 @@ function watchChromeH() {
 }
 
 /* ── The search pill's view panel ───────────────────────────────────
-   The scope picker used to be a native <select> with three options: All,
-   Photos, Albums. It is now a panel of tiles — Search in, View, Order —
-   the S10 Gallery's view/arrangement chooser, and the same tile idiom as
-   the Eye-comfort picker. All three choices are remembered per device,
-   like the typeface and the background: they are preferences about how
-   you read the archive, not something to re-pick on every visit.
+   The pill used to carry a scope <select> — All, Photos, Albums — and
+   the search now looks through both photos and albums at once, the way
+   its placeholder always said. What is left in the panel is how the wall
+   is READ: View (how many tiles a row holds) and Order (which end of the
+   archive it starts at), the S10 Gallery's view/arrangement chooser, in
+   the same tile idiom as the Eye-comfort picker. Both are remembered per
+   device, like the typeface and the background: they are preferences
+   about how you read the archive, not something to re-pick on every
+   visit.
 
    The panel drops from the button into the column rather than covering
    it, because the wall behind it is the thing the tiles rearrange. It
    closes on a pick (the wall is the receipt), on a tap anywhere else, on
    Escape, and on browser back — the last two through the shared overlay
    registry, like every other popover here. */
-const SEARCH_SCOPE_KEY = 'gallery.searchScope';
 const VIEW_SIZE_KEY = 'gallery.viewSize';
 const VIEW_ORDER_KEY = 'gallery.viewOrder';
 
@@ -1570,22 +1571,7 @@ function orderArt(kind) {
   return `<svg viewBox="0 0 24 24" width="24" height="24" fill="none" aria-hidden="true">${body}</svg>`;
 }
 
-/* Search-in art: the three shapes of the answer. */
-const SCOPE_ART = {
-  all: '<svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true"><rect x="3" y="3" width="7.5" height="7.5" rx="2"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="2"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="2"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="2"/></svg>',
-  image: '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2.5" stroke="currentColor" stroke-width="1.7"/><circle cx="8.5" cy="9.6" r="1.5" fill="currentColor"/><path d="M4.6 17.6 9.5 12l3.4 3.6 3.1-3.1 3.8 4.2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>',
-  phase: '<svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true"><rect x="8" y="3" width="13" height="13" rx="3" opacity="0.45"/><rect x="3" y="8" width="13" height="13" rx="3"/></svg>',
-};
-
 const SEARCH_MENU = [
-  {
-    group: 'scope', title: 'Search in',
-    options: [
-      { id: 'all', label: 'All', art: SCOPE_ART.all },
-      { id: 'image', label: 'Photos', art: SCOPE_ART.image },
-      { id: 'phase', label: 'Albums', art: SCOPE_ART.phase },
-    ],
-  },
   {
     group: 'size', title: 'View',
     options: [
@@ -1606,33 +1592,19 @@ const SEARCH_MENU = [
 
 /* Is this id one the panel actually offers for that group? The stored value
    is device-local and can be anything, and a preference that no longer
-   exists must fall back to the default rather than stick a dead label on
-   the button. */
+   exists must fall back to the default rather than paint a view nobody
+   asked for. */
 function offersId(group, id) {
   const g = SEARCH_MENU.find(x => x.group === group);
   return !!g && g.options.some(o => o.id === id);
-}
-
-function optionLabel(group, id) {
-  const g = SEARCH_MENU.find(x => x.group === group);
-  const o = g && g.options.find(x => x.id === id);
-  return o ? o.label : '';
 }
 
 function rememberPref(key, value) {
   try { localStorage.setItem(key, value); } catch (_) { /* nothing to remember it in */ }
 }
 
-/* The three writers. Each takes the id as it may be remembered, not as it
-   was meant, and persist=false is the read-back at parse time. */
-function applySearchScope(id, persist) {
-  state.searchScope = offersId('scope', id) ? id : 'all';
-  const label = el('searchViewLabel');
-  if (label) label.textContent = optionLabel('scope', state.searchScope);
-  if (persist) rememberPref(SEARCH_SCOPE_KEY, state.searchScope);
-  applyAdminFilter();
-}
-
+/* The two writers. Each takes the id as it may be remembered, not as it was
+   meant, and persist=false is the read-back at startup. */
 function applyViewSize(id, persist) {
   state.viewSize = offersId('size', id) ? id : 'comfy';
   const b = document.body;
@@ -1651,20 +1623,16 @@ function applyViewOrder(id, persist) {
   if (persist) render();
 }
 
-/* Read back the three remembered choices. Runs first thing in init, ahead of
+/* Read back the two remembered choices. Runs first thing in init, ahead of
    the tree load, so the wall's first paint is already at the remembered
    density and in the remembered order — there is no frame of the default to
-   correct. (Not at parse time, beside the typeface and background: the panel
-   those ids come from is a const further down the file, and the wall is
-   empty until the tree lands anyway.) */
+   correct. */
 function loadViewPrefs() {
-  let scope = null, size = null, order = null;
+  let size = null, order = null;
   try {
-    scope = localStorage.getItem(SEARCH_SCOPE_KEY);
     size = localStorage.getItem(VIEW_SIZE_KEY);
     order = localStorage.getItem(VIEW_ORDER_KEY);
   } catch (_) { /* nothing remembered — ship the defaults */ }
-  applySearchScope(scope, false);
   applyViewSize(size, false);
   state.viewOrder = offersId('order', order) ? order : 'newest';
 }
@@ -1677,8 +1645,7 @@ function renderSearchMenu() {
       <div class="search-menu-title" id="searchMenu-${g.group}">${g.title}</div>
       <div class="search-tiles" role="radiogroup" aria-labelledby="searchMenu-${g.group}">
         ${g.options.map(o => {
-          const current = g.group === 'scope' ? state.searchScope
-            : g.group === 'size' ? state.viewSize : state.viewOrder;
+          const current = g.group === 'size' ? state.viewSize : state.viewOrder;
           const on = current === o.id;
           return `<button type="button" class="search-tile${on ? ' is-active' : ''}" role="radio" aria-checked="${on ? 'true' : 'false'}" data-group="${g.group}" data-value="${o.id}">
             <span class="search-tile-art">${o.art}</span>
@@ -1710,44 +1677,39 @@ function toggleSearchMenu() {
 
 /* One tile picked: write that preference and put the panel away. */
 function pickSearchOption(group, value) {
-  if (group === 'scope') applySearchScope(value, true);
-  else if (group === 'size') applyViewSize(value, true);
+  if (group === 'size') applyViewSize(value, true);
   else if (group === 'order') applyViewOrder(value, true);
   overlayClose('searchMenu');
 }
 
 /* Admin quick-find: hide cards/albums that don't match the query, and fold
-   away day groups left empty by the filter. */
+   away day groups left empty by the filter. One query, both kinds of
+   result — the placeholder has always said "photos or albums". */
 function applyAdminFilter() {
   const input = el('adminSearch');
   const wrap = el('searchWrap');
   if (!input || !wrap || wrap.hidden) return;
   const q = input.value.trim().toLowerCase();
-  const scope = state.searchScope;
   let visible = 0, total = 0;
   document.querySelectorAll('#picturesView .card[data-path]').forEach(card => {
     total++;
-    const hit = !q || (card.dataset.path || '').toLowerCase().includes(q);
-    const show = !q || (scope !== 'phase' && hit);
+    const show = !q || (card.dataset.path || '').toLowerCase().includes(q);
     card.hidden = !show;
     if (show) visible++;
   });
   document.querySelectorAll('#picturesView .day').forEach(day => {
-    if (q && scope === 'phase') { day.hidden = true; return; }
     day.hidden = !!q && ![...day.querySelectorAll('.card')].some(c => !c.hidden);
   });
   document.querySelectorAll('#albumsView .album').forEach(alb => {
     total++;
-    const hit = !q || (alb.dataset.folder || '').toLowerCase().includes(q);
-    const show = !q || (scope !== 'image' && hit);
+    const show = !q || (alb.dataset.folder || '').toLowerCase().includes(q);
     alb.hidden = !show;
     if (show) visible++;
   });
   // An open album detail holds photo cards too — same rules as the wall.
   document.querySelectorAll('#albumDetailView .card[data-path]').forEach(card => {
     total++;
-    const hit = !q || (card.dataset.path || '').toLowerCase().includes(q);
-    const show = !q || (scope !== 'phase' && hit);
+    const show = !q || (card.dataset.path || '').toLowerCase().includes(q);
     card.hidden = !show;
     if (show) visible++;
   });
@@ -5150,7 +5112,7 @@ function failureSuffix(failedNames) {
 
     // The search pill's view panel
     SEARCH_MENU, picturesCards, groupPictures, renderSearchMenu,
-    applySearchScope, applyViewSize, applyViewOrder,
+    applyViewSize, applyViewOrder,
 
     // Notifications
     showToast, dismissToast,
