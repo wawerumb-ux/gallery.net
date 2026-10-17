@@ -1,18 +1,1 @@
-{
-  "images/labelling-and-identification/1000026973.jpg": {
-    "phase": "Labelling & Identification",
-    "activity": ""
-  },
-  "images/cable-pull/20260714_170306.jpg": {
-    "phase": "Cable Installation",
-    "activity": "cable pull"
-  },
-  "images/cable-pull/20260725_141726.jpg": {
-    "phase": "Patch Panels & Termination",
-    "activity": "termination"
-  },
-  "images/ppp/20260805_160909-800.webp": {
-    "phase": "Patch Panels & Termination",
-    "activity": ""
-  }
-}
+{}
