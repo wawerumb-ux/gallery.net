@@ -10,5 +10,9 @@
   "images/rack-build/20260804_174006.jpg": {
     "phase": "Rack / Cabinet Installation",
     "activity": ""
+  },
+  "images/cable-pull/20260714_170306.jpg": {
+    "phase": "Cable Installation",
+    "activity": "cable pull"
   }
 }
