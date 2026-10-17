@@ -291,11 +291,11 @@ function setup({ reducedMotion = false, multiplierPatch = null, seedState = null
   const adminSearch = reg(makeEl('input', { value: '' }));
   adminSearch.id = 'adminSearch';
   adminSearch.setAttribute('data-tour-target', 'admin-search');
-  const searchViewBtn = reg(makeEl('button'));
-  searchViewBtn.id = 'searchViewBtn';
-  searchViewBtn.setAttribute('data-tour-target', 'admin-view-options');
+  const adminSearchFilter = reg(makeEl('select'));
+  adminSearchFilter.id = 'adminSearchFilter';
+  adminSearchFilter.setAttribute('data-tour-target', 'admin-search-filter');
   searchWrap.appendChild(adminSearch);
-  searchWrap.appendChild(searchViewBtn);
+  searchWrap.appendChild(adminSearchFilter);
   const selectBar = reg(makeEl('div'));
   selectBar.id = 'selectBar';
   const selectClose = reg(makeEl('button', { rect: { top: 20, left: 20, right: 64, bottom: 64, width: 44, height: 44 } }));
@@ -580,7 +580,7 @@ function setup({ reducedMotion = false, multiplierPatch = null, seedState = null
     menuAlbumSettings,
     menuSignOut,
     adminSearch,
-    searchViewBtn,
+    adminSearchFilter,
     selectClose,
     selectMove,
     selectDelete,
@@ -1419,8 +1419,11 @@ describe('T — the real TOUR_STEPS integration', () => {
     step('upload-cancel-2', h.uploadCancel);
     step('pictures-tab', h.tabPictures);
     type('search-type', 'sunset');
-    // The scope picker is a button now: it opens the view panel.
-    step('search-view', h.searchViewBtn);
+    // The scope step is an input action on a <select>.
+    assert.equal(tour.getCurrentStepId(), 'search-scope');
+    h.adminSearchFilter.value = 'image';
+    h.adminSearchFilter.dispatch('input');
+    h.advance(arm);
     // The clear step counts only an EMPTY box: typing more
     // text fires input but never advances.
     assert.equal(tour.getCurrentStepId(), 'search-clear');
@@ -1475,7 +1478,7 @@ describe('T — the real TOUR_STEPS integration', () => {
       'menu-open', 'menu-admin-signin', 'admin-modal-cancel',
       'menu-add-photos', 'upload-confirm', 'upload-cancel',
       'fab-add', 'upload-cancel-2', 'pictures-tab',
-      'search-type', 'search-view', 'search-clear',
+      'search-type', 'search-scope', 'search-clear',
       'menu-open-2', 'menu-new-album', 'new-album-pick', 'new-album-cancel',
       'menu-open-3', 'menu-select-photos', 'pick-photo',
       'select-move', 'move-confirm', 'move-cancel', 'select-delete',
@@ -1811,18 +1814,19 @@ describe('T — the real TOUR_STEPS integration', () => {
     assert.equal(tour.getPhase(), 'complete');
   });
 
-  test('T5 — the scope picker is a click target, not a select', () => {
+  test('T5 — an input action works on a select (the scope picker)', () => {
     const h = setup();
     const scopeStep = {
       id: 'scope', order: 1, title: 'Pick a scope', prompt: 'Pick one.',
-      target: { kind: 'selector', selector: '[data-tour-target="admin-view-options"]', label: 'view options button' },
-      action: { kind: 'click' }, confirm: { kind: 'pulse' },
+      target: { kind: 'selector', selector: '[data-tour-target="admin-search-filter"]', label: 'scope dropdown' },
+      action: { kind: 'input' }, confirm: { kind: 'pulse' },
     };
     const tour = h.X.createGuidedTour({ steps: tourOf(scopeStep) });
     tour.start();
     h.advance(h.X.D.base);
     assert.equal(tour.getPhase(), 'waiting');
-    h.searchViewBtn.dispatch('click');
+    h.adminSearchFilter.value = 'image';
+    h.adminSearchFilter.dispatch('input');
     assert.equal(tour.getPhase(), 'confirming');
   });
 
