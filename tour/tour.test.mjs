@@ -291,11 +291,11 @@ function setup({ reducedMotion = false, multiplierPatch = null, seedState = null
   const adminSearch = reg(makeEl('input', { value: '' }));
   adminSearch.id = 'adminSearch';
   adminSearch.setAttribute('data-tour-target', 'admin-search');
-  const searchViewBtn = reg(makeEl('button'));
-  searchViewBtn.id = 'searchViewBtn';
-  searchViewBtn.setAttribute('data-tour-target', 'admin-view-options');
+  const viewSizeSelect = reg(makeEl('select', { value: 'comfy' }));
+  viewSizeSelect.id = 'viewSizeSelect';
+  viewSizeSelect.setAttribute('data-tour-target', 'admin-view-options');
   searchWrap.appendChild(adminSearch);
-  searchWrap.appendChild(searchViewBtn);
+  searchWrap.appendChild(viewSizeSelect);
   const selectBar = reg(makeEl('div'));
   selectBar.id = 'selectBar';
   const selectClose = reg(makeEl('button', { rect: { top: 20, left: 20, right: 64, bottom: 64, width: 44, height: 44 } }));
@@ -580,7 +580,7 @@ function setup({ reducedMotion = false, multiplierPatch = null, seedState = null
     menuAlbumSettings,
     menuSignOut,
     adminSearch,
-    searchViewBtn,
+    viewSizeSelect,
     selectClose,
     selectMove,
     selectDelete,
@@ -1419,8 +1419,11 @@ describe('T — the real TOUR_STEPS integration', () => {
     step('upload-cancel-2', h.uploadCancel);
     step('pictures-tab', h.tabPictures);
     type('search-type', 'sunset');
-    // The scope picker is a button now: it opens the view panel.
-    step('search-view', h.searchViewBtn);
+    // The view and order lists are native selects: an input is what the
+    // step counts, the same way the search box counts one.
+    assert.equal(tour.getCurrentStepId(), 'search-view');
+    h.viewSizeSelect.dispatch('input');
+    h.advance(arm);
     // The clear step counts only an EMPTY box: typing more
     // text fires input but never advances.
     assert.equal(tour.getCurrentStepId(), 'search-clear');
@@ -1811,18 +1814,22 @@ describe('T — the real TOUR_STEPS integration', () => {
     assert.equal(tour.getPhase(), 'complete');
   });
 
-  test('T5 — the scope picker is a click target, not a select', () => {
+  test('T5 — the view picker is a select: an input counts, a click does not', () => {
     const h = setup();
-    const scopeStep = {
-      id: 'scope', order: 1, title: 'Pick a scope', prompt: 'Pick one.',
-      target: { kind: 'selector', selector: '[data-tour-target="admin-view-options"]', label: 'view options button' },
-      action: { kind: 'click' }, confirm: { kind: 'pulse' },
+    const viewStep = {
+      id: 'view', order: 1, title: 'Pick a view', prompt: 'Pick one.',
+      target: { kind: 'selector', selector: '[data-tour-target="admin-view-options"]', label: 'view dropdown' },
+      action: { kind: 'input' }, confirm: { kind: 'pulse' },
     };
-    const tour = h.X.createGuidedTour({ steps: tourOf(scopeStep) });
+    const tour = h.X.createGuidedTour({ steps: tourOf(viewStep) });
     tour.start();
     h.advance(h.X.D.base);
     assert.equal(tour.getPhase(), 'waiting');
-    h.searchViewBtn.dispatch('click');
+    // A click on a select is not a pick…
+    h.viewSizeSelect.dispatch('click');
+    assert.equal(tour.getPhase(), 'waiting');
+    // …an input is (the browser fires both when the user picks an option).
+    h.viewSizeSelect.dispatch('input');
     assert.equal(tour.getPhase(), 'confirming');
   });
 
