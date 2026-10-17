@@ -622,6 +622,26 @@ body.is-selecting .tabbar, body.is-selecting .fab { transform: translateY(110%);
   background: var(--bg);
 }
 
+/* …but only where that slab is actually earning its keep. The paint exists to
+   sit behind the gutters BETWEEN photos, so a grid holding fewer than three
+   has no gutter worth covering — and there the opaque rectangle is a large
+   empty panel painted over the backdrop, reading as a broken tile rather than
+   as spacing.
+
+   This is a per-day-group grid, so the sparse case is not a rare edge: the
+   last group of an evening, or a folder with one photo in it, hits it on
+   almost every day of the archive.
+
+   `.card ~ .card ~ .card` means "a card with two card siblings before it" —
+   three or more. Using the general sibling combinator rather than
+   `:nth-of-type(3)` keeps the count honest whatever else the grid grows to
+   hold, so adding a footer or a load-more button cannot silently throw the
+   count out. Fewer than three cards, and no rule matches, so the slab is
+   gone and the video shows through again. */
+.grid-pictures:not(:has(.card ~ .card ~ .card)) {
+  background: transparent;
+}
+
 /* One photo tile */
 .card {
   margin: 0;
