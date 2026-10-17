@@ -9,20 +9,21 @@
    x = 585 — 221px past the card's right edge, clipped mid-word by
    #uploadPickList (clientWidth 316, scrollWidth 537).
 
-   The rows now open the panel the search pill opens: labelled groups of
-   tiles, the one in force carrying the accent edge and the tick. What is
-   worth guarding here is what the tiles DECIDE, because filing 40 photos
-   into the wrong album is a commit, and a commit is history:
+   The row now ends in a dropdown: one box, small when closed, and its list
+   opens *inside that box* — not as a second surface parked under the row.
+   Two labelled groups, the album in force carrying the tick. What is worth
+   guarding here is what the options DECIDE, because filing 40 photos into
+   the wrong album is a commit, and a commit is history:
 
      · The grouping — the albums the journey maps run in journey order, and
        the ones it does not (General among them) follow. Nothing may be
        offered twice and nothing may fall out.
      · The label — an album goes by its stage name, or by its folder where
-       two offered albums share that stage; two tiles reading the same words
-       is a choice nobody can make.
-     · The choice — the tile writes the row's choice in state, and the
+       two offered albums share that stage; two options reading the same
+       words is a choice nobody can make.
+     · The choice — the option writes the row's choice in state, and the
        upload reads it back from there. A dialog that reads its answer out
-       of the DOM loses it the moment a panel closes over it.
+       of the DOM loses it the moment the list closes over it.
 */
 
 import { test, describe } from 'node:test';
@@ -69,15 +70,9 @@ function rule(sel, cond) {
   return found[0];
 }
 
-const gridCount = (body) => {
-  const m = /grid-template-columns:\s*repeat\((\d+),/.exec(body);
-  assert.ok(m, `no repeat(<n>, …) in "${body}"`);
-  return Number(m[1]);
-};
+/* ── The dropdown replaces the select ─────────────────────────── */
 
-/* ── The panel replaces the select ─────────────────────────────── */
-
-describe('the upload rows offer a panel, not a select', () => {
+describe('the upload rows offer a dropdown, not a select', () => {
   test('the native select is gone from the rows and from the stylesheet', () => {
     assert.ok(!/pick-select/.test(app), 'app.js still builds a pick-select');
     assert.ok(!/\.pick-select/.test(rawCss), 'style.css still carries the select rules');
@@ -85,38 +80,53 @@ describe('the upload rows offer a panel, not a select', () => {
       'the pick list is still a static select');
   });
 
-  test('a row is a chip over a panel, and the panel is a dialog', () => {
-    assert.match(app, /class="pick-chip"/);
-    assert.match(app, /class="pick-menu"/);
-    assert.match(app, /role="dialog" aria-labelledby="pickChip-\$\{i\}"/);
-    assert.match(app, /aria-haspopup="dialog" aria-expanded="false"/);
-    assert.match(app, /data-idx="\$\{i\}"/);
+  test('the row is ONE box: a small chip, and the list inside it', () => {
+    assert.match(app, /class="pick-drop"/);
+    assert.match(app, /class="pick-chip" id="pickChip-\$\{i\}"/);
+    assert.match(app, /aria-haspopup="listbox"/);
+    assert.match(app, /class="pick-menu" id="pickMenu-\$\{i\}" role="listbox"/);
+    assert.ok(!/role="dialog"/.test(app), 'the list is still a dialog — a second surface');
+    // The list is built inside the dropdown box, after its own chip, not
+    // parked somewhere else in the row.
+    const box = app.slice(app.indexOf('class="pick-drop"'), app.indexOf('${hint}'));
+    assert.match(box, /class="pick-chip"[\s\S]*class="pick-menu"/,
+      'the list is not inside the dropdown it belongs to');
   });
 
-  test('the panel opens in flow instead of floating over the dialog', () => {
+  test('the open box stays in flow, and its list stays small', () => {
+    const drop = rule('.pick-drop', '').body;
+    assert.ok(!/position\s*:\s*absolute/.test(drop), 'the box floats, so the dialog clips it');
+    assert.match(drop, /border-radius:\s*var\(--radius-pill\)/, 'closed, it is just a chip');
+    assert.match(rule('.pick-drop.is-open', '').body, /border-radius:\s*14px/);
+    // A dropdown is as wide as what is in it, up to the row.
+    assert.match(drop, /max-width:\s*100%/);
+    // Capped and scrolled, so 13 albums never make it a wall.
     const menu = rule('.pick-menu', '').body;
-    assert.ok(!/position\s*:\s*absolute/.test(menu), 'the panel floats, so the dialog clips it');
-    assert.ok(!/bottom\s*:/.test(menu), 'the panel is pinned somewhere');
-    assert.match(menu, /border-top:/, 'the panel needs to read as attached to its row');
-    // And while it is open the row's list stops being its own scroller, so
-    // the chip and the panel it opened travel together in the dialog.
+    assert.match(menu, /max-height:\s*40vh/, 'the list is uncapped');
+    assert.match(menu, /max-height:\s*40dvh/, 'the list ignores the phone URL bar');
+    assert.match(menu, /overflow-y:\s*auto/, 'the list cannot scroll inside the box');
     assert.match(rule('.pick-list.is-open', '').body, /max-height:\s*none/);
+    // Wide, the list is far taller than its row: the name goes to the top of
+    // the row instead of being centred against the list.
+    assert.match(rule('.pick-row.is-open .pick-head', '').body, /align-items:\s*flex-start/);
   });
 
-  test('the tiles are the pill\u2019s tiles: two across, accent edge, one tick', () => {
-    assert.equal(gridCount(rule('.pick-tiles', '').body), 2);
-    assert.match(rule('.pick-tile.is-active', '').body, /border-color:\s*var\(--accent-text\)/);
+  test('the list is one line an album, and the chip stays small', () => {
+    // The chip is 118px of label at the most: sizing itself to "Cable
+    // Routing & Management" left the file name 77px ("20260101_…").
+    assert.match(rule('.pick-chip-label', '').body, /max-width:\s*118px/);
+    assert.match(rule('.pick-chip-label', '').body, /text-overflow:\s*ellipsis/);
+    assert.match(rule('.pick-tile-label', '').body, /white-space:\s*nowrap/);
     assert.match(rule('.pick-tile.is-active .pick-tile-check', '').body, /opacity:\s*1/);
     assert.match(rule('.pick-tile-check', '').body, /opacity:\s*0/);
     assert.match(rule('.pick-menu-title', '').body, /text-transform:\s*uppercase/);
+    // The two-across wall of tiles is gone with the panel.
+    assert.ok(!rules.some(r => r.sel === '.pick-tiles'), 'the tile grid is still there');
   });
 
-  test('an album name wraps rather than being clipped', () => {
-    const label = rule('.pick-tile-label', '').body;
-    assert.ok(!/white-space:\s*nowrap/.test(label), 'tile labels clip \u2014 half a name is not a choice');
-    assert.match(label, /overflow-wrap:\s*break-word/);
-    // The suggestion is its own line now: it used to share the row with the
-    // control and overflow the card by 221px at 412 wide.
+  test('the suggestion is its own line, not a clipped one', () => {
+    // It used to share the row with the control and overflow the card by
+    // 221px at 412 wide.
     assert.match(rule('.pick-hint', '').body, /display:\s*block/);
     assert.ok(!/nowrap/.test(rule('.pick-hint', '').body));
   });
@@ -124,7 +134,7 @@ describe('the upload rows offer a panel, not a select', () => {
   test('reduced motion stops the chip and the tiles', () => {
     const rm = rules.find(r => r.cond === '@media (prefers-reduced-motion: reduce)'
       && /\.pick-tile/.test(r.sel) && /\.pick-chip/.test(r.sel));
-    assert.ok(rm, 'the picker is not in the reduced-motion block');
+    assert.ok(rm, 'the dropdown is not in the reduced-motion block');
   });
 
   test('the choice is written to state, and the upload reads it back', () => {
@@ -229,7 +239,7 @@ async function boot() {
 
 const flat = (groups) => groups.flatMap(g => g.folders);
 
-describe('the panel groups the albums by the journey', () => {
+describe('the dropdown groups the albums by the journey', () => {
   test('Phase runs in journey order, and Other holds what the journey does not map', async () => {
     const { api } = await boot();
     const groups = api.phaseGroups();
@@ -252,7 +262,7 @@ describe('the panel groups the albums by the journey', () => {
     const { api } = await boot();
     const offered = flat(api.phaseGroups()).slice().sort();
     assert.deepEqual(offered, [...new Set(offered)].sort(), 'an album is offered twice');
-    assert.deepEqual(offered, api.allPhaseOptions().slice().sort(), 'the panel and the options disagree');
+    assert.deepEqual(offered, api.allPhaseOptions().slice().sort(), 'the two lists disagree');
   });
 
   test('the album the files were added to is on offer, unmapped or not', async () => {
@@ -269,7 +279,7 @@ describe('the panel groups the albums by the journey', () => {
     api.state.order = ['site-survey', 'site-survey-map'];
     const offered = api.allPhaseOptions();
     const labels = flat(api.phaseGroups()).map(f => api.phaseLabel(f, offered));
-    assert.equal(new Set(labels).size, labels.length, 'two tiles read the same words');
+    assert.equal(new Set(labels).size, labels.length, 'two options read the same words');
 
     // Alone on its stage it shows the stage name; sharing it, the folder.
     assert.equal(api.phaseLabel('cable-pull', ['cable-pull']), api.journeyFor('cable-pull').stage);
@@ -280,22 +290,21 @@ describe('the panel groups the albums by the journey', () => {
   });
 });
 
-/* ── The tiles on the panel (rendered into stub elements) ──────── */
+/* ── The options on the list (rendered into stub elements) ─────── */
 
-describe('a tile writes the row\u2019s choice', () => {
-  test('the panel renders two labelled groups of tiles', async () => {
+describe('an option writes the row\u2019s choice', () => {
+  test('the dropdown renders two labelled groups of options', async () => {
     const { api, els } = await boot();
     api.state.pendingUploads = { files: [{ name: 'a.jpg' }], context: null, choice: ['General'] };
     api.togglePhaseMenu(0);
     const markup = els.get('pickMenu-0').innerHTML;
-    assert.match(markup, /class="pick-menu-group"/);
+    assert.match(markup, /class="pick-menu-group" role="group" aria-labelledby="pickMenuTitle-0-phase"/);
     assert.match(markup, /id="pickMenuTitle-0-phase">Phase</);
     assert.match(markup, /id="pickMenuTitle-0-other">Other</);
-    assert.match(markup, /role="radiogroup" aria-labelledby="pickMenuTitle-0-phase"/);
-    assert.match(markup, /role="radio" aria-checked="false" data-idx="0" data-value="really"/);
-    assert.match(markup, /class="pick-tile is-active" role="radio" aria-checked="true" data-idx="0" data-value="General"/,
+    assert.match(markup, /role="option" aria-selected="false" data-idx="0" data-value="really"/);
+    assert.match(markup, /class="pick-tile is-active" role="option" aria-selected="true" data-idx="0" data-value="General"/,
       'the album in force is not marked');
-    // The journey step rides on the tile, blank for what the journey does not map.
+    // The journey step rides on the option, blank for what the journey does not map.
     assert.match(markup, /data-value="cable-pull"[\s\S]*?<span class="pick-tile-art">4<\/span>/);
     assert.match(markup, /data-value="really"[\s\S]*?<span class="pick-tile-art"><\/span>/);
   });

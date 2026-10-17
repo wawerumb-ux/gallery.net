@@ -1687,81 +1687,105 @@ select.text-input option { background: var(--surface-3); color: var(--text); }
 .pick-control { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 .pick-hint { display: block; margin-top: 5px; color: var(--text-faint); font-size: 11px; font-family: var(--font-mono); }
 
-/* The row's album chip, and the panel it opens.
+/* The row's album dropdown. ONE box.
 
-   The panel is the pill's View / Order panel in every way that shows —
-   labelled groups of tiles, the one in force carrying the accent edge and
-   the tick — but it opens IN FLOW inside its own row instead of floating.
-   The dialog already scrolls, so a panel that floated would be clipped by
-   that overflow and would cover the rows below it, which is the one thing
-   the pill's panel is arranged never to do. The row's list stops scrolling
-   while a panel is open for the same reason: the row and its panel travel
-   together, and the dialog is what scrolls. */
-.pick-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 1px;
-  padding: 5px 6px 5px 11px;
+   Closed it is the small chip that names the album in force. Opened, the
+   same box grows around its list — the way a <select> is one control, not a
+   control plus a second surface parked under the row. Nothing floats: the
+   dialog scrolls, so a popup over it would be clipped by that overflow and
+   would cover the rows below it.
+
+   It is sized by its options (a dropdown is as wide as its widest entry, up
+   to the width of the row) and its list is capped and scrolls inside the
+   box, so it stays small however many albums there are. */
+.pick-drop {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  min-width: 0;
+  max-width: 100%;
   background: var(--surface-3);
   border: 1px solid var(--hairline);
   border-radius: var(--radius-pill);
+  overflow: hidden;
+  transition: border-color var(--duration-fast) ease;
+}
+.pick-drop:hover, .pick-drop.is-open { border-color: var(--hairline-strong); }
+.pick-drop.is-open { border-radius: 14px; }
+.pick-chip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 2px;
+  min-width: 0;
+  padding: 5px 6px 5px 11px;
+  background: none;
+  border: 0;
   color: var(--text);
   font-family: inherit;
   font-size: 12.5px;
   cursor: pointer;
-  transition: border-color var(--duration-fast) ease;
 }
-.pick-chip:hover { border-color: var(--hairline-strong); }
-.pick-chip[aria-expanded='true'] { border-color: var(--hairline-strong); }
-.pick-chip-label { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pick-chip-caret { display: block; transition: transform var(--duration-fast) var(--ease-spring); }
-.pick-chip[aria-expanded='true'] .pick-chip-caret { transform: rotate(180deg); }
+.pick-drop.is-open .pick-chip { border-bottom: 1px solid var(--hairline); }
+/* Small on purpose: the row's own file name is the other half of it, and a
+   chip that sizes itself to "Cable Routing & Management" leaves the name
+   77px ("20260101_…"). 118px keeps the chip at ~150px and the row one line;
+   the full name is on the chip's title, and in the list. */
+.pick-chip-label {
+  min-width: 0;
+  max-width: 118px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pick-chip-caret { display: block; flex: none; transition: transform var(--duration-fast) var(--ease-spring); }
+.pick-drop.is-open .pick-chip-caret { transform: rotate(180deg); }
 
 .pick-menu {
-  margin-top: 10px;
-  padding-top: 10px;
-  border-top: 1px solid var(--hairline);
+  /* Small, and it scrolls rather than running the height of the dialog. dvh
+     for the same reason as .pick-list: 40vh on a phone with the URL bar
+     showing is taller than the frame the dialog has to live inside. */
+  max-height: 40vh;
+  max-height: 40dvh;
+  overflow-y: auto;
+  padding: 6px;
 }
 .pick-menu-group + .pick-menu-group {
-  margin-top: 10px;
-  padding-top: 10px;
+  margin-top: 4px;
+  padding-top: 8px;
   border-top: 1px solid var(--hairline);
 }
 .pick-menu-title {
-  margin: 0 0 8px 2px;
+  margin: 4px 0 4px 8px;
   font-size: 10.5px;
   font-weight: 600;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--text-faint);
 }
-.pick-tiles {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 6px;
-}
+/* One line an album — the list is a list, not a wall of cards. */
 .pick-tile {
   position: relative;
   display: flex;
   align-items: center;
   gap: 8px;
+  width: 100%;
   /* Room on the right for the tick that marks the one in force. */
-  padding: 9px 26px 9px 10px;
-  background: var(--surface-3);
-  border: 1px solid transparent;
-  border-radius: 14px;
+  padding: 8px 24px 8px 8px;
+  background: none;
+  border: 0;
+  border-radius: 8px;
   color: var(--text-dim);
   font-family: inherit;
-  font-size: 12px;
+  font-size: 12.5px;
   font-weight: 500;
-  line-height: 1.25;
   text-align: left;
   cursor: pointer;
-  transition: border-color var(--duration-fast) ease, color var(--duration-fast) ease;
+  transition: color var(--duration-fast) ease, background var(--duration-fast) ease;
 }
-.pick-tile:hover { color: var(--text); }
-.pick-tile.is-active { border-color: var(--accent-text); color: var(--text); }
-/* The journey step, so the tiles read in the order the work happens and two
+.pick-tile:hover, .pick-tile:focus-visible { color: var(--text); background: var(--plate); }
+.pick-tile.is-active { color: var(--text); }
+/* The journey step, so the list reads in the order the work happens and two
    albums on the same step are visibly the same step. Unmapped albums keep
    the slot so every label starts at the same x. */
 .pick-tile-art {
@@ -1772,9 +1796,11 @@ select.text-input option { background: var(--surface-3); color: var(--text); }
   color: var(--text-faint);
   text-align: right;
 }
-/* Wrapped, not clipped: an album's name is the whole of what this control
-   decides, and "Labelling &…" is not a name anyone can choose between. */
-.pick-tile-label { min-width: 0; overflow-wrap: break-word; }
+.pick-tile.is-active .pick-tile-art { color: var(--accent-text); }
+/* One line, and the box is sized by the widest of them: an option that runs
+   past the row is ellipsized rather than wrapped, since the box's own
+   max-content width is what gives it room in the first place. */
+.pick-tile-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pick-tile-check {
   position: absolute;
   top: 50%;
@@ -1787,14 +1813,18 @@ select.text-input option { background: var(--surface-3); color: var(--text); }
   transition: opacity var(--duration-fast) ease;
 }
 .pick-tile.is-active .pick-tile-check { opacity: 1; }
+/* Wide, the open list is many times the height of the row it belongs to, and
+   a file name centred against it reads as one more line *in* the list. Name
+   and chip go to the top instead, on the same line, where the list hanging
+   under the chip is plainly the chip's. */
+.pick-row.is-open .pick-head { align-items: flex-start; }
+.pick-row.is-open .pick-name { padding-top: 6px; }
 .pick-list.is-open { max-height: none; }
 
-/* On a phone the chip can want most of the row — "Cable Routing &
-   Management" is 172px of it at 412 wide — and what got clipped was the
-   file name it belongs to (77px, "20260101_…"), which is the one part of
-   the row that says *which* file is being filed. The name keeps 120px, so a
-   short album keeps the dense one-line row and a long one moves the chip to
-   a line of its own, right-aligned, where both can be read whole. */
+/* On a phone the open box wants the row, so the file name steps up onto its
+   own line while the list is out and comes back down beside the small chip
+   when it is closed. The name keeps 120px either way: it is the only part of
+   the row that says *which* file is being filed. */
 @media (max-width: 480px) {
   .pick-head { flex-wrap: wrap; }
   .pick-name { flex: 1 1 120px; }
@@ -2099,6 +2129,8 @@ select.text-input option { background: var(--surface-3); color: var(--text); }
 /* Scrollbars track the canvas, not a fixed dark */
 .pick-list::-webkit-scrollbar { width: 8px; }
 .pick-list::-webkit-scrollbar-thumb { background: var(--scroll-thumb); border-radius: 4px; }
+.pick-menu::-webkit-scrollbar { width: 6px; }
+.pick-menu::-webkit-scrollbar-thumb { background: var(--scroll-thumb); border-radius: 3px; }
 .pop::-webkit-scrollbar { width: 6px; }
 .pop::-webkit-scrollbar-thumb { background: var(--scroll-thumb); border-radius: 3px; }
 
@@ -2770,7 +2802,7 @@ body.view-large .grid-albums { grid-template-columns: repeat(3, minmax(0, 1fr));
   .card, .album-cover, .fab, .tab, .tab-ic, .appbar-hero, .appbar-mini,
   .welcome-card, .welcome-faces, .pop, .pop-overlay,
   .search-menu, .search-tile,
-  .pick-chip, .pick-chip-caret, .pick-tile, .pick-tile-check,
+  .pick-drop, .pick-chip, .pick-chip-caret, .pick-tile, .pick-tile-check,
   .viewer, .viewer-top, .viewer-bottom, .viewer-nav, .viewer-img, .viewer-slide,
   .sheet, .sheet-overlay, .modal, .hcg-toast-item, .selectbar, .tabbar,
   .card img, .card-pick, .appbar-icon, .viewer-icon, .viewer-action, .btn,

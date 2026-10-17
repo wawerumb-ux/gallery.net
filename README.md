@@ -492,12 +492,13 @@ click "Sign out" when you're done to clear it early.
 - **Signing in:** tap **⋮** (top right) → **Admin sign in**.
 - **Adding photos:** while signed in, tap the blue **+** button, or an album
   cover's **⋮ → Add photos**. **⋮ → New album…** starts a brand-new phase.
-  Multi-select works. Each file lands on its own row, ending in the album
-  it will be filed under: tap that chip and the albums open as a panel,
-  grouped **Phase** (the albums the journey maps, in journey order, each
-  carrying its step) and **Other** (what it does not map — General among
-  them). The classifier's guess is what the chip starts on, and the guess
-  is printed under the file name.
+  Multi-select works. Each file lands on its own row, ending in a small chip
+  naming the album it will be filed under. Tap the chip and the same box
+  opens into its own list — grouped **Phase** (the albums the journey maps,
+  in journey order, each carrying its step) and **Other** (what it does not
+  map — General among them) — then closes back to the chip. The classifier's
+  guess is what the chip starts on, and the guess is printed under the file
+  name.
 - **Sorting photos:** long-press a photo (or **⋮ → Select photos**), tap the
   ones you want, then **Move** in the top bar. **Delete** sits beside it.
 - **Removing one photo:** open it in the viewer and tap **Delete** (admin).

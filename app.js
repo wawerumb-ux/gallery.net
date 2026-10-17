@@ -2731,26 +2731,24 @@ function renderPhaseMenu(i) {
   const offered = allPhaseOptions(p.context);
   const choice = phaseChoice(i);
   menu.innerHTML = phaseGroups(p.context).map(g => `
-    <div class="pick-menu-group">
+    <div class="pick-menu-group" role="group" aria-labelledby="pickMenuTitle-${i}-${g.id}">
       <div class="pick-menu-title" id="pickMenuTitle-${i}-${g.id}">${g.title}</div>
-      <div class="pick-tiles" role="radiogroup" aria-labelledby="pickMenuTitle-${i}-${g.id}">
-        ${g.folders.map(folder => {
-          const on = folder === choice;
-          const j = journeyFor(folder);
-          const title = j ? `${j.stage} · ${folder}` : folder;
-          return `<button type="button" class="pick-tile${on ? ' is-active' : ''}" role="radio" aria-checked="${on ? 'true' : 'false'}" data-idx="${i}" data-value="${escapeAttr(folder)}" title="${escapeAttr(title)}">
-            <span class="pick-tile-art">${j ? j.sequence : ''}</span>
-            <span class="pick-tile-label">${escapeHtml(phaseLabel(folder, offered))}</span>
-            <svg class="pick-tile-check" viewBox="0 0 24 24" width="12" height="12" fill="currentColor" aria-hidden="true">${TILE_CHECK_PATH}</svg>
-          </button>`;
-        }).join('')}
-      </div>
+      ${g.folders.map(folder => {
+        const on = folder === choice;
+        const j = journeyFor(folder);
+        const title = j ? `${j.stage} · ${folder}` : folder;
+        return `<button type="button" class="pick-tile${on ? ' is-active' : ''}" role="option" aria-selected="${on ? 'true' : 'false'}" data-idx="${i}" data-value="${escapeAttr(folder)}" title="${escapeAttr(title)}">
+          <span class="pick-tile-art">${j ? j.sequence : ''}</span>
+          <span class="pick-tile-label">${escapeHtml(phaseLabel(folder, offered))}</span>
+          <svg class="pick-tile-check" viewBox="0 0 24 24" width="12" height="12" fill="currentColor" aria-hidden="true">${TILE_CHECK_PATH}</svg>
+        </button>`;
+      }).join('')}
     </div>`).join('');
 }
 
-/* One writer for the open state, like the pill's: the row, its chip and the
-   panel's own hidden flag all follow from the index, so a close can never
-   leave a chip claiming to be expanded. */
+/* One writer for the open state, like the pill's: the row, its dropdown box,
+   its chip and the list's own hidden flag all follow from the index, so a
+   close can never leave a chip claiming to be expanded. */
 function setPhaseMenuOpen(i) {
   phaseMenuIndex = i;
   const list = el('uploadPickList');
@@ -2759,6 +2757,8 @@ function setPhaseMenuOpen(i) {
   for (const row of rows) {
     const on = i !== null && Number(row.dataset.idx) === i;
     row.classList.toggle('is-open', on);
+    const drop = row.querySelector('.pick-drop');
+    if (drop) drop.classList.toggle('is-open', on);
     const chip = row.querySelector('.pick-chip');
     if (chip) chip.setAttribute('aria-expanded', on ? 'true' : 'false');
     const menu = row.querySelector('.pick-menu');
@@ -2771,15 +2771,20 @@ function closePhaseMenu() {
   setPhaseMenuOpen(null);
 }
 
-/* One panel at a time, on the shared overlay stack so Escape and the back
-   gesture put it away before the dialog under it (and the tour's own
-   entries keep their order). */
+/* One dropdown at a time, on the shared overlay stack so Escape and the back
+   gesture put it away before the dialog under it (and the tour's own entries
+   keep their order). */
 function togglePhaseMenu(i) {
-  if (!el('pickMenu-' + i)) return;
+  const menu = el('pickMenu-' + i);
+  if (!menu) return;
   if (phaseMenuIndex === i) { overlayClose(PICK_MENU_ID); return; }
   if (phaseMenuIndex !== null) overlayClose(PICK_MENU_ID);
   renderPhaseMenu(i);
   setPhaseMenuOpen(i);
+  // The list is capped, so open with the album in force in view: it is the
+  // one being changed, and it is not always one of the first few.
+  const on = menu.querySelector ? menu.querySelector('.pick-tile.is-active') : null;
+  if (on && on.scrollIntoView) on.scrollIntoView({ block: 'nearest', behavior: 'instant' });
   overlayPush(PICK_MENU_ID, closePhaseMenu);
 }
 
@@ -2790,8 +2795,12 @@ function pickPhase(i, folder) {
   const p = state.pendingUploads;
   if (!p || !p.choice) return;
   p.choice[i] = folder;
-  const label = el('pickChipLabel-' + i);
-  if (label) label.textContent = phaseLabel(folder, allPhaseOptions(p.context));
+  const label = phaseLabel(folder, allPhaseOptions(p.context));
+  const span = el('pickChipLabel-' + i);
+  if (span) span.textContent = label;
+  // The chip ellipsizes a long name, so the whole of it stays on the title.
+  const chip = el('pickChip-' + i);
+  if (chip) chip.setAttribute('title', label);
   overlayClose(PICK_MENU_ID);
 }
 
@@ -2819,14 +2828,16 @@ function openUploadConfirm(fileList, contextFolder) {
         <div class="pick-head">
           <span class="pick-name" title="${escapeAttr(file.name)}">${escapeHtml(file.name)}</span>
           <span class="pick-control">
-            <button type="button" class="pick-chip" id="pickChip-${i}" data-idx="${i}" aria-haspopup="dialog" aria-expanded="false" aria-label="Album for ${escapeAttr(file.name)}">
-              <span class="pick-chip-label" id="pickChipLabel-${i}">${escapeHtml(phaseLabel(choice[i], offered))}</span>
-              <svg class="pick-chip-caret" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
-            </button>
+            <div class="pick-drop" data-idx="${i}">
+              <button type="button" class="pick-chip" id="pickChip-${i}" data-idx="${i}" aria-haspopup="listbox" aria-expanded="false" aria-label="Album for ${escapeAttr(file.name)}" title="${escapeAttr(phaseLabel(choice[i], offered))}">
+                <span class="pick-chip-label" id="pickChipLabel-${i}">${escapeHtml(phaseLabel(choice[i], offered))}</span>
+                <svg class="pick-chip-caret" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+              </button>
+              <div class="pick-menu" id="pickMenu-${i}" role="listbox" aria-labelledby="pickChip-${i}" hidden></div>
+            </div>
           </span>
         </div>
         ${hint}
-        <div class="pick-menu" id="pickMenu-${i}" role="dialog" aria-labelledby="pickChip-${i}" hidden></div>
       </div>
     </div>`;
   }).join('');
