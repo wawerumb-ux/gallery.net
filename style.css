@@ -317,6 +317,7 @@ code {
 
 /* Search pill (admin) */
 .search-pill {
+  position: relative;   /* the view panel drops from here */
   display: flex;
   align-items: center;
   gap: 8px;
@@ -334,40 +335,162 @@ code {
   color: var(--text); font-family: inherit; font-size: 14px;
 }
 .search-pill input::placeholder { color: var(--text-faint); }
+.search-view {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  padding: 5px 6px 5px 8px;
+  background: var(--surface-3);
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: color var(--duration-fast) ease, border-color var(--duration-fast) ease;
+}
+.search-view:hover { color: var(--text); }
+.search-view[aria-expanded='true'] { color: var(--text); border-color: var(--hairline-strong); }
+.search-view-ic { display: block; }
+.search-view-caret { display: block; transition: transform var(--duration-fast) var(--ease-spring); }
+.search-view[aria-expanded='true'] .search-view-caret { transform: rotate(180deg); }
 
-/* The pill's two view preferences wear .pick-select — the SAME dropdown the
-   confirm-upload dialog uses for a phase (see "Pick lists" below). Nothing
-   is restated here: the dress lives in that one rule, so the app has one
-   dropdown and the two cannot drift apart. All the pill adds is its own
-   room-keeping, and the only thing it takes is the shrink: these two keep
-   their width and the search box gives up its own. */
-.search-select { flex-shrink: 0; }
+/* The view panel: two groups of three tiles, the S10 Gallery's
+   view/arrangement chooser. It is the same tile idiom as the Eye-comfort
+   picker — rounded tile, accent edge on the one in force — because it is
+   the same kind of choice, and it drops from the button rather than
+   covering the column, because the wall behind it is the thing the tiles
+   are about to rearrange. */
+.search-menu {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 2;
+  width: min(372px, calc(100% - 8px));
+  /* Three rows of tiles is ~340px, which a phone held sideways does not
+     have. The cap is what is actually left below the pill: the app bar plus
+     the pill it drops from, and — while the hero is still out, above the
+     520px fold the app bar itself folds at — the hero as well. The
+     short-frame block below tightens the tiles so the cap is rarely
+     reached, and the scroll is the backstop for the rest. */
+  max-height: calc(100vh - 204px);
+  overflow-y: auto;
+  padding: 12px;
+  background: var(--surface-3);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius-sheet);
+  box-shadow: 0 18px 44px var(--shadow);
+  animation: popIn var(--duration-normal) var(--ease-out);
+}
+.search-menu::-webkit-scrollbar { width: 6px; }
+.search-menu::-webkit-scrollbar-thumb { background: var(--scroll-thumb); border-radius: 3px; }
+.search-menu-group + .search-menu-group {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--hairline);
+}
+.search-menu-title {
+  margin: 0 0 8px 2px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+.search-tiles {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+}
+.search-tile {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 4px 9px;
+  background: var(--surface-2);
+  border: 1px solid transparent;
+  border-radius: 14px;
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: border-color var(--duration-fast) ease, color var(--duration-fast) ease,
+              transform var(--duration-fast) var(--ease-spring);
+}
+.search-tile:hover { color: var(--text); transform: translateY(-2px); }
+.search-tile:active { transform: scale(0.96); }
+.search-tile.is-active { border-color: var(--accent-text); color: var(--text); }
+.search-tile-art { display: flex; align-items: center; justify-content: center; height: 24px; }
+.search-tile-art svg { display: block; }
+.search-tile-label { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.search-tile-check {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 14px;
+  height: 14px;
+  color: var(--accent-text);
+  opacity: 0;
+  transition: opacity var(--duration-fast) ease;
+}
+.search-tile.is-active .search-tile-check { opacity: 1; }
 
-/* A phone cannot hold two dropdowns and a usable search box in one row, so
-   there the pill is two: the search on top with its count, the two lists
-   under it, right-aligned where the thumb already is. It is a grid so the
-   search row keeps its exact 44px — only the second row is new — and the
-   count reserves its space, because it is the one thing in the row whose
-   width moves while you type and the second row hangs off the same track. */
+/* A small screen — a phone held sideways, or any phone: the tiles tighten
+   so the panel stays compact. The glyphs carry the meaning and the labels
+   stay legible, but the padding, the gaps and the group rules give back
+   ~110px. */
+@media (max-height: 520px) {
+  /* Below this the hero folds away, so the pill sits 92px higher and the
+     panel may use that room. */
+  .search-menu { max-height: calc(100vh - 112px); }
+}
+@media (max-height: 560px), (max-width: 480px) {
+  .search-menu { padding: 8px; }
+  .search-menu-group + .search-menu-group { margin-top: 8px; padding-top: 8px; }
+  .search-menu-title { margin-bottom: 5px; }
+  .search-tile { padding: 5px 4px 4px; gap: 3px; font-size: 10.5px; }
+  .search-tile-art { height: 17px; }
+  .search-tile-art svg { width: 17px; height: 17px; }
+}
+
+/* A phone has no room for a sheet that size, and the wall behind it is the
+   thing the tiles are about to rearrange — so there the panel does not
+   float over it at all. The pill takes a second row for it: a grid, so the
+   row of search controls keeps its exact 44px and the pill only grows
+   downward, and the panel docks inside the same surface with the divider
+   the tile groups already use. The wall is pushed, not covered. */
 @media (max-width: 480px) {
-  .search-pill {
+  .search-pill.is-open {
     display: grid;
-    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-columns: auto minmax(0, 1fr) auto auto;
     grid-template-rows: 44px auto;
     grid-template-areas:
-      'ic input count'
-      '. view order';
-    align-items: center;
+      'ic input view count'
+      'panel panel panel panel';
     row-gap: 8px;
     height: auto;
-    padding: 0 10px 10px 14px;
+    padding: 0 8px 12px 14px;
     border-radius: var(--radius-sheet);
   }
-  .search-pill .search-ic { grid-area: ic; }
-  .search-pill input { grid-area: input; }
-  .search-pill .search-count { grid-area: count; min-width: 52px; text-align: right; }
-  #viewSizeSelect { grid-area: view; justify-self: end; }
-  #viewOrderSelect { grid-area: order; justify-self: end; }
+  .search-pill.is-open .search-ic { grid-area: ic; }
+  .search-pill.is-open input { grid-area: input; }
+  .search-pill.is-open .search-view { grid-area: view; }
+  .search-pill.is-open .search-count { grid-area: count; }
+  .search-pill.is-open .search-menu {
+    grid-area: panel;
+    position: static;
+    width: auto;
+    max-height: none;
+    overflow: visible;
+    padding: 10px 0 0;
+    background: transparent;
+    border: 0;
+    border-top: 1px solid var(--hairline);
+    border-radius: 0;
+    box-shadow: none;
+    animation: none;
+  }
 }
 
 .search-count {
@@ -2540,6 +2663,7 @@ body.view-large .grid-albums { grid-template-columns: repeat(3, minmax(0, 1fr));
 @media (prefers-reduced-motion: reduce) {
   .card, .album-cover, .fab, .tab, .tab-ic, .appbar-hero, .appbar-mini,
   .welcome-card, .welcome-faces, .pop, .pop-overlay,
+  .search-menu, .search-tile,
   .viewer, .viewer-top, .viewer-bottom, .viewer-nav, .viewer-img, .viewer-slide,
   .sheet, .sheet-overlay, .modal, .hcg-toast-item, .selectbar, .tabbar,
   .card img, .card-pick, .appbar-icon, .viewer-icon, .viewer-action, .btn,

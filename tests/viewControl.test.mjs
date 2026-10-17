@@ -1,11 +1,11 @@
-/* The pill's two view preferences — how many photos a row holds, and which
-   end of the archive the wall starts at — are native <select>s wearing
-   .pick-select, the same dropdown the confirm-upload dialog uses for a
-   phase. One dropdown in the app rather than two ideas of one, and nothing
-   of ours drops over the wall: the list that opens is the platform's.
+/* The search pill used to carry a scope <select> — All, Photos, Albums — and
+   the search now looks through both at once, the way its placeholder always
+   said. What the pill carries instead is the S10 Gallery's view and
+   arrangement chooser: a panel of tiles that drops from an icon button, and
+   two preferences the archive remembers per device.
 
    The markup is the easy half and the browser check covers it. What is
-   worth guarding here is what the lists DO, because a wrong sort ruins a
+   worth guarding here is what the tiles DO, because a wrong sort ruins a
    300-photo wall quietly:
 
      · Order — the wall runs newest first, oldest first or A–Z, and the DAY
@@ -14,8 +14,6 @@
        once, and every date heading looks wrong.
      · View — Cozy and Large have to state a count at every breakpoint the
        base ladder does, or a phone gets one tile the width of the column.
-     · The value — the select has to SHOW what is in force, and a value
-       remembered by an older build must not leave it blank.
      · No scope — the filter must judge photos and albums by the query alone.
        A filter still branching on a scope no panel offers any more silently
        hides half the archive.
@@ -73,46 +71,52 @@ const gridCount = (body) => {
   return Number(m[1]);
 };
 
-/* ── The pill's dropdown is the upload dialog's dropdown ───── */
+/* ── The panel replaces the select ─────────────────────────── */
 
-describe('the pill carries the same dropdown the upload dialog does', () => {
-  test('the native scope select is still gone', () => {
-    assert.ok(!/adminSearchFilter/.test(html), 'the scope select is back in index.html');
-    assert.ok(!/adminSearchFilter/.test(app), 'app.js still reaches for the scope select');
+describe('the search pill offers a panel, not a select', () => {
+  test('the native scope select is gone', () => {
+    assert.ok(!/<select[^>]*adminSearchFilter/.test(html), 'the select is still in index.html');
+    assert.ok(!/<option value="phase">/.test(html), 'the select options are still in index.html');
+    assert.ok(!/adminSearchFilter/.test(app), 'app.js still reaches for the select');
   });
 
-  test('both preferences are native selects wearing .pick-select', () => {
-    const size = html.match(/<select[^>]*id="viewSizeSelect"[^>]*>/);
-    const order = html.match(/<select[^>]*id="viewOrderSelect"[^>]*>/);
-    assert.ok(size, 'no viewSizeSelect');
-    assert.ok(order, 'no viewOrderSelect');
-    // The class is the whole point: this is the confirmation dialog's
-    // control, so its dress lives in the one rule it wears there.
-    assert.match(size[0], /class="pick-select search-select"/, 'the view select does not wear .pick-select');
-    assert.match(order[0], /class="pick-select search-select"/, 'the order select does not wear .pick-select');
-    assert.match(size[0], /data-tour-target="admin-view-options"/, 'the tour has nothing to point at');
+  test('the button carries the tour hook, and it is an icon button now', () => {
+    const btn = html.match(/<button[^>]*id="searchViewBtn"[^>]*>/);
+    assert.ok(btn, 'no searchViewBtn button');
+    assert.match(btn[0], /data-tour-target="admin-view-options"/);
+    assert.match(btn[0], /aria-haspopup="dialog"/);
+    assert.match(btn[0], /aria-expanded="false"/);
+    assert.match(btn[0], /aria-label="View and arrange"/);
+    assert.match(btn[0], /title="View and arrange"/);
+    // With the scope gone the chip has no label to read; it is the tune
+    // glyph, the same one the ⋮ menus use for "adjust this".
+    assert.match(html, /class="search-view-ic"/);
+    assert.ok(!/searchViewLabel/.test(html + app), 'a scope label is still being written');
+  });
+
+  test('the panel starts hidden and lives inside the pill it drops from', () => {
+    const menu = html.match(/<div[^>]*id="searchMenu"[^>]*>/);
+    assert.ok(menu, 'no searchMenu panel');
+    assert.match(menu[0], /hidden/);
+    assert.match(menu[0], /role="dialog"/);
     const pill = html.slice(html.indexOf('id="searchWrap"'), html.indexOf('</header>'));
-    assert.ok(pill.includes('id="viewSizeSelect"') && pill.includes('id="viewOrderSelect"'),
-      'a select sits outside the pill');
+    assert.ok(pill.includes('id="searchMenu"'), 'the panel is outside the pill, so it cannot anchor to it');
   });
 
-  test('no custom panel survives — nothing of ours drops over the wall', () => {
-    assert.ok(!/searchMenu|search-menu|search-tile|search-view/.test(html + css + app),
-      'the tile panel is still somewhere in the app');
+  test('the panel is positioned against the pill, not the viewport', () => {
+    assert.match(rule('.search-pill', '').body, /position:\s*relative/);
+    const menu = rule('.search-menu', '').body;
+    assert.match(menu, /position:\s*absolute/);
+    assert.match(menu, /right:\s*0/);
+    assert.match(menu, /top:\s*calc\(100% \+ 8px\)/);
+    assert.ok(!/bottom\s*:/.test(menu), 'the panel is pinned to the viewport bottom, not the pill');
   });
 
-  test('the pill adds room-keeping, not a second dress', () => {
-    const sel = rule('.search-select', '').body;
-    // Every visual property has to come from .pick-select. If one is
-    // restated here the two controls can drift apart, which is the thing
-    // "match the other dropdown" was asking for.
-    for (const prop of ['background', 'border', 'border-radius', 'color', 'font-size', 'font-family', 'padding']) {
-      assert.ok(!new RegExp(`(^|;)\\s*${prop}\\s*:`).test(sel), `.search-select restates ${prop}`);
-    }
-    assert.match(sel, /flex-shrink:\s*0/);
-    // And the dress really is the dialog's one rule.
-    assert.match(rule('.pick-select', '').body, /border-radius:\s*var\(--radius-pill\)/);
-    assert.ok(/class="pick-select"/.test(app), 'the dialog no longer builds a .pick-select to match');
+  test('the tiles are a three-across grid, one check per group', () => {
+    assert.equal(gridCount(rule('.search-tiles', '').body), 3);
+    assert.match(rule('.search-tile.is-active', '').body, /border-color:\s*var\(--accent-text\)/);
+    assert.match(rule('.search-tile.is-active .search-tile-check', '').body, /opacity:\s*1/);
+    assert.match(rule('.search-tile-check', '').body, /opacity:\s*0/);
   });
 });
 
@@ -133,7 +137,7 @@ describe('the search has no scope to pick, so it searches both', () => {
   });
 
   test('both are read back before the first render, and persisted on a pick', () => {
-    const loader = app.slice(app.indexOf('function loadViewPrefs()'), app.indexOf('function applyAdminFilter('));
+    const loader = app.slice(app.indexOf('function loadViewPrefs()'), app.indexOf('function renderSearchMenu()'));
     for (const key of ['VIEW_SIZE_KEY', 'VIEW_ORDER_KEY']) {
       assert.ok(loader.includes(key), `loadViewPrefs never reads ${key}`);
     }
@@ -146,22 +150,11 @@ describe('the search has no scope to pick, so it searches both', () => {
     assert.ok(init.indexOf('loadViewPrefs()') < init.indexOf('loadTree('), 'the preferences are read after the tree');
   });
 
-  test('a remembered value the select no longer offers falls back', () => {
-    for (const [fn, selId, fallback] of [
-      ['applyViewSize', 'viewSizeSelect', 'comfy'],
-      ['applyViewOrder', 'viewOrderSelect', 'newest'],
-    ]) {
-      const body = app.slice(app.indexOf(`function ${fn}(`)).slice(0, 420);
-      assert.ok(body.includes(`el('${selId}')`), `${fn} does not read the ${selId} select`);
-      assert.match(body, /offeredBy\(sel, id\)/, `${fn} trusts the stored value`);
-      assert.ok(body.includes(`: '${fallback}'`), `${fn} has no default to fall back to`);
+  test('a remembered value the panel no longer offers falls back', () => {
+    for (const fn of ['applyViewSize', 'applyViewOrder']) {
+      const body = app.slice(app.indexOf(`function ${fn}(`));
+      assert.match(body.slice(0, 400), /offersId\('(size|order)', id\)/, `${fn} trusts the stored value`);
     }
-    // offeredBy asks the select itself. A list kept beside the options can
-    // drift from what the control really offers, and then a remembered value
-    // that IS offered falls back for no reason — or worse, one that is not
-    // is written in and blanks the control.
-    const by = app.slice(app.indexOf('function offeredBy(')).slice(0, 300);
-    assert.ok(by.includes('.options'), 'offeredBy does not ask the select what it offers');
   });
 });
 
@@ -209,32 +202,19 @@ describe('the view sizes state a count everywhere the ladder does', () => {
     }
   });
 
-  test('the sizes are opt-in — no view class is baked into the markup', () => {
-    const bodyTag = html.match(/<body[^>]*>/);
-    assert.ok(bodyTag, 'no <body> tag');
-    assert.ok(!/view-cozy|view-large/.test(bodyTag[0]),
-      'a view size is painted into the markup, so the untouched archive is not untouched');
+  test('neither size is on by default, and reduced motion stops the panel', () => {
+    const rm = rules.find(r => r.cond === '@media (prefers-reduced-motion: reduce)'
+      && /\.search-menu/.test(r.sel) && /\.search-tile/.test(r.sel));
+    assert.ok(rm, 'the panel is not in the reduced-motion block');
   });
 });
 
-/* ── What the lists do to the wall (through the real code) ─── */
-
-/* The two selects in the pill, and the options their markup carries — read
-   out of index.html, so the stub below cannot disagree with the markup. */
-const VIEW_SELECTS = ['viewSizeSelect', 'viewOrderSelect'];
-
-function optionsOf(selectId) {
-  const from = html.indexOf(`id="${selectId}"`);
-  assert.ok(from > 0, `no ${selectId} in index.html`);
-  const block = html.slice(from, html.indexOf('</select>', from));
-  return [...block.matchAll(/<option value="([^"]+)"/g)].map(m => ({ value: m[1] }));
-}
+/* ── What the tiles do to the wall (through the real code) ─── */
 
 const stubEl = () => {
   const set = new Set();
   return {
     hidden: true, textContent: '', innerHTML: '', value: '', dataset: {},
-    options: [],
     style: { setProperty() {}, removeProperty() {}, getPropertyValue: () => '' },
     addEventListener() {}, appendChild() {}, removeChild() {}, click() {}, remove() {},
     setAttribute() {}, getAttribute: () => null,
@@ -250,18 +230,11 @@ const stubEl = () => {
   };
 };
 
-/* app.js in a vm, with a DOM just real enough to hold the pill. */
+/* app.js in a vm, with a DOM just real enough to hold the panel. */
 async function boot() {
   const els = new Map();
   const get = (id) => {
-    if (!els.has(id)) {
-      const el = stubEl();
-      // The two selects answer with the options their markup really carries
-      // (read below), so the stub cannot disagree with index.html about what
-      // is offered — which is the thing offeredBy() checks.
-      if (VIEW_SELECTS.includes(id)) el.options = optionsOf(id);
-      els.set(id, el);
-    }
+    if (!els.has(id)) els.set(id, stubEl());
     return els.get(id);
   };
   const bodyEl = stubEl();
@@ -319,7 +292,7 @@ async function boot() {
 const names = (api) => api.picturesCards().map(c => c.img.name);
 const dayKeys = (api) => api.groupPictures(api.picturesCards()).map(g => g.iso || 'undated');
 
-describe('the Order list reaches the wall', () => {
+describe('the Order tiles reach the wall', () => {
   test('newest first is the default, and it is what the wall always did', async () => {
     const { api } = await boot();
     assert.deepEqual(names(api), [
@@ -360,7 +333,7 @@ describe('the Order list reaches the wall', () => {
     }
   });
 
-  test('an order the select does not offer falls back to newest', async () => {
+  test('an order the panel no longer offers falls back to newest', async () => {
     const { api } = await boot();
     api.applyViewOrder('sideways', false);
     assert.equal(api.state.viewOrder, 'newest');
@@ -373,7 +346,7 @@ describe('the Order list reaches the wall', () => {
   });
 });
 
-describe('the View list sets the wall density', () => {
+describe('the View tiles set the wall density', () => {
   test('Cozy and Large put a class on the body, Comfy takes both off', async () => {
     const { api, bodyClasses } = await boot();
     api.applyViewSize('cozy', true);
@@ -399,95 +372,114 @@ describe('the View list sets the wall density', () => {
   });
 });
 
-describe('the pill lists offer exactly what the wall understands', () => {
-  test('three sizes, three orders, and no scope anywhere', () => {
-    assert.deepEqual(optionsOf('viewSizeSelect'), [{ value: 'cozy' }, { value: 'comfy' }, { value: 'large' }]);
-    assert.deepEqual(optionsOf('viewOrderSelect'), [{ value: 'newest' }, { value: 'oldest' }, { value: 'name' }]);
-    // The scope is gone from the control as well as from the code that
-    // judged it: one query, both kinds of result.
-    const pill = html.slice(html.indexOf('id="searchWrap"'), html.indexOf('</header>'));
-    assert.ok(!/Search in|scope/.test(pill), 'a scope control is back in the pill');
-  });
-
-  test('the control shows what is in force', async () => {
-    const { api, els } = await boot();
-    api.applyViewSize('large', false);
-    api.applyViewOrder('oldest', false);
-    assert.equal(els.get('viewSizeSelect').value, 'large', 'the size select does not show the size in force');
-    assert.equal(els.get('viewOrderSelect').value, 'oldest', 'the order select does not show the order in force');
-  });
-
-  test('a value no build offers leaves the control on the default, never blank', async () => {
-    const { api, els } = await boot();
-    api.applyViewSize('enormous', false);
-    api.applyViewOrder('sideways', false);
-    assert.equal(els.get('viewSizeSelect').value, 'comfy');
-    assert.equal(els.get('viewOrderSelect').value, 'newest');
-  });
-
-  test('a pick is a change event, and it is persisted', () => {
-    const wire = app.slice(app.indexOf("el('viewSizeSelect')"), app.indexOf("el('fabAdd')"));
-    for (const id of ['viewSizeSelect', 'viewOrderSelect']) {
-      assert.ok(wire.includes(`el('${id}').addEventListener('change'`), `${id} has no change listener`);
-    }
-    assert.ok(wire.includes('applyViewSize(e.target.value, true)'), 'a size pick is not persisted');
-    assert.ok(wire.includes('applyViewOrder(e.target.value, true)'), 'an order pick is not persisted');
-  });
-
-  test('nothing opens a panel or swallows a tap any more', () => {
-    // The old panel needed an outside-tap listener and a click-suppress flag
-    // so that dismissing it against the wall did not open the viewer as
-    // well. A native dropdown needs neither, and a leftover document-wide
-    // pointerdown would be a tap-eater on every card.
-    assert.ok(!/toggleSearchMenu|closeSearchMenu|setSearchMenuOpen|renderSearchMenu|pickSearchOption/.test(app));
-    assert.ok(!/closest\('#searchMenu'\)|closest\('#searchViewBtn'\)/.test(app));
+describe('the Search-in tiles are gone', () => {
+  test('the panel offers View and Order, and nothing else', async () => {
+    const { api } = await boot();
+    assert.deepEqual(api.SEARCH_MENU.map(g => g.group), ['size', 'order']);
+    assert.deepEqual(api.SEARCH_MENU.map(g => g.title), ['View', 'Order']);
+    assert.ok(!JSON.stringify(api.SEARCH_MENU).includes('scope'));
   });
 });
 
-/* ── On a phone the pill takes a second row for the lists ──
-   Two lists and a usable search box do not fit in one 44px row on a phone:
-   at 320 wide the box would be left ~49px, which is not a search box. There
-   the pill is two rows — the search and its count on top, the two lists
-   under it, right-aligned where the thumb already is. Nothing floats and
-   nothing overlays; it is the same two controls, given a row of their own.
+describe('the panel itself', () => {
+  test('two groups of three tiles, one checked per group', async () => {
+    const { api, els } = await boot();
+    api.renderSearchMenu();
+    const markup = els.get('searchMenu').innerHTML;
+    assert.equal((markup.match(/<button[^>]*class="search-tile[ "]/g) || []).length, 6);
+    assert.equal((markup.match(/role="radio"/g) || []).length, 6);
+    assert.equal((markup.match(/aria-checked="true"/g) || []).length, 2);
+    assert.equal((markup.match(/role="radiogroup"/g) || []).length, 2);
+    for (const title of ['View', 'Order']) {
+      assert.ok(markup.includes(`>${title}<`), `no "${title}" group`);
+    }
+    assert.ok(!markup.includes('Search in'), 'the Search in group is still rendered');
+  });
 
-   These guard what makes that true: the phone pill is a GRID with the search
-   row still exactly 44px, so nothing under the thumb moves when the second
-   row arrives, and the count reserves its width because it is the one thing
-   in the row that changes while you type — the lists hang off the same
-   track, and without that they would slide sideways under the thumb. */
+  test('the checked tile is always the one in force', async () => {
+    const { api, els } = await boot();
+    api.applyViewSize('large', false);
+    api.applyViewOrder('oldest', false);
+    api.renderSearchMenu();
+    const markup = els.get('searchMenu').innerHTML;
+    const on = [...markup.matchAll(/<button([^>]*)>/g)]
+      .map(m => m[1]).filter(a => /search-tile is-active/.test(a))
+      .map(a => `${/data-group="([^"]+)"/.exec(a)[1]}:${/data-value="([^"]+)"/.exec(a)[1]}`);
+    assert.deepEqual(on.sort(), ['order:oldest', 'size:large']);
+  });
+});
 
-describe('a phone gets a second row of the pill, not a sheet over the wall', () => {
-  const phone = '@media (max-width: 480px)';
+/* ── On a phone the panel docks instead of floating over the wall ──
+   Measured in a browser at 412, 390 and 320 wide: the panel sat at 27% of
+   the screen, over the first two day groups. It is now a second row of the
+   pill — nothing overlapped, the wall pushed rather than covered. These
+   guard the two things that make that true: the panel is in FLOW on a
+   phone, and it is the pill that grows (the row of controls keeps its
+   height, so nothing under the thumb moves). */
 
-  test('the pill is a grid on a phone, and a plain row everywhere else', () => {
-    const pill = rule('.search-pill', phone).body;
-    assert.match(pill, /display:\s*grid/);
+describe('a phone gets a docked panel, not a sheet over the wall', () => {
+  const dock = '@media (max-width: 480px)';
+
+  test('the panel stops floating and takes a row of the pill', () => {
+    const menu = rule('.search-pill.is-open .search-menu', dock).body;
+    assert.match(menu, /position:\s*static/);
+    assert.match(menu, /grid-area:\s*panel/);
+    assert.ok(!/position:\s*absolute/.test(menu), 'the phone panel is still taken out of flow');
+    // The sheet's own dress — surface, shadow, entrance — is for wide frames.
+    assert.match(menu, /background:\s*transparent/);
+    assert.match(menu, /box-shadow:\s*none/);
+    assert.match(menu, /animation:\s*none/);
+    assert.match(menu, /max-height:\s*none/);
+  });
+
+  test('the row of controls keeps its height, and the panel is the second row', () => {
+    const pill = rule('.search-pill.is-open', dock).body;
     assert.match(pill, /grid-template-rows:\s*44px auto/);
+    assert.match(pill, /grid-template-areas:[\s\S]*'panel panel panel panel'/);
     assert.match(pill, /height:\s*auto/);
-    assert.match(pill, /grid-template-areas:[\s\S]*'\. view order'/);
-    const wide = rule('.search-pill', '').body;
-    assert.match(wide, /display:\s*flex/);
-    assert.ok(!/grid/.test(wide), 'the one-row pill is a grid too');
   });
 
-  test('the search row keeps its 44px and its count reserves its space', () => {
-    const count = rule('.search-pill .search-count', phone).body;
-    assert.match(count, /grid-area:\s*count/);
-    assert.match(count, /min-width:\s*52px/);
-    assert.match(rule('.search-pill .search-ic', phone).body, /grid-area:\s*ic/);
-    assert.match(rule('.search-pill input', phone).body, /grid-area:\s*input/);
+  test('no floating sheet survives at a width the dock covers', () => {
+    assert.match(rule('.search-menu', '').body, /position:\s*absolute/);
+    const phone = rules.filter(r => r.sel === '.search-menu' && r.cond.includes('max-width: 480px'));
+    assert.ok(phone.length, 'no .search-menu rule for phones');
+    for (const r of phone) {
+      assert.ok(!/position:\s*absolute/.test(r.body), `a floating sheet under "${r.cond}"`);
+    }
   });
 
-  test('both lists sit at the right-hand edge of the second row', () => {
-    assert.match(rule('#viewSizeSelect', phone).body, /grid-area:\s*view/);
-    assert.match(rule('#viewOrderSelect', phone).body, /grid-area:\s*order/);
-    assert.match(rule('#viewSizeSelect', phone).body, /justify-self:\s*end/);
-    assert.match(rule('#viewOrderSelect', phone).body, /justify-self:\s*end/);
+  test('the tiles tighten on a phone as well as in a short frame', () => {
+    const tight = rules.filter(r => r.sel === '.search-tile' && /max-height: 560px/.test(r.cond));
+    assert.equal(tight.length, 1, 'expected one short-screen tightening block');
+    assert.match(tight[0].cond, /max-width: 480px/);
+  });
+});
+
+describe('the pill carries the open state, and the chrome follows', () => {
+  test('opening docks the panel and tells the pill', async () => {
+    const { api, els } = await boot();
+    api.toggleSearchMenu();
+    assert.equal(els.get('searchMenu').hidden, false);
+    assert.ok(els.get('searchWrap')._classes.has('is-open'), 'the pill never learns the panel is open');
   });
 
-  test('no floating panel survives anywhere to cover the wall', () => {
-    assert.ok(!/position:\s*absolute/.test(rule('.search-pill', '').body));
-    assert.ok(!rules.some(r => /\.search-(menu|tile)/.test(r.sel)), 'a panel rule survives');
+  test('closing hands the pill back', async () => {
+    const { api, els } = await boot();
+    api.toggleSearchMenu();
+    api.closeSearchMenu();
+    assert.equal(els.get('searchMenu').hidden, true);
+    assert.ok(!els.get('searchWrap')._classes.has('is-open'));
+  });
+
+  test('both edges go through one writer, and it re-measures --chrome-h', () => {
+    const writer = app.slice(app.indexOf('function setSearchMenuOpen('), app.indexOf('function closeSearchMenu('));
+    assert.match(writer, /classList\.toggle\('is-open', open\)/);
+    // The dock makes the app bar taller, and --chrome-h is what the
+    // album-detail header sticks below.
+    assert.match(writer, /syncChromeH\(\)/);
+    const open = app.slice(app.indexOf('function toggleSearchMenu('), app.indexOf('function pickSearchOption('));
+    assert.match(open, /setSearchMenuOpen\(true\)/);
+    const close = app.slice(app.indexOf('function closeSearchMenu('), app.indexOf('function toggleSearchMenu('));
+    assert.match(close, /setSearchMenuOpen\(false\)/);
   });
 });
