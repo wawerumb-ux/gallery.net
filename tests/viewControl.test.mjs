@@ -408,3 +408,78 @@ describe('the panel itself', () => {
     assert.deepEqual(on.sort(), ['order:oldest', 'size:large']);
   });
 });
+
+/* ── On a phone the panel docks instead of floating over the wall ──
+   Measured in a browser at 412, 390 and 320 wide: the panel sat at 27% of
+   the screen, over the first two day groups. It is now a second row of the
+   pill — nothing overlapped, the wall pushed rather than covered. These
+   guard the two things that make that true: the panel is in FLOW on a
+   phone, and it is the pill that grows (the row of controls keeps its
+   height, so nothing under the thumb moves). */
+
+describe('a phone gets a docked panel, not a sheet over the wall', () => {
+  const dock = '@media (max-width: 480px)';
+
+  test('the panel stops floating and takes a row of the pill', () => {
+    const menu = rule('.search-pill.is-open .search-menu', dock).body;
+    assert.match(menu, /position:\s*static/);
+    assert.match(menu, /grid-area:\s*panel/);
+    assert.ok(!/position:\s*absolute/.test(menu), 'the phone panel is still taken out of flow');
+    // The sheet's own dress — surface, shadow, entrance — is for wide frames.
+    assert.match(menu, /background:\s*transparent/);
+    assert.match(menu, /box-shadow:\s*none/);
+    assert.match(menu, /animation:\s*none/);
+    assert.match(menu, /max-height:\s*none/);
+  });
+
+  test('the row of controls keeps its height, and the panel is the second row', () => {
+    const pill = rule('.search-pill.is-open', dock).body;
+    assert.match(pill, /grid-template-rows:\s*44px auto/);
+    assert.match(pill, /grid-template-areas:[\s\S]*'panel panel panel panel'/);
+    assert.match(pill, /height:\s*auto/);
+  });
+
+  test('no floating sheet survives at a width the dock covers', () => {
+    assert.match(rule('.search-menu', '').body, /position:\s*absolute/);
+    const phone = rules.filter(r => r.sel === '.search-menu' && r.cond.includes('max-width: 480px'));
+    assert.ok(phone.length, 'no .search-menu rule for phones');
+    for (const r of phone) {
+      assert.ok(!/position:\s*absolute/.test(r.body), `a floating sheet under "${r.cond}"`);
+    }
+  });
+
+  test('the tiles tighten on a phone as well as in a short frame', () => {
+    const tight = rules.filter(r => r.sel === '.search-tile' && /max-height: 560px/.test(r.cond));
+    assert.equal(tight.length, 1, 'expected one short-screen tightening block');
+    assert.match(tight[0].cond, /max-width: 480px/);
+  });
+});
+
+describe('the pill carries the open state, and the chrome follows', () => {
+  test('opening docks the panel and tells the pill', async () => {
+    const { api, els } = await boot();
+    api.toggleSearchMenu();
+    assert.equal(els.get('searchMenu').hidden, false);
+    assert.ok(els.get('searchWrap')._classes.has('is-open'), 'the pill never learns the panel is open');
+  });
+
+  test('closing hands the pill back', async () => {
+    const { api, els } = await boot();
+    api.toggleSearchMenu();
+    api.closeSearchMenu();
+    assert.equal(els.get('searchMenu').hidden, true);
+    assert.ok(!els.get('searchWrap')._classes.has('is-open'));
+  });
+
+  test('both edges go through one writer, and it re-measures --chrome-h', () => {
+    const writer = app.slice(app.indexOf('function setSearchMenuOpen('), app.indexOf('function closeSearchMenu('));
+    assert.match(writer, /classList\.toggle\('is-open', open\)/);
+    // The dock makes the app bar taller, and --chrome-h is what the
+    // album-detail header sticks below.
+    assert.match(writer, /syncChromeH\(\)/);
+    const open = app.slice(app.indexOf('function toggleSearchMenu('), app.indexOf('function pickSearchOption('));
+    assert.match(open, /setSearchMenuOpen\(true\)/);
+    const close = app.slice(app.indexOf('function closeSearchMenu('), app.indexOf('function toggleSearchMenu('));
+    assert.match(close, /setSearchMenuOpen\(false\)/);
+  });
+});

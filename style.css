@@ -436,16 +436,16 @@ code {
 }
 .search-tile.is-active .search-tile-check { opacity: 1; }
 
-/* A short frame — a phone held sideways is the case. The tiles tighten so
-   the whole panel stays inside it: the glyphs carry the meaning and the
-   labels stay legible, but the padding, the gaps and the group rules give
-   back ~110px. */
+/* A small screen — a phone held sideways, or any phone: the tiles tighten
+   so the panel stays compact. The glyphs carry the meaning and the labels
+   stay legible, but the padding, the gaps and the group rules give back
+   ~110px. */
 @media (max-height: 520px) {
   /* Below this the hero folds away, so the pill sits 92px higher and the
      panel may use that room. */
   .search-menu { max-height: calc(100vh - 112px); }
 }
-@media (max-height: 560px) {
+@media (max-height: 560px), (max-width: 480px) {
   .search-menu { padding: 8px; }
   .search-menu-group + .search-menu-group { margin-top: 8px; padding-top: 8px; }
   .search-menu-title { margin-bottom: 5px; }
@@ -453,6 +453,46 @@ code {
   .search-tile-art { height: 17px; }
   .search-tile-art svg { width: 17px; height: 17px; }
 }
+
+/* A phone has no room for a sheet that size, and the wall behind it is the
+   thing the tiles are about to rearrange — so there the panel does not
+   float over it at all. The pill takes a second row for it: a grid, so the
+   row of search controls keeps its exact 44px and the pill only grows
+   downward, and the panel docks inside the same surface with the divider
+   the tile groups already use. The wall is pushed, not covered. */
+@media (max-width: 480px) {
+  .search-pill.is-open {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto auto;
+    grid-template-rows: 44px auto;
+    grid-template-areas:
+      'ic input view count'
+      'panel panel panel panel';
+    row-gap: 8px;
+    height: auto;
+    padding: 0 8px 12px 14px;
+    border-radius: var(--radius-sheet);
+  }
+  .search-pill.is-open .search-ic { grid-area: ic; }
+  .search-pill.is-open input { grid-area: input; }
+  .search-pill.is-open .search-view { grid-area: view; }
+  .search-pill.is-open .search-count { grid-area: count; }
+  .search-pill.is-open .search-menu {
+    grid-area: panel;
+    position: static;
+    width: auto;
+    max-height: none;
+    overflow: visible;
+    padding: 10px 0 0;
+    background: transparent;
+    border: 0;
+    border-top: 1px solid var(--hairline);
+    border-radius: 0;
+    box-shadow: none;
+    animation: none;
+  }
+}
+
 .search-count {
   font-family: var(--font-mono);
   font-size: 11px;

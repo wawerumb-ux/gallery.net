@@ -1657,9 +1657,23 @@ function renderSearchMenu() {
     </div>`).join('');
 }
 
+/* The pill carries the open state too. On a phone the panel does not float
+   over the wall — it DOCKS inside the pill, as a second row (see the
+   stylesheet), so the wall is pushed down instead of covered. That makes
+   the app bar taller while it is open, and --chrome-h is what the
+   album-detail header sticks below, so both edges re-measure it. On a
+   wider frame the class is set but nothing is docked, and the measurement
+   lands on the height the bar already had. */
+function setSearchMenuOpen(open) {
+  const wrap = el('searchWrap');
+  if (wrap && wrap.classList) wrap.classList.toggle('is-open', open);
+  syncChromeH();
+}
+
 function closeSearchMenu() {
   const menu = el('searchMenu');
   if (menu) menu.hidden = true;
+  setSearchMenuOpen(false);
   const btn = el('searchViewBtn');
   if (btn) btn.setAttribute('aria-expanded', 'false');
 }
@@ -1670,6 +1684,7 @@ function toggleSearchMenu() {
   if (!menu.hidden) { overlayClose('searchMenu'); return; }
   renderSearchMenu();
   menu.hidden = false;
+  setSearchMenuOpen(true);
   const btn = el('searchViewBtn');
   if (btn) btn.setAttribute('aria-expanded', 'true');
   overlayPush('searchMenu', closeSearchMenu);
@@ -5112,7 +5127,7 @@ function failureSuffix(failedNames) {
 
     // The search pill's view panel
     SEARCH_MENU, picturesCards, groupPictures, renderSearchMenu,
-    applyViewSize, applyViewOrder,
+    toggleSearchMenu, closeSearchMenu, applyViewSize, applyViewOrder,
 
     // Notifications
     showToast, dismissToast,
