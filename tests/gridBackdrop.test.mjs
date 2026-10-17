@@ -21,13 +21,19 @@
        hovered tile, because the tile lifts and its mat rides with it;
      · listing the mat before the accent ring buries the ring completely
        (the first shadow in a list paints on top) and the tile lights up with
-       no outline at all. */
+       no outline at all.
+
+   At rest only. Under the pointer the hovered tile rounds for real, which
+   opens its own four corners to the backdrop — one tile at a time, on purpose
+   (see the .card:hover block). Every assertion here guards the resting state,
+   where all four corners of every tile meet its neighbours. */
 
 import { test, describe } from 'node:test';
 import assert from 'node:assert';
 import { readFile } from 'node:fs/promises';
 
 const raw = await readFile(new URL('../style.css', import.meta.url), 'utf8');
+const rawApp = await readFile(new URL('../app.js', import.meta.url), 'utf8');
 
 /* Strip comments first, then take every LEAF block — `[^{}]` cannot cross a
    brace, so this reaches rules inside media/container/supports without ever
@@ -114,56 +120,133 @@ describe('The grid paints only behind photos, never over empty cells', () => {
     assert.ok(shadowLayers(decl(card[0].body, 'box-shadow')).includes('var(--tile-mat)'));
   });
 
-  test('the tile is square, so the mat has no corner to notch', () => {
+  test('the tile rests square, so the mat has no corner to notch', () => {
     const card = ruleFor('.card');
-    // Four rounded corners meet at every tile crossing and leave a hole —
-    // measured at ~1.7px with this 6px gap and 4px radius, plainly visible as
-    // moving footage. The rounding moves to the photo.
+    // At rest, four rounded corners meet at every tile crossing and leave a
+    // hole — measured at ~1.7px with this 6px gap and 4px radius, plainly
+    // visible as moving footage. The resting rounding moves to the photo; the
+    // tile only rounds under the pointer, where it is the only tile showing.
     assert.match(card[0].body, /border-radius:\s*0;/);
     assert.doesNotMatch(card[0].body, /border-radius:\s*var\(--radius-tile\)/);
   });
 
-  test('the photo carries the resting rounding, and the hovered corner is painted on', () => {
+  test('the photo carries the resting rounding', () => {
     const img = ruleFor('.card img');
     assert.ok(img.length, 'no .card img rule');
     assert.match(img[0].body, /border-radius:\s*var\(--radius-tile\)/);
 
     /* The hovered rounding cannot be the photo's own radius: the photo is
-       scaled 1.06, which pushes a border-radius outward with it, so the
-       rounding is painted over the corners instead (.card::before). */
+       scaled 1.06, which pushes a border-radius outward with it, so a radius
+       large enough to see lands outside the tile. The tile rounds instead. */
     const hoveredImg = blocks.filter(b => b.sel === '.card:hover img');
     assert.ok(hoveredImg.length, 'no .card:hover img rule');
     assert.doesNotMatch(hoveredImg[0].body, /border-radius:/,
       'a radius on the scaled photo lands outside the tile');
-
-    const mask = ruleFor('.card::before');
-    assert.ok(mask.length, 'no .card::before corner paint');
-    assert.equal((mask[0].body.match(/radial-gradient/g) || []).length, 4,
-      'one gradient per corner, or a corner keeps its square shape');
-    assert.equal((mask[0].body.match(/\/ var\(--radius-hover\) var\(--radius-hover\)/g) || []).length, 4,
-      'each corner gradient has to be sized to the radius, or the arc is '
-      + 'stretched across the tile');
-    assert.match(mask[0].body, /transparent calc\(var\(--radius-hover\) - 1px\), var\(--bg\)/,
-      'the fill has to be the page colour, so the painted corner reads as '
-      + 'the tile continuing rather than as a patch');
-    assert.match(mask[0].body, /opacity:\s*0/,
-      'the corner paint must be off except on hover');
-    assert.match(anyRuleFor('.card:hover::before')[0].body, /opacity:\s*1/);
   });
 
-  test('the tile is square in every state', () => {
-    // One guard across all of them, so a future hover/focus/press state
-    // cannot quietly re-round the tile and re-open the gutters. Only the
-    // tile's own box counts — the photo and the selection overlay are
-    // supposed to be rounded.
+  test('only the hover states round the tile, and both of them do', () => {
+    // One guard across all of them, so a future state cannot quietly re-round
+    // the tile at rest — every tile on screen has three neighbours and the
+    // tile's own paint is what seals the gutter between them. The round-on-
+    // hover states are named exceptions: each is a single tile under the
+    // pointer, and each has to round so the ring, the mat and the photo turn
+    // the same corner together. Only the tile's own box counts — the photo and
+    // the selection overlay are supposed to be rounded.
+    const rounding = ['.card:hover', '.card:focus-visible'];
     const faces = tileBlocks().filter(b =>
       !/(^|[\s,>+~])img\b/.test(b.sel) && !/::/.test(b.sel));
     assert.ok(faces.length >= 4, `expected the tile states, found ${faces.length}`);
-    for (const b of faces) {
-      assert.doesNotMatch(b.body, /border-radius:\s*(?!0\s*[;}])(\S)/,
-        `${b.sel} sets a border-radius on the tile; the tile carries the `
-        + 'gutter paint and has to stay square');
+    const rounded = faces.filter(b => !/^0(\s|$|\b)/.test(decl(b.body, 'border-radius') || '0'));
+    for (const b of rounded) {
+      assert.ok(rounding.includes(b.sel),
+        `${b.sel} rounds the tile; only ${rounding.join(' and ')} may, because `
+        + 'every other tile state is on screen beside its neighbours');
     }
+    assert.deepEqual(rounded.map(b => b.sel).sort(), [...rounding].sort(),
+      'both hover states have to round, or the card would round for the mouse '
+      + 'and not for the keyboard');
+
+    // Selection mode drops the whole hover affordance, rounding included.
+    const selHover = ruleFor('body.is-selecting .card:hover');
+    assert.ok(selHover.length, 'no body.is-selecting .card:hover rule');
+    assert.match(decl(selHover[0].body, 'border-radius'), /^0$/,
+      'a selected tile keeps its corners: it is one of the tiles whose mat is '
+      + 'sealing a gutter');
+  });
+});
+
+describe('The hovered card rounds, and a light follows the pointer', () => {
+  test('the tile rounds on hover, which rounds ring, mat and photo together', () => {
+    // A box-shadow and an overflow clip both follow the box's border-radius,
+    // so this single declaration is the whole rounding: ring, gutter mat and
+    // photo. The photo cannot do it alone — scaled 1.06, its own radius is
+    // pushed outward until it sits outside the tile.
+    for (const sel of ['.card:hover', '.card:focus-visible']) {
+      const r = ruleFor(sel)[0];
+      assert.ok(r, `no ${sel} rule`);
+      assert.match(decl(r.body, 'border-radius'), /^var\(--radius-hover\)$/,
+        `${sel} has to round the tile itself`);
+    }
+    // The radius has to be animatable, or hovering snaps square-to-round in a
+    // single frame while the ring fades in over 200ms.
+    assert.match(decl(ruleFor('.card')[0].body, 'transition'), /border-radius\b/,
+      'the tile radius needs a transition, like the ring and the lift');
+  });
+
+  test('the corners are the tile rounding, not paint over the page colour', () => {
+    // The previous arrangement painted the corners in --bg, which reads as a
+    // black notch wherever the backdrop is lighter than the page colour.
+    const glow = ruleFor('.card::before');
+    assert.ok(glow.length, 'no .card::before');
+    assert.doesNotMatch(glow[0].body, /var\(--bg\)/,
+      'the corners must not be painted over in the page colour');
+    assert.doesNotMatch(glow[0].body, /\/ var\(--radius-hover\)/,
+      'the four per-corner gradients went with the painted corners');
+  });
+
+  test('the glow is one soft light at the pointer, centred without one', () => {
+    const glow = ruleFor('.card::before')[0];
+    const bg = decl(glow.body, 'background');
+    assert.match(bg, /radial-gradient\(/);
+    assert.match(bg, /at var\(--mx, 50%\) var\(--my, 50%\)/,
+      'the light sits where the pointer is, and falls back to the middle for '
+      + 'keyboard focus, where there is no pointer to read');
+    assert.equal((bg.match(/radial-gradient/g) || []).length, 1,
+      'one light, not a set of corner gradients');
+    assert.match(bg, /rgba\(255, 255, 255,/, 'the light is white, not tinted');
+    assert.doesNotMatch(bg, /rgba\(255, 255, 255, 0\.[2-9]/,
+      'a light brighter than ~0.2 alpha stops reading as light and starts '
+      + 'washing the photo out');
+    assert.match(decl(glow.body, 'pointer-events'), /none/,
+      "the light must not eat the tile's own clicks");
+    assert.match(decl(glow.body, 'opacity'), /^0$/,
+      'the light is off until the tile is pointed at');
+    assert.match(anyRuleFor('.card:hover::before')[0].body, /opacity:\s*1/);
+    // Selection mode drops the hover affordance, and the light with it.
+    assert.match(ruleFor('body.is-selecting .card:hover::before')[0].body, /opacity:\s*0/);
+  });
+
+  test('the light cannot spill past the rounding it sits inside', () => {
+    const glow = ruleFor('.card::before')[0];
+    assert.match(decl(glow.body, 'inset'), /^0$/,
+      'the light fills the tile, so the tile clip is what shapes it');
+    assert.match(decl(ruleFor('.card')[0].body, 'overflow'), /hidden/,
+      "the tile's overflow clip is what keeps the light inside the rounding");
+  });
+
+  test('app.js writes the pointer position the light reads', () => {
+    // The paint lives in CSS; the position has to come from the pointer.
+    assert.match(rawApp, /--mx/, 'nothing writes --mx');
+    assert.match(rawApp, /--my/, 'nothing writes --my');
+    assert.match(rawApp, /pointermove/, 'nothing listens for the pointer');
+    assert.match(rawApp, /closest\('\.card'\)/,
+      'the light is delegated from the document, so a grid rebuilt through '
+      + 'innerHTML needs no re-wiring');
+    assert.match(rawApp, /pointerType === 'touch'/,
+      'touch never hovers, and a drag fires pointermove every frame');
+    assert.match(rawApp, /removeProperty\('--mx'\)/,
+      'the position has to be cleared when the pointer leaves the tile, or the '
+      + 'next hover starts where the last one ended');
   });
 });
 

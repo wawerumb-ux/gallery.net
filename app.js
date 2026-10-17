@@ -988,6 +988,7 @@ async function init() {
   state.adminMode = DEMO_MODE ? false : !!state.token;
   updateAdminUI();
   wireStaticEvents();
+  wireHoverGlow();
   syncAppbar();
   wireWelcome();
   wireVideoBg();
@@ -1775,6 +1776,46 @@ function wireGalleryEvents() {
       albumMenu(btn.dataset.folder);
     });
   });
+}
+
+/* The hover glow follows the pointer across the tile under it (the radial
+   gradient in .card::before reads --mx/--my). Wired once, from the document,
+   rather than per card: both grids are rebuilt wholesale through innerHTML on
+   every render, so a per-card listener would have to be re-attached each time
+   against a wall of ~270 tiles.
+
+   The tile's rect is cached for as long as the pointer stays on it, because
+   the style writes below dirty the layout — reading the rect per move would
+   force a synchronous re-layout of the whole wall on every mouse frame. Scroll
+   and resize move the tile under the cache, so both drop it. */
+function wireHoverGlow() {
+  let card = null, box = null;
+  const release = () => {
+    if (card) {
+      card.style.removeProperty('--mx');
+      card.style.removeProperty('--my');
+    }
+    card = null; box = null;
+  };
+  document.addEventListener('pointermove', e => {
+    // Touch never hovers; Android also fires this per frame while scrolling.
+    if (e.pointerType === 'touch') return;
+    const next = e.target && e.target.closest ? e.target.closest('.card') : null;
+    if (next !== card) {
+      release();
+      if (!next) return;
+      card = next;
+    }
+    if (!box) box = card.getBoundingClientRect();
+    // Written straight through: a pointermove is already delivered about once
+    // per frame, and these two properties only invalidate paint. Coalescing
+    // them behind requestAnimationFrame would buy nothing and cost the glow
+    // wherever frames are throttled.
+    card.style.setProperty('--mx', (e.clientX - box.left) + 'px');
+    card.style.setProperty('--my', (e.clientY - box.top) + 'px');
+  }, { passive: true });
+  window.addEventListener('scroll', () => { box = null; }, { passive: true, capture: true });
+  window.addEventListener('resize', () => { box = null; }, { passive: true });
 }
 
 /* mobile selection gesture: long-press a photo (touch) or right-click it
