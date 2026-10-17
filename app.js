@@ -1789,9 +1789,13 @@ const CLICK_SUPPRESS_MS = 700;
 const HAPTIC_MS = 15;
 
 function wireLongPress(fig) {
-  let timer = null, sx = 0, sy = 0;
+  let timer = null, sx = 0, sy = 0, touchedAt = 0;
   const cancel = () => { if (timer) { clearTimeout(timer); timer = null; } };
   fig.addEventListener('touchstart', e => {
+    /* Stamped before any guard. A touch on a tile is the origin of a
+       possible contextmenu whether or not the gesture goes on to select
+       anything, and the contextmenu door below has to know. */
+    touchedAt = Date.now();
     if (!state.adminMode || state.batchSelect) return;
     if (!e.touches || e.touches.length !== 1) return;
     sx = e.touches[0].clientX; sy = e.touches[0].clientY;
@@ -1812,6 +1816,21 @@ function wireLongPress(fig) {
   fig.addEventListener('contextmenu', e => {
     if (!state.adminMode) return;
     e.preventDefault();
+    /* On a touch screen a context menu has exactly one cause, and it is the
+       long-press this element already handled. Nothing above suppresses the
+       default, so Android fires contextmenu for the same finger that armed
+       the timer: the timer opens selection with the photo picked, then this
+       handler sees selection is already on and toggles that same photo
+       straight back off. The admin is left with selection mode open, the
+       Move/Delete bar showing, and nothing in it — a gesture that appears to
+       do nothing at all, and which never happens on desktop because a mouse
+       has no long-press to double-fire.
+
+       So a contextmenu arriving within one long-press window of a touch is
+       the echo of that touch, not a second, separate gesture. A real
+       right-click on a hybrid device — trackpad, mouse, stylus — happens
+       with no touch anywhere near it, and is unaffected. */
+    if (touchedAt && Date.now() - touchedAt < CLICK_SUPPRESS_MS) return;
     if (!state.batchSelect) enterSelectMode();
     toggleBatchSelect(fig.dataset.path);
   });
