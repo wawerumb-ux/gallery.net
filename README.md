@@ -354,8 +354,8 @@ The tour has two audiences. Everyone walks the shared path: the photo wall,
 the viewer's arrows, the Albums tab, an album, and the ⋮ menu — including
 where admins sign in (15 steps). A user who is already signed in as admin when
 the tour starts walks **every admin control** instead (45 steps): add photos
-from the menu and from the + button, the upload dialog, search (type, scope,
-clear), new album, select → mark → move → delete, album settings (rename,
+from the menu and from the + button, the upload dialog, search (type, view
+options, clear), new album, select → mark → move → delete, album settings (rename,
 remove, undo, revert), the per-album ⋮ menu, the viewer's download, classify
 (save and cancel), viewer delete, and sign out. Sign in *before* starting the
 tour to see that walk. Admin steps are filtered out for visitors — the tour

@@ -287,7 +287,9 @@ const state = {
   adminMode: false,
   token: null,
   view: 'images', // 'images' = Pictures tab (day-grouped wall), 'phases' = Albums tab
-  picturesList: [],   // flat [{img, folder, index}] newest-first — the Pictures tab order
+  viewSize: 'comfy',    // the search pill's panel: how many tiles a row holds, and
+  viewOrder: 'newest',  // ...which way the wall runs
+  picturesList: [],   // flat [{img, folder, index}] in view order — the Pictures tab order
   _tabScroll: {},     // per-tab scroll positions, restored on tab switch
   albumDetail: null,  // phase folder opened inline (Albums tab → photo grid)
   _albumScroll: 0,    // Albums-grid scroll, restored when the detail closes
@@ -984,6 +986,8 @@ async function init() {
 
   el('demoBadge').hidden = !DEMO_MODE;
   LOADING_MARKUP = el('loadingState').innerHTML;
+  // Remembered reading preferences, before anything renders.
+  loadViewPrefs();
   state.token = sessionStorage.getItem(TOKEN_KEY);
   state.adminMode = DEMO_MODE ? false : !!state.token;
   updateAdminUI();
@@ -1519,38 +1523,208 @@ function watchChromeH() {
   });
 }
 
+/* ── The search pill's view panel ───────────────────────────────────
+   The pill used to carry a scope <select> — All, Photos, Albums — and
+   the search now looks through both photos and albums at once, the way
+   its placeholder always said. What is left in the panel is how the wall
+   is READ: View (how many tiles a row holds) and Order (which end of the
+   archive it starts at), the S10 Gallery's view/arrangement chooser, in
+   the same tile idiom as the Eye-comfort picker. Both are remembered per
+   device, like the typeface and the background: they are preferences
+   about how you read the archive, not something to re-pick on every
+   visit.
+
+   The panel drops from the button into the column rather than covering
+   it, because the wall behind it is the thing the tiles rearrange. It
+   closes on a pick (the wall is the receipt), on a tap anywhere else, on
+   Escape, and on browser back — the last two through the shared overlay
+   registry, like every other popover here. */
+const VIEW_SIZE_KEY = 'gallery.viewSize';
+const VIEW_ORDER_KEY = 'gallery.viewOrder';
+
+/* View art: the tile's own promise drawn at 24px. A density is a wall of
+   squares — cozier means more of them, smaller, in the same box. */
+function densityArt(cols, rows) {
+  const box = 20, gap = 1.8;
+  const w = (box - gap * (cols - 1)) / cols;
+  const h = (box - gap * (rows - 1)) / rows;
+  let rects = '';
+  for (let r = 0; r < rows; r++) {
+    for (let c = 0; c < cols; c++) {
+      rects += `<rect x="${(2 + c * (w + gap)).toFixed(2)}" y="${(2 + r * (h + gap)).toFixed(2)}" width="${w.toFixed(2)}" height="${h.toFixed(2)}" rx="1.2"/>`;
+    }
+  }
+  return `<svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true">${rects}</svg>`;
+}
+
+/* Order art: bars that shrink toward the newest end, with the arrow that
+   points at it — or an A over a Z for alphabetical. */
+function orderArt(kind) {
+  const bars = '<path d="M3 6.5h8M3 12h5.5M3 17.5h3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>';
+  const arrow = (d) => `<path d="${d}" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>`;
+  const body = kind === 'newest'
+    ? bars + arrow('M18 5v13.4m0 0 3.3-3.3M18 18.4l-3.3-3.3')
+    : kind === 'oldest'
+      ? bars + arrow('M18 19V5.6m0 0 3.3 3.3M18 5.6l-3.3 3.3')
+      : '<text x="2.5" y="11" font-size="11" font-weight="700" fill="currentColor">A</text>'
+        + '<text x="11.5" y="22" font-size="11" font-weight="700" fill="currentColor">Z</text>';
+  return `<svg viewBox="0 0 24 24" width="24" height="24" fill="none" aria-hidden="true">${body}</svg>`;
+}
+
+const SEARCH_MENU = [
+  {
+    group: 'size', title: 'View',
+    options: [
+      { id: 'cozy', label: 'Cozy', art: densityArt(5, 3) },
+      { id: 'comfy', label: 'Comfortable', art: densityArt(3, 3) },
+      { id: 'large', label: 'Large', art: densityArt(2, 2) },
+    ],
+  },
+  {
+    group: 'order', title: 'Order',
+    options: [
+      { id: 'newest', label: 'Newest', art: orderArt('newest') },
+      { id: 'oldest', label: 'Oldest', art: orderArt('oldest') },
+      { id: 'name', label: 'A–Z', art: orderArt('name') },
+    ],
+  },
+];
+
+/* Is this id one the panel actually offers for that group? The stored value
+   is device-local and can be anything, and a preference that no longer
+   exists must fall back to the default rather than paint a view nobody
+   asked for. */
+function offersId(group, id) {
+  const g = SEARCH_MENU.find(x => x.group === group);
+  return !!g && g.options.some(o => o.id === id);
+}
+
+function rememberPref(key, value) {
+  try { localStorage.setItem(key, value); } catch (_) { /* nothing to remember it in */ }
+}
+
+/* The two writers. Each takes the id as it may be remembered, not as it was
+   meant, and persist=false is the read-back at startup. */
+function applyViewSize(id, persist) {
+  state.viewSize = offersId('size', id) ? id : 'comfy';
+  const b = document.body;
+  if (b && b.classList) {
+    b.classList.toggle('view-cozy', state.viewSize === 'cozy');
+    b.classList.toggle('view-large', state.viewSize === 'large');
+  }
+  if (persist) rememberPref(VIEW_SIZE_KEY, state.viewSize);
+}
+
+function applyViewOrder(id, persist) {
+  state.viewOrder = offersId('order', id) ? id : 'newest';
+  if (persist) rememberPref(VIEW_ORDER_KEY, state.viewOrder);
+  // The wall is BUILT from the order, so a change means a rebuild. Nothing
+  // to do on the read-back — the first render happens after this anyway.
+  if (persist) render();
+}
+
+/* Read back the two remembered choices. Runs first thing in init, ahead of
+   the tree load, so the wall's first paint is already at the remembered
+   density and in the remembered order — there is no frame of the default to
+   correct. */
+function loadViewPrefs() {
+  let size = null, order = null;
+  try {
+    size = localStorage.getItem(VIEW_SIZE_KEY);
+    order = localStorage.getItem(VIEW_ORDER_KEY);
+  } catch (_) { /* nothing remembered — ship the defaults */ }
+  applyViewSize(size, false);
+  state.viewOrder = offersId('order', order) ? order : 'newest';
+}
+
+function renderSearchMenu() {
+  const menu = el('searchMenu');
+  if (!menu) return;
+  menu.innerHTML = SEARCH_MENU.map(g => `
+    <div class="search-menu-group">
+      <div class="search-menu-title" id="searchMenu-${g.group}">${g.title}</div>
+      <div class="search-tiles" role="radiogroup" aria-labelledby="searchMenu-${g.group}">
+        ${g.options.map(o => {
+          const current = g.group === 'size' ? state.viewSize : state.viewOrder;
+          const on = current === o.id;
+          return `<button type="button" class="search-tile${on ? ' is-active' : ''}" role="radio" aria-checked="${on ? 'true' : 'false'}" data-group="${g.group}" data-value="${o.id}">
+            <span class="search-tile-art">${o.art}</span>
+            <span class="search-tile-label">${escapeHtml(o.label)}</span>
+            <svg class="search-tile-check" viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M9.6 16.2 5.4 12 4 13.4l5.6 5.6 12-12L20.2 5.7z"/></svg>
+          </button>`;
+        }).join('')}
+      </div>
+    </div>`).join('');
+}
+
+/* The pill carries the open state too. On a phone the panel does not float
+   over the wall — it DOCKS inside the pill, as a second row (see the
+   stylesheet), so the wall is pushed down instead of covered. That makes
+   the app bar taller while it is open, and --chrome-h is what the
+   album-detail header sticks below, so both edges re-measure it. On a
+   wider frame the class is set but nothing is docked, and the measurement
+   lands on the height the bar already had. */
+function setSearchMenuOpen(open) {
+  const wrap = el('searchWrap');
+  if (wrap && wrap.classList) wrap.classList.toggle('is-open', open);
+  syncChromeH();
+}
+
+function closeSearchMenu() {
+  const menu = el('searchMenu');
+  if (menu) menu.hidden = true;
+  setSearchMenuOpen(false);
+  const btn = el('searchViewBtn');
+  if (btn) btn.setAttribute('aria-expanded', 'false');
+}
+
+function toggleSearchMenu() {
+  const menu = el('searchMenu');
+  if (!menu) return;
+  if (!menu.hidden) { overlayClose('searchMenu'); return; }
+  renderSearchMenu();
+  menu.hidden = false;
+  setSearchMenuOpen(true);
+  const btn = el('searchViewBtn');
+  if (btn) btn.setAttribute('aria-expanded', 'true');
+  overlayPush('searchMenu', closeSearchMenu);
+}
+
+/* One tile picked: write that preference and put the panel away. */
+function pickSearchOption(group, value) {
+  if (group === 'size') applyViewSize(value, true);
+  else if (group === 'order') applyViewOrder(value, true);
+  overlayClose('searchMenu');
+}
+
 /* Admin quick-find: hide cards/albums that don't match the query, and fold
-   away day groups left empty by the filter. */
+   away day groups left empty by the filter. One query, both kinds of
+   result — the placeholder has always said "photos or albums". */
 function applyAdminFilter() {
   const input = el('adminSearch');
   const wrap = el('searchWrap');
   if (!input || !wrap || wrap.hidden) return;
   const q = input.value.trim().toLowerCase();
-  const scope = el('adminSearchFilter').value;
   let visible = 0, total = 0;
   document.querySelectorAll('#picturesView .card[data-path]').forEach(card => {
     total++;
-    const hit = !q || (card.dataset.path || '').toLowerCase().includes(q);
-    const show = !q || (scope !== 'phase' && hit);
+    const show = !q || (card.dataset.path || '').toLowerCase().includes(q);
     card.hidden = !show;
     if (show) visible++;
   });
   document.querySelectorAll('#picturesView .day').forEach(day => {
-    if (q && scope === 'phase') { day.hidden = true; return; }
     day.hidden = !!q && ![...day.querySelectorAll('.card')].some(c => !c.hidden);
   });
   document.querySelectorAll('#albumsView .album').forEach(alb => {
     total++;
-    const hit = !q || (alb.dataset.folder || '').toLowerCase().includes(q);
-    const show = !q || (scope !== 'image' && hit);
+    const show = !q || (alb.dataset.folder || '').toLowerCase().includes(q);
     alb.hidden = !show;
     if (show) visible++;
   });
   // An open album detail holds photo cards too — same rules as the wall.
   document.querySelectorAll('#albumDetailView .card[data-path]').forEach(card => {
     total++;
-    const hit = !q || (card.dataset.path || '').toLowerCase().includes(q);
-    const show = !q || (scope !== 'phase' && hit);
+    const show = !q || (card.dataset.path || '').toLowerCase().includes(q);
     card.hidden = !show;
     if (show) visible++;
   });
@@ -1604,14 +1778,21 @@ function allImageCards() {
     (state.folders[folder] || []).map((img, i) => ({ img, folder, index: i })));
 }
 
-/* Pictures tab: every photo on one wall, grouped by day taken (newest first),
-   exactly like the S10 Gallery. Day order comes from the camera/WhatsApp
-   timestamp in the filename; unparseable names land in "Undated" at the end. */
+/* Pictures tab: every photo on one wall, grouped by day taken, exactly like
+   the S10 Gallery. Day order comes from the camera/WhatsApp timestamp in the
+   filename; unparseable names land in "Undated" at the end. The wall order is
+   the one the View panel asks for, so this is where that choice lands. */
 function picturesCards() {
-  return allImageCards().sort((a, b) => {
+  const cards = allImageCards();
+  const byName = (a, b) => a.img.name.localeCompare(b.img.name, 'en', { numeric: true });
+  if (state.viewOrder === 'oldest') {
+    return cards.sort((a, b) => (photoTs(a.img.name) - photoTs(b.img.name)) || byName(a, b));
+  }
+  if (state.viewOrder === 'name') return cards.sort(byName);
+  return cards.sort((a, b) => {
     const ta = photoTs(a.img.name), tb = photoTs(b.img.name);
     if (ta !== tb) return tb - ta; // newest first
-    return a.img.name.localeCompare(b.img.name, 'en', { numeric: true });
+    return byName(a, b);
   });
 }
 
@@ -1634,6 +1815,18 @@ function groupPictures(cards) {
     if (!g) { g = { iso, items: [] }; byKey.set(key, g); groups.push(g); }
     g.items.push(c);
   }
+  // The pictures arrive already in view order, which settles a day's own
+  // running order. The DAYS are settled here, in the same direction — newest
+  // first for Newest, oldest first for Oldest, and newest first for A–Z,
+  // where the date carries no meaning to reverse and the reader still
+  // expects the latest evening at the top. 'Undated' is always last.
+  const dir = state.viewOrder === 'oldest' ? 1 : -1;
+  groups.sort((a, b) => {
+    if (!a.iso) return 1;
+    if (!b.iso) return -1;
+    if (a.iso === b.iso) return 0;
+    return (a.iso < b.iso ? -1 : 1) * dir;
+  });
   return groups;
 }
 
@@ -2072,7 +2265,26 @@ function wireStaticEvents() {
   el('adminSearch').addEventListener('keydown', e => {
     if (e.key === 'Escape') { e.stopPropagation(); e.target.value = ''; applyAdminFilter(); }
   });
-  el('adminSearchFilter').addEventListener('change', applyAdminFilter);
+  // The scope control is a button now: it opens the view panel, and the
+  // panel's tiles write the three preferences and put it away again.
+  el('searchViewBtn').addEventListener('click', toggleSearchMenu);
+  el('searchMenu').addEventListener('click', e => {
+    const tile = e.target && e.target.closest && e.target.closest('.search-tile');
+    if (tile) pickSearchOption(tile.dataset.group, tile.dataset.value);
+  });
+  // A tap anywhere else puts the panel away. The pointerdown also swallows
+  // the click it belongs to on a photo card, so dismissing the panel against
+  // the wall never opens the viewer as well. The app bar's own buttons do
+  // not read that flag, so a tap on ⋮ still lands on ⋮ — the guided tour
+  // walks straight through it without a dead first tap.
+  document.addEventListener('pointerdown', e => {
+    const menu = el('searchMenu');
+    if (!menu || menu.hidden) return;
+    const t = e.target;
+    if (t && t.closest && (t.closest('#searchMenu') || t.closest('#searchViewBtn'))) return;
+    state._suppressClickUntil = Date.now() + CLICK_SUPPRESS_MS;
+    overlayClose('searchMenu');
+  }, { passive: true });
 
   // Demo FAB + new-album dialog
   el('fabAdd').addEventListener('click', () => pickFiles(null));
@@ -4912,6 +5124,10 @@ function failureSuffix(failedNames) {
     rawUrl, pageUrl, imgSrc, cardSrc, lightboxSrc, thumbSrc,
     lightboxIndexFor, openLightbox, startSrcFor,
     sanitizeFilename, cssSafe, escapeHtml, escapeAttr,
+
+    // The search pill's view panel
+    SEARCH_MENU, picturesCards, groupPictures, renderSearchMenu,
+    toggleSearchMenu, closeSearchMenu, applyViewSize, applyViewOrder,
 
     // Notifications
     showToast, dismissToast,
