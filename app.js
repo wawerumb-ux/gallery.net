@@ -1571,6 +1571,10 @@ function orderArt(kind) {
   return `<svg viewBox="0 0 24 24" width="24" height="24" fill="none" aria-hidden="true">${body}</svg>`;
 }
 
+/* The tick both panels put on the tile in force — the pill's View / Order
+   tiles and the upload rows' album tiles. */
+const TILE_CHECK_PATH = '<path d="M9.6 16.2 5.4 12 4 13.4l5.6 5.6 12-12L20.2 5.7z"/>';
+
 const SEARCH_MENU = [
   {
     group: 'size', title: 'View',
@@ -1650,7 +1654,7 @@ function renderSearchMenu() {
           return `<button type="button" class="search-tile${on ? ' is-active' : ''}" role="radio" aria-checked="${on ? 'true' : 'false'}" data-group="${g.group}" data-value="${o.id}">
             <span class="search-tile-art">${o.art}</span>
             <span class="search-tile-label">${escapeHtml(o.label)}</span>
-            <svg class="search-tile-check" viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true"><path d="M9.6 16.2 5.4 12 4 13.4l5.6 5.6 12-12L20.2 5.7z"/></svg>
+            <svg class="search-tile-check" viewBox="0 0 24 24" width="14" height="14" fill="currentColor" aria-hidden="true">${TILE_CHECK_PATH}</svg>
           </button>`;
         }).join('')}
       </div>
@@ -2256,7 +2260,16 @@ function initConfirm() {
 
 /* Overlay close routines (shared by the X/Esc/outside handlers and the
    back-button popstate path, so both run identical cleanup). */
-const closeUploadModal = () => { el('uploadModalOverlay').hidden = true; state.pendingUploads = null; };
+const closeUploadModal = () => {
+  // A row's panel belongs to this dialog, so if one is somehow still open it
+  // goes with it. In practice the guards in initUpload and the overlay stack
+  // (Escape and the back gesture both reach the panel first) put it away
+  // before this runs, so this is the defensive path — and the panel's entry
+  // is the one on top, so it is unwound first.
+  if (phaseMenuIndex !== null) overlayClose(PICK_MENU_ID);
+  el('uploadModalOverlay').hidden = true;
+  state.pendingUploads = null;
+};
 const closeSortModal = () => { el('sortModalOverlay').hidden = true; };
 const closeSettingsModal = () => { el('settingsModalOverlay').hidden = true; };
 const closeTagModal = () => { el('tagModalOverlay').hidden = true; state.taggingPath = null; };
@@ -2350,12 +2363,45 @@ function wireStaticEvents() {
   el('settingsRevertBtn').addEventListener('click', revertAllChanges);
   initConfirm();
 
-  // Upload confirm modal
-  el('uploadCancel').addEventListener('click', () => overlayClose('uploadModalOverlay'));
-  el('uploadConfirm').addEventListener('click', performUploads);
-  el('uploadModalOverlay').addEventListener('click', e => {
-    if (e.target.id === 'uploadModalOverlay') overlayClose('uploadModalOverlay');
+  // Upload confirm modal. All three ways out read the dismissal flag, and
+  // measured, that is not optional: a panel open in a row makes the dialog
+  // taller, the centered card puts its top a little higher, and the press
+  // that collapses the panel lands on a *different* element by the time the
+  // click is delivered — the copy line's own press was delivered to
+  // #uploadModalOverlay in a browser at 412 wide. So the tap that puts a
+  // panel away must not also cancel the batch, and must not file it either.
+  el('uploadCancel').addEventListener('click', () => {
+    if (Date.now() < (state._suppressClickUntil || 0)) return;
+    overlayClose('uploadModalOverlay');
   });
+  el('uploadConfirm').addEventListener('click', () => {
+    if (Date.now() < (state._suppressClickUntil || 0)) return;
+    performUploads();
+  });
+  el('uploadModalOverlay').addEventListener('click', e => {
+    if (e.target.id !== 'uploadModalOverlay') return;
+    if (Date.now() < (state._suppressClickUntil || 0)) return;
+    overlayClose('uploadModalOverlay');
+  });
+  // The rows' own controls: the chip opens the panel, a tile picks.
+  el('uploadPickList').addEventListener('click', e => {
+    const t = e.target;
+    if (!t || !t.closest) return;
+    const chip = t.closest('.pick-chip');
+    if (chip) { togglePhaseMenu(Number(chip.dataset.idx)); return; }
+    const tile = t.closest('.pick-tile');
+    if (tile) pickPhase(Number(tile.dataset.idx), tile.dataset.value);
+  });
+  // A tap anywhere outside the open row puts its panel away. It raises the
+  // dismissal flag too, so the one control that commits — Upload — cannot be
+  // reached by a tap that was meant for a panel.
+  document.addEventListener('pointerdown', e => {
+    if (phaseMenuIndex === null) return;
+    const t = e.target;
+    if (t && t.closest && t.closest('.pick-row.is-open')) return;
+    state._suppressClickUntil = Date.now() + CLICK_SUPPRESS_MS;
+    overlayClose(PICK_MENU_ID);
+  }, { passive: true });
 
   // Classify modal
   el('tagCancel').addEventListener('click', () => overlayClose('tagModalOverlay'));
@@ -2626,27 +2672,166 @@ function closeNewAlbumModal() {
 
 /* ── Admin: upload / delete via the GitHub Contents API ─────────── */
 
-/* Classify-and-confirm upload flow: every file row gets a phase dropdown
+/* ── The upload rows' album picker ──────────────────────────────────
+   Each row opens the panel the search pill opens — groups of tiles, the one
+   in force marked, closing on a pick, an outside tap, Escape and browser
+   back — rather than a native <select>. The native control could not be
+   grouped, could not say which stage of the journey an album belongs to,
+   and on a phone it opened the platform's own list over the dialog the
+   visitor was still reading.
+
+   It opens IN FLOW inside its own row. The dialog already scrolls, so a
+   panel that floated would be clipped by that overflow and would cover the
+   rows below it — the two things the pill's panel is arranged to avoid.
+
+   Two groups, the same shape as View / Order: the albums the journey maps
+   ("Phase"), in journey order, and the ones it does not ("Other") — the
+   General catch-all among them. */
+
+const PICK_MENU_ID = 'pickMenu';
+
+/* The tiles' labels: the stage name, or the folder name where two offered
+   albums share that stage. The rule the Albums tab already uses
+   (albumStageName), read against the albums on offer rather than the albums
+   on the wall — the survey and its map share Site Survey & Planning, and
+   two tiles reading the same words would be a choice nobody can make. */
+function phaseLabel(folder, offered = allPhaseOptions()) {
+  const j = journeyFor(folder);
+  if (!j) return folder;
+  for (const other of offered) {
+    if (other === folder) continue;
+    const o = journeyFor(other);
+    if (o && o.stage === j.stage) return folder;
+  }
+  return j.stage;
+}
+
+function phaseGroups(extra) {
+  const offered = allPhaseOptions(extra);
+  const alpha = (a, b) => a.localeCompare(b, 'en', { numeric: true });
+  const journey = (a, b) => (folderSequence(a) - folderSequence(b)) || alpha(a, b);
+  return [
+    { id: 'phase', title: 'Phase', folders: offered.filter(f => journeyFor(f)).sort(journey) },
+    { id: 'other', title: 'Other', folders: offered.filter(f => !journeyFor(f)).sort(alpha) },
+  ].filter(g => g.folders.length);
+}
+
+let phaseMenuIndex = null;      // the row whose panel is open, or null
+
+const phaseChoice = (i) => {
+  const p = state.pendingUploads;
+  if (!p || !p.choice) return 'General';
+  return p.choice[i] || p.context || 'General';
+};
+
+function renderPhaseMenu(i) {
+  const p = state.pendingUploads;
+  const menu = el('pickMenu-' + i);
+  if (!p || !menu) return;
+  const offered = allPhaseOptions(p.context);
+  const choice = phaseChoice(i);
+  menu.innerHTML = phaseGroups(p.context).map(g => `
+    <div class="pick-menu-group">
+      <div class="pick-menu-title" id="pickMenuTitle-${i}-${g.id}">${g.title}</div>
+      <div class="pick-tiles" role="radiogroup" aria-labelledby="pickMenuTitle-${i}-${g.id}">
+        ${g.folders.map(folder => {
+          const on = folder === choice;
+          const j = journeyFor(folder);
+          const title = j ? `${j.stage} · ${folder}` : folder;
+          return `<button type="button" class="pick-tile${on ? ' is-active' : ''}" role="radio" aria-checked="${on ? 'true' : 'false'}" data-idx="${i}" data-value="${escapeAttr(folder)}" title="${escapeAttr(title)}">
+            <span class="pick-tile-art">${j ? j.sequence : ''}</span>
+            <span class="pick-tile-label">${escapeHtml(phaseLabel(folder, offered))}</span>
+            <svg class="pick-tile-check" viewBox="0 0 24 24" width="12" height="12" fill="currentColor" aria-hidden="true">${TILE_CHECK_PATH}</svg>
+          </button>`;
+        }).join('')}
+      </div>
+    </div>`).join('');
+}
+
+/* One writer for the open state, like the pill's: the row, its chip and the
+   panel's own hidden flag all follow from the index, so a close can never
+   leave a chip claiming to be expanded. */
+function setPhaseMenuOpen(i) {
+  phaseMenuIndex = i;
+  const list = el('uploadPickList');
+  if (list && list.classList) list.classList.toggle('is-open', i !== null);
+  const rows = list && list.querySelectorAll ? list.querySelectorAll('.pick-row') : [];
+  for (const row of rows) {
+    const on = i !== null && Number(row.dataset.idx) === i;
+    row.classList.toggle('is-open', on);
+    const chip = row.querySelector('.pick-chip');
+    if (chip) chip.setAttribute('aria-expanded', on ? 'true' : 'false');
+    const menu = row.querySelector('.pick-menu');
+    if (menu) menu.hidden = !on;
+  }
+}
+
+function closePhaseMenu() {
+  if (phaseMenuIndex === null) return;
+  setPhaseMenuOpen(null);
+}
+
+/* One panel at a time, on the shared overlay stack so Escape and the back
+   gesture put it away before the dialog under it (and the tour's own
+   entries keep their order). */
+function togglePhaseMenu(i) {
+  if (!el('pickMenu-' + i)) return;
+  if (phaseMenuIndex === i) { overlayClose(PICK_MENU_ID); return; }
+  if (phaseMenuIndex !== null) overlayClose(PICK_MENU_ID);
+  renderPhaseMenu(i);
+  setPhaseMenuOpen(i);
+  overlayPush(PICK_MENU_ID, closePhaseMenu);
+}
+
+/* One tile picked: the row's choice, the chip that shows it, and the panel
+   away. Nothing is uploaded here — performUploads reads the choice back and
+   files the file under it. */
+function pickPhase(i, folder) {
+  const p = state.pendingUploads;
+  if (!p || !p.choice) return;
+  p.choice[i] = folder;
+  const label = el('pickChipLabel-' + i);
+  if (label) label.textContent = phaseLabel(folder, allPhaseOptions(p.context));
+  overlayClose(PICK_MENU_ID);
+}
+
+/* Classify-and-confirm upload flow: every file row gets a phase picker
    prefilled with the algorithm's best guess so you can override per file. */
 function openUploadConfirm(fileList, contextFolder) {
-  state.pendingUploads = { files: Array.from(fileList), context: contextFolder };
-  const options = allPhaseOptions(contextFolder);
-  const optsHtml = name => options
-    .map(o => `<option value="${escapeAttr(o)}" ${o === name ? 'selected' : ''}>${escapeHtml(o)}</option>`)
-    .join('');
-  el('uploadPickList').innerHTML = state.pendingUploads.files.map((file, i) => {
+  const files = Array.from(fileList);
+  const offered = allPhaseOptions(contextFolder);
+  // The same prefill the rows have always had, held in state now rather than
+  // in a <select>: the classifier's guess, else the album the files were
+  // added to, else the General catch-all. A guess that is not on offer would
+  // leave the row with nothing to show, so it falls back to General too.
+  const choice = files.map(file => {
+    const prefill = contextFolder || suggestPhase(file.name) || 'General';
+    return offered.includes(prefill) ? prefill : 'General';
+  });
+  state.pendingUploads = { files, context: contextFolder, choice };
+  el('uploadPickList').innerHTML = files.map((file, i) => {
     const guess = suggestPhase(file.name);
-    const prefill = contextFolder || guess || 'General';
+    const j = guess ? journeyFor(guess) : null;
     const hint = guess && guess !== contextFolder
-      ? `<span class="pick-hint">suggested: ${escapeHtml(guess)}${(() => { const j = journeyFor(guess); return j ? ' · ' + escapeHtml(j.stage) : ''; })()}</span>` : '';
-    return `<div class="pick-row">
-      <span class="pick-name" title="${escapeAttr(file.name)}">${escapeHtml(file.name)}</span>
-      <span class="pick-control">
-        <select class="pick-select" data-idx="${i}">${optsHtml(prefill)}</select>${hint}
-      </span>
+      ? `<span class="pick-hint">suggested: ${escapeHtml(guess)}${j ? ' · ' + escapeHtml(j.stage) : ''}</span>` : '';
+    return `<div class="pick-row" data-idx="${i}">
+      <div class="pick-stack">
+        <div class="pick-head">
+          <span class="pick-name" title="${escapeAttr(file.name)}">${escapeHtml(file.name)}</span>
+          <span class="pick-control">
+            <button type="button" class="pick-chip" id="pickChip-${i}" data-idx="${i}" aria-haspopup="dialog" aria-expanded="false" aria-label="Album for ${escapeAttr(file.name)}">
+              <span class="pick-chip-label" id="pickChipLabel-${i}">${escapeHtml(phaseLabel(choice[i], offered))}</span>
+              <svg class="pick-chip-caret" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+            </button>
+          </span>
+        </div>
+        ${hint}
+        <div class="pick-menu" id="pickMenu-${i}" role="dialog" aria-labelledby="pickChip-${i}" hidden></div>
+      </div>
     </div>`;
   }).join('');
-  el('uploadConfirm').textContent = `Upload ${state.pendingUploads.files.length}`;
+  el('uploadConfirm').textContent = `Upload ${files.length}`;
+  setPhaseMenuOpen(null);
   overlayPush('uploadModalOverlay', closeUploadModal);
   el('uploadModalOverlay').hidden = false;
 }
@@ -2654,8 +2839,10 @@ function openUploadConfirm(fileList, contextFolder) {
 async function performUploads() {
   const groups = {};
   state.pendingUploads.files.forEach((file, i) => {
-    const sel = el('uploadPickList').querySelector(`select[data-idx="${i}"]`);
-    const folder = sel ? sel.value : (state.pendingUploads.context || 'General');
+    // The row's own choice, written by pickPhase as the tiles are tapped.
+    // Nothing reads the DOM: a panel that is open (or was never opened) has
+    // no bearing on which album the file is filed under.
+    const folder = phaseChoice(i);
     (groups[folder] = groups[folder] || []).push(file);
   });
   overlayClose('uploadModalOverlay');
@@ -5147,6 +5334,9 @@ function failureSuffix(failedNames) {
     // The search pill's view panel
     SEARCH_MENU, picturesCards, groupPictures, renderSearchMenu,
     toggleSearchMenu, closeSearchMenu, applyViewSize, applyViewOrder,
+
+    // The upload rows' album panel
+    phaseGroups, phaseLabel, togglePhaseMenu, closePhaseMenu, pickPhase,
 
     // Notifications
     showToast, dismissToast,

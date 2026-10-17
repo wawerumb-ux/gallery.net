@@ -1682,18 +1682,124 @@ select.text-input option { background: var(--surface-3); color: var(--text); }
   font-family: var(--font-mono); font-size: 12px;
   color: var(--text-dim);
 }
+.pick-head { display: flex; align-items: center; gap: 10px; }
+.pick-stack { flex: 1; min-width: 0; }
 .pick-control { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
-.pick-select {
+.pick-hint { display: block; margin-top: 5px; color: var(--text-faint); font-size: 11px; font-family: var(--font-mono); }
+
+/* The row's album chip, and the panel it opens.
+
+   The panel is the pill's View / Order panel in every way that shows —
+   labelled groups of tiles, the one in force carrying the accent edge and
+   the tick — but it opens IN FLOW inside its own row instead of floating.
+   The dialog already scrolls, so a panel that floated would be clipped by
+   that overflow and would cover the rows below it, which is the one thing
+   the pill's panel is arranged never to do. The row's list stops scrolling
+   while a panel is open for the same reason: the row and its panel travel
+   together, and the dialog is what scrolls. */
+.pick-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  padding: 5px 6px 5px 11px;
   background: var(--surface-3);
   border: 1px solid var(--hairline);
-  color: var(--text);
-  font-family: inherit; font-size: 12.5px;
-  padding: 6px 10px;
   border-radius: var(--radius-pill);
-  outline: none;
+  color: var(--text);
+  font-family: inherit;
+  font-size: 12.5px;
+  cursor: pointer;
+  transition: border-color var(--duration-fast) ease;
 }
-.pick-select option { background: var(--surface-3); }
-.pick-hint { color: var(--text-faint); font-size: 11px; font-family: var(--font-mono); }
+.pick-chip:hover { border-color: var(--hairline-strong); }
+.pick-chip[aria-expanded='true'] { border-color: var(--hairline-strong); }
+.pick-chip-label { max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pick-chip-caret { display: block; transition: transform var(--duration-fast) var(--ease-spring); }
+.pick-chip[aria-expanded='true'] .pick-chip-caret { transform: rotate(180deg); }
+
+.pick-menu {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--hairline);
+}
+.pick-menu-group + .pick-menu-group {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--hairline);
+}
+.pick-menu-title {
+  margin: 0 0 8px 2px;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+.pick-tiles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+.pick-tile {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  /* Room on the right for the tick that marks the one in force. */
+  padding: 9px 26px 9px 10px;
+  background: var(--surface-3);
+  border: 1px solid transparent;
+  border-radius: 14px;
+  color: var(--text-dim);
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.25;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color var(--duration-fast) ease, color var(--duration-fast) ease;
+}
+.pick-tile:hover { color: var(--text); }
+.pick-tile.is-active { border-color: var(--accent-text); color: var(--text); }
+/* The journey step, so the tiles read in the order the work happens and two
+   albums on the same step are visibly the same step. Unmapped albums keep
+   the slot so every label starts at the same x. */
+.pick-tile-art {
+  flex: none;
+  width: 15px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--text-faint);
+  text-align: right;
+}
+/* Wrapped, not clipped: an album's name is the whole of what this control
+   decides, and "Labelling &…" is not a name anyone can choose between. */
+.pick-tile-label { min-width: 0; overflow-wrap: break-word; }
+.pick-tile-check {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  transform: translateY(-50%);
+  width: 12px;
+  height: 12px;
+  color: var(--accent-text);
+  opacity: 0;
+  transition: opacity var(--duration-fast) ease;
+}
+.pick-tile.is-active .pick-tile-check { opacity: 1; }
+.pick-list.is-open { max-height: none; }
+
+/* On a phone the chip can want most of the row — "Cable Routing &
+   Management" is 172px of it at 412 wide — and what got clipped was the
+   file name it belongs to (77px, "20260101_…"), which is the one part of
+   the row that says *which* file is being filed. The name keeps 120px, so a
+   short album keeps the dense one-line row and a long one moves the chip to
+   a line of its own, right-aligned, where both can be read whole. */
+@media (max-width: 480px) {
+  .pick-head { flex-wrap: wrap; }
+  .pick-name { flex: 1 1 120px; }
+  .pick-control { margin-left: auto; }
+}
 
 /* ── Notifications (hcg-toast, Penguin stacking toast) ───────────────
    The shape is Penguin UI's stacking notification: a card carrying a
@@ -2664,6 +2770,7 @@ body.view-large .grid-albums { grid-template-columns: repeat(3, minmax(0, 1fr));
   .card, .album-cover, .fab, .tab, .tab-ic, .appbar-hero, .appbar-mini,
   .welcome-card, .welcome-faces, .pop, .pop-overlay,
   .search-menu, .search-tile,
+  .pick-chip, .pick-chip-caret, .pick-tile, .pick-tile-check,
   .viewer, .viewer-top, .viewer-bottom, .viewer-nav, .viewer-img, .viewer-slide,
   .sheet, .sheet-overlay, .modal, .hcg-toast-item, .selectbar, .tabbar,
   .card img, .card-pick, .appbar-icon, .viewer-icon, .viewer-action, .btn,
