@@ -613,32 +613,22 @@ body.is-selecting .tabbar, body.is-selecting .fab { transform: translateY(110%);
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: var(--gap-tile);
-  /* Opaque, because the column is transparent and the video backdrop runs
-     behind it at ~45% brightness (--scrim is only 0.55 black). Gutters left
-     transparent turned every seam between photos into a moving sliver of
-     footage — it read as a rendering fault, not as spacing. On true black the
-     gap is just breathing room, and the video still frames the column in the
-     margins. */
-  background: var(--bg);
-}
+  /* Transparent, and deliberately so: the opaque paint does not belong to the
+     grid BOX, it belongs to the tiles.
 
-/* …but only where that slab is actually earning its keep. The paint exists to
-   sit behind the gutters BETWEEN photos, so a grid holding fewer than three
-   has no gutter worth covering — and there the opaque rectangle is a large
-   empty panel painted over the backdrop, reading as a broken tile rather than
-   as spacing.
+     The box cannot tell the difference between a cell holding a photo and a
+     cell the auto-placement left empty. This grid is filled by
+     grid-auto-flow, so any row whose photo count is not a multiple of the
+     column count ends in empty cells — and a background on the box paints
+     those as a solid slab running to the column edge, which reads as a
+     broken tile rather than as spacing. That is not an edge case here: the
+     grid is rebuilt per day-group, so the last row of an evening is short on
+     nearly every day of the archive.
 
-   This is a per-day-group grid, so the sparse case is not a rare edge: the
-   last group of an evening, or a folder with one photo in it, hits it on
-   almost every day of the archive.
-
-   `.card ~ .card ~ .card` means "a card with two card siblings before it" —
-   three or more. Using the general sibling combinator rather than
-   `:nth-of-type(3)` keeps the count honest whatever else the grid grows to
-   hold, so adding a footer or a load-more button cannot silently throw the
-   count out. Fewer than three cards, and no rule matches, so the slab is
-   gone and the video shows through again. */
-.grid-pictures:not(:has(.card ~ .card ~ .card)) {
+     Painting per tile means the fill stops where the photos stop. The empty
+     cells keep their layout — the grid still reserves the space, so the next
+     section starts where it would have — but they show the backdrop, and
+     they take the paint the moment a real photo lands in one. */
   background: transparent;
 }
 
@@ -647,18 +637,49 @@ body.is-selecting .tabbar, body.is-selecting .fab { transform: translateY(110%);
   margin: 0;
   position: relative;
   aspect-ratio: 1 / 1;
-  background: var(--surface);
-  border-radius: var(--radius-tile);
+  background: var(--bg);
+  /* Square on purpose, in every state, because this element's box is what
+     carries the opaque paint that fills the grid gutters (--tile-mat, below).
+     A rounded box would round that paint too, and the consequences are not
+     cosmetic: at rest, four rounded corners meet at every tile crossing and
+     leave a small hole (~1.7px with this 6px gap and a 4px radius) that shows
+     moving footage in the seam; on hover, a rounded tile cuts a wedge of
+     backdrop out of the black field at each of its corners. Both verified
+     against the rendered pixels. The rounding lives on the photo instead,
+     below. */
+  border-radius: 0;
   overflow: hidden;
   cursor: pointer;
   transform: translateZ(0);
-  /* The resting ring is a transparent zero-spread shadow, not `none`, so the
-     accent ring can grow in on hover instead of snapping on. `none` has no
-     interpolable value — the ring would appear in one frame. */
-  box-shadow: 0 0 0 0 rgba(0, 114, 239, 0);
+  /* A spread shadow rather than a border, because a border would join the
+     box and change the tile's size — the grid would reflow on every hover.
+     A shadow paints outside the box and leaves the layout alone.
+
+     It is a custom property because a box-shadow list cannot be extended
+     from elsewhere: every state below (hover, focus, selection) REPLACES
+     box-shadow wholesale, and each one would otherwise wipe the mat out and
+     let the backdrop flash through the gutters around the tile the pointer
+     is on. Naming it once means every state composes it rather than
+     re-stating it.
+
+     The mat is half the gutter PLUS half the hover lift, not just half the
+     gutter — the tile lifts and its mat rides with it, so half the gutter
+     alone pulls the mat 3px off the neighbour and re-opens exactly the slot
+     the eye is on. Measured against the pixels: at 3px there is a band of
+     footage under a hovered tile, at 4.5px it closes to nothing. */
+  --lift-tile: 3px;
+  --tile-mat: 0 0 0 calc((var(--gap-tile) + var(--lift-tile)) / 2) var(--bg);
+  /* The resting state is the hover state with the accent and the glow turned
+     down to zero alpha: same shadows, same order, same offsets. A shadow list
+     interpolates by position, so identical shapes mean hovering fades the ring
+     in rather than morphing one shadow into another. `none` would have no
+     interpolable value at all and the ring would appear in a single frame. */
+  box-shadow: 0 0 0 0 rgba(0, 114, 239, 0),
+              var(--tile-mat),
+              0 10px 24px rgba(0, 114, 239, 0),
+              0 2px 6px rgba(0, 0, 0, 0);
   transition: transform var(--duration-hover) var(--ease-out),
-              box-shadow var(--duration-hover) var(--ease-out),
-              border-radius var(--duration-hover) var(--ease-out);
+              box-shadow var(--duration-hover) var(--ease-out);
 }
 .card:active { transform: scale(0.96) translateZ(0); transition-duration: 0.08s; }
 
@@ -671,18 +692,65 @@ body.is-selecting .tabbar, body.is-selecting .fab { transform: translateY(110%);
    archive, where an unguarded :hover sticks after a tap and would leave the
    photo you just opened still ringed. */
 @media (hover: hover) and (pointer: fine) {
-  /* The card holds its footprint — only a few px of lift. The grid gap here
-     is 2px, so the full 8px lift these cards usually get would make neighbours
-     collide; the image scale carries most of the effect instead. */
+  /* Round the hovered photo to --radius-hover WITHOUT rounding the tile.
+
+     The tile cannot round — its corners are the paint that seals the gutters,
+     so a rounded tile cuts a wedge of moving backdrop out of the black field
+     at each corner. The photo cannot round itself either: scaled 1.06, its own
+     radius is pushed outward by 3% of the tile per side, so a 14px radius ends
+     up wholly outside the tile, and a percentage large enough to survive the
+     offset only cuts ~2px into the corner — a rounding nobody can see.
+
+     So the corners are painted over in the page colour instead. Four
+     quarter-circle gradients, one per corner, each filling its corner square
+     except for a --radius-hover arc. That reads exactly as a rounded photo,
+     because the fill is the same --bg the tile is already painted in, and it
+     leaves the tile's box, its mat and the ring square — so nothing leaks into
+     the gutters. */
+  .card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity var(--duration-hover) var(--ease-out);
+    background:
+      radial-gradient(circle at 0 0, transparent calc(var(--radius-hover) - 1px), var(--bg) var(--radius-hover)) 0 0 / var(--radius-hover) var(--radius-hover) no-repeat,
+      radial-gradient(circle at 100% 0, transparent calc(var(--radius-hover) - 1px), var(--bg) var(--radius-hover)) 100% 0 / var(--radius-hover) var(--radius-hover) no-repeat,
+      radial-gradient(circle at 0 100%, transparent calc(var(--radius-hover) - 1px), var(--bg) var(--radius-hover)) 0 100% / var(--radius-hover) var(--radius-hover) no-repeat,
+      radial-gradient(circle at 100% 100%, transparent calc(var(--radius-hover) - 1px), var(--bg) var(--radius-hover)) 100% 100% / var(--radius-hover) var(--radius-hover) no-repeat;
+  }
+  .card:hover::before,
+  .card:focus-visible::before { opacity: 1; }
+  /* Selection mode draws its own overlay and drops the hover affordance, so
+     the corner paint goes with it. */
+  body.is-selecting .card:hover::before { opacity: 0; }
+
+  /* The card holds its footprint — only a few px of lift. The image scale
+     carries the rest of the effect. */
   .card:hover {
-    border-radius: var(--radius-hover);
+    /* The ring is listed BEFORE the mat on purpose: the first shadow in a
+       list paints on top, and the mat is 1px wider than the ring. Mat first
+       would bury the ring under a black band and the tile would light up
+       with no outline at all — verified against the pixels, not the spec. */
     box-shadow: 0 0 0 2px var(--accent),
+                var(--tile-mat),
                 0 10px 24px var(--accent-glow),
                 0 2px 6px var(--shadow-soft);
-    transform: translateY(-3px) translateZ(0);
+    /* The tile stays square here even though it would look better rounded.
+       Its corners ARE the paint that seals the grid gutters, so rounding them
+       cuts a wedge of moving backdrop out of the black field — verified with a
+       bright frame behind the grid, where the backdrop met the ring at every
+       corner. The photo rounds instead, below. */
+    transform: translateY(calc(-1 * var(--lift-tile))) translateZ(0);
   }
-  /* Press the photo outward against its frame. */
-  .card:hover img { transform: scale(1.06); }
+  /* Press the photo outward against its frame. The rounding is painted on by
+     .card::before above, not carried by the photo, because the scale would
+     push it out of sight. */
+  .card:hover img {
+    transform: scale(1.06);
+  }
 
   /* Selection already draws its own ring (.card-selected::after). Stacking a
      second one on the tile the badge already marks just reads as noise.
@@ -691,25 +759,31 @@ body.is-selecting .tabbar, body.is-selecting .fab { transform: translateY(110%);
      order — otherwise picking a photo would un-pick it visually the moment
      the mouse crossed it. */
   body.is-selecting .card:hover {
-    border-radius: var(--radius-tile);
-    box-shadow: 0 0 0 0 rgba(0, 114, 239, 0);
+    box-shadow: var(--tile-mat), 0 0 0 0 rgba(0, 114, 239, 0);
     transform: none;
   }
-  body.is-selecting .card:hover img { transform: none; }
-  body.is-selecting .card.card-selected:hover {
-    transform: scale(0.94) translateZ(0);
+  body.is-selecting .card:hover img {
+    transform: none;
+  }
+  /* Re-assert the picked photo's shrink, which the rule above just cleared.
+     On the photo, for the same reason as the base rule: the tile's mat has
+     to stay put. */
+  body.is-selecting .card.card-selected:hover img {
+    transform: scale(0.94);
   }
 
   /* Keyboard users get the same treatment — a pointer-only affordance would
      make the wall unreadable by keyboard, and focus is the one case where
      this elevation is unambiguously wanted. */
   .card:focus-visible {
-    border-radius: var(--radius-hover);
     box-shadow: 0 0 0 2px var(--accent-text),
+                var(--tile-mat),
                 0 10px 24px var(--accent-glow);
-    transform: translateY(-3px) translateZ(0);
+    transform: translateY(calc(-1 * var(--lift-tile))) translateZ(0);
   }
-  .card:focus-visible img { transform: scale(1.06); }
+  .card:focus-visible img {
+    transform: scale(1.06);
+  }
 
   /* Press. Re-declared inside this block so it outranks the hover rules
      above — both are (0,2,0), and the press has to win while the pointer is
@@ -727,31 +801,48 @@ body.is-selecting .tabbar, body.is-selecting .fab { transform: translateY(110%);
   .card:focus-visible img { transform: none; }
 }
 
+/* Has to sit on the tile, not the photo: the photo is scaled 1.06 on hover,
+   which would push an outline of its own outside the tile's overflow clip and
+   make the warning disappear exactly when the photo is being pointed at. On
+   the tile it survives every state. The tile is square, so the dashes are
+   square — the marked unit is the tile, and its corners are the un-rounded
+   ones. */
 .card-needs-review { outline: 1.5px dashed rgba(242, 163, 60, 0.6); outline-offset: -1.5px; }
 .card img {
   width: 100%; height: 100%;
   aspect-ratio: 1 / 1;
   object-fit: cover; object-position: center;
   background: var(--surface);
+  /* The tile's rounding lives here rather than on .card — see the note on
+     --tile-mat: the card's box has to stay square for the gutters to seal. */
+  border-radius: var(--radius-tile);
   /* transform joins the transition so the photo can press outward inside its
      frame on hover. Clipped by the card's overflow: hidden, so it scales
      against the frame rather than resizing the card — the card keeps its
      grid footprint and its neighbours never move. */
   transition: opacity 0.4s var(--ease-out), filter 0.5s var(--ease-out),
-              transform var(--duration-hover) var(--ease-out);
+              transform var(--duration-hover) var(--ease-out),
+              border-radius var(--duration-hover) var(--ease-out);
 }
 .card img:not(.is-loaded) { filter: blur(12px); opacity: 0.75; }
 .card img.is-loaded { filter: none; opacity: 1; }
 
 /* Selection: circular badge top-left, blue fill when picked (mobile) */
 .card.card-selectable { cursor: pointer; }
-.card.card-selected { transform: scale(0.94) translateZ(0); }
+/* The photo pulls in, not the tile. The tile is a painted unit — its mat is
+   what seals the gutter — so shrinking the tile by 6% would drag its mat
+   4.8px inward (measured at 8 columns on a 1320px column) and open a sliver
+   of moving backdrop beside every selected photo. Shrinking the photo leaves
+   the tile, the mat and the ring where they are. */
+.card.card-selected img { transform: scale(0.94); }
 .card.card-selected::after {
   content: "";
   position: absolute; inset: 0;
   background: var(--media-dim);
   border: 2px solid var(--accent);
-  border-radius: inherit;
+  /* The tile box is square now, so `inherit` would draw a square ring around
+     a rounded photo. Match the photo. */
+  border-radius: var(--radius-tile);
   pointer-events: none;
 }
 .card-pick {
