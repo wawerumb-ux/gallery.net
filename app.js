@@ -2684,10 +2684,11 @@ function closeNewAlbumModal() {
    panel that floated would be clipped by that overflow and would cover the
    rows below it — the two things the pill's panel is arranged to avoid.
 
-   Two groups, the same shape as View / Order: the albums the journey maps
-   ("Phase"), in journey order, and the ones it does not ("Other") — the
-   General catch-all among them. */
-
+   ONE category: the albums the journey maps, in journey order. A row is
+   asking which phase a file belongs to, and the catch-all is not a phase, so
+   there is no "Other" list to scroll past — the journey is the whole of what
+   the control decides. The one album that is still offered from outside the
+   journey is the album the files were added to (see phaseGroups). */
 const PICK_MENU_ID = 'pickMenu';
 
 /* The tiles' labels: the stage name, or the folder name where two offered
@@ -2706,14 +2707,22 @@ function phaseLabel(folder, offered = allPhaseOptions()) {
   return j.stage;
 }
 
+/* The dropdown's one category: the albums the journey maps, in journey
+   order. The journey is what a row is asking about — a file's phase — and
+   the General catch-all is not a phase, so it and the albums the journey does
+   not map (ppp, really) are not offered.
+
+   The one album that survives from outside the journey is the album the
+   files were added to: Add photos on an unmapped album has to leave that
+   album selectable, or a mis-tap could not be put back. A mapped context is
+   already in the list, so it is never offered twice. */
 function phaseGroups(extra) {
   const offered = allPhaseOptions(extra);
   const alpha = (a, b) => a.localeCompare(b, 'en', { numeric: true });
   const journey = (a, b) => (folderSequence(a) - folderSequence(b)) || alpha(a, b);
-  return [
-    { id: 'phase', title: 'Phase', folders: offered.filter(f => journeyFor(f)).sort(journey) },
-    { id: 'other', title: 'Other', folders: offered.filter(f => !journeyFor(f)).sort(alpha) },
-  ].filter(g => g.folders.length);
+  const mapped = offered.filter(f => journeyFor(f)).sort(journey);
+  const context = extra && !journeyFor(extra) ? [extra] : [];
+  return [{ id: 'phase', title: 'Phase', folders: mapped.concat(context) }].filter(g => g.folders.length);
 }
 
 let phaseMenuIndex = null;      // the row whose panel is open, or null

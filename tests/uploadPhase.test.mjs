@@ -240,38 +240,43 @@ async function boot() {
 const flat = (groups) => groups.flatMap(g => g.folders);
 
 describe('the dropdown groups the albums by the journey', () => {
-  test('Phase runs in journey order, and Other holds what the journey does not map', async () => {
+  test('Phase runs in journey order, and what the journey does not map is not offered', async () => {
     const { api } = await boot();
     const groups = api.phaseGroups();
-    assert.deepEqual(groups.map(g => g.id), ['phase', 'other']);
-    const [phase, other] = groups;
+    assert.deepEqual(groups.map(g => g.id), ['phase']);
+    assert.equal(groups.length, 1);
+    const [phase] = groups;
     assert.ok(phase.folders.length, 'nothing is mapped, so the panel has no phases');
-    assert.ok(other.folders.length, 'nothing is unmapped, so General is missing');
 
     for (const f of phase.folders) assert.ok(api.journeyFor(f), `${f} is in Phase but maps to no stage`);
-    for (const f of other.folders) assert.ok(!api.journeyFor(f), `${f} is in Other but maps to a stage`);
 
     const seqs = phase.folders.map(api.folderSequence);
     assert.deepEqual(seqs, [...seqs].sort((a, b) => a - b), 'Phase is not in journey order');
 
-    assert.ok(other.folders.includes('General'), 'General is not offered');
-    assert.ok(other.folders.includes('really'), 'the unmapped album is not offered');
+    assert.ok(!phase.folders.includes('General'), 'General is offered — it is not a phase');
+    assert.ok(!phase.folders.includes('really'), 'the unmapped album is offered — it is not a phase');
   });
 
-  test('every album on offer appears exactly once, and nothing falls out', async () => {
+  test('every album appears once, and the journey leaves its unmapped albums out', async () => {
     const { api } = await boot();
     const offered = flat(api.phaseGroups()).slice().sort();
     assert.deepEqual(offered, [...new Set(offered)].sort(), 'an album is offered twice');
-    assert.deepEqual(offered, api.allPhaseOptions().slice().sort(), 'the two lists disagree');
+    // General is a catch-all, not a phase, and 'really' maps to no stage:
+    // neither is offered. The mapped albums are exactly what is on offer.
+    const mapped = api.allPhaseOptions().filter(f => api.journeyFor(f)).slice().sort();
+    assert.deepEqual(offered, mapped, 'an unmapped album slipped in, or a mapped one fell out');
   });
 
   test('the album the files were added to is on offer, unmapped or not', async () => {
     const { api } = await boot();
     const groups = api.phaseGroups('brand-new');
     assert.ok(flat(groups).includes('brand-new'), 'the context album is not on offer');
-    assert.ok(groups.find(g => g.id === 'other').folders.includes('brand-new'));
+    assert.ok(groups.find(g => g.id === 'phase').folders.includes('brand-new'),
+      'the unmapped context album is not in the phase group');
     const mapped = api.phaseGroups('cable-pull');
     assert.ok(mapped.find(g => g.id === 'phase').folders.includes('cable-pull'));
+    // A mapped context is already in the list, so it is never offered twice.
+    assert.equal(flat(mapped).filter(f => f === 'cable-pull').length, 1, 'cable-pull is offered twice');
   });
 
   test('an album goes by its stage, and by its folder where two share that stage', async () => {
@@ -293,20 +298,21 @@ describe('the dropdown groups the albums by the journey', () => {
 /* ── The options on the list (rendered into stub elements) ─────── */
 
 describe('an option writes the row\u2019s choice', () => {
-  test('the dropdown renders two labelled groups of options', async () => {
+  test('the dropdown renders one labelled group of options', async () => {
     const { api, els } = await boot();
-    api.state.pendingUploads = { files: [{ name: 'a.jpg' }], context: null, choice: ['General'] };
+    api.state.pendingUploads = { files: [{ name: 'a.jpg' }], context: null, choice: ['rack-build'] };
     api.togglePhaseMenu(0);
     const markup = els.get('pickMenu-0').innerHTML;
     assert.match(markup, /class="pick-menu-group" role="group" aria-labelledby="pickMenuTitle-0-phase"/);
     assert.match(markup, /id="pickMenuTitle-0-phase">Phase</);
-    assert.match(markup, /id="pickMenuTitle-0-other">Other</);
-    assert.match(markup, /role="option" aria-selected="false" data-idx="0" data-value="really"/);
-    assert.match(markup, /class="pick-tile is-active" role="option" aria-selected="true" data-idx="0" data-value="General"/,
+    assert.ok(!/id="pickMenuTitle-0-other">Other</.test(markup), 'there is no Other group');
+    // 'really' maps to no stage, so it is not offered. General is not a phase either.
+    assert.ok(!/data-value="really"/.test(markup), 'the unmapped album is offered');
+    assert.ok(!/data-value="General"/.test(markup), 'General is offered');
+    assert.match(markup, /class="pick-tile is-active" role="option" aria-selected="true" data-idx="0" data-value="rack-build"/,
       'the album in force is not marked');
-    // The journey step rides on the option, blank for what the journey does not map.
+    // The journey step rides on the option.
     assert.match(markup, /data-value="cable-pull"[\s\S]*?<span class="pick-tile-art">4<\/span>/);
-    assert.match(markup, /data-value="really"[\s\S]*?<span class="pick-tile-art"><\/span>/);
   });
 
   test('picking writes the choice and repaints the chip', async () => {
