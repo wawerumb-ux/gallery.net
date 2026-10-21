@@ -131,6 +131,13 @@ describe('the upload rows offer a dropdown, not a select', () => {
     assert.ok(!/nowrap/.test(rule('.pick-hint', '').body));
   });
 
+  test('each row previews the photo being filed', () => {
+    assert.match(app, /class="pick-preview"/,
+      'each upload row renders an image preview of the file being uploaded');
+    assert.match(rawCss, /\.pick-preview\s*\{/,
+      'the stylesheet sizes the preview thumbnail');
+  });
+
   test('reduced motion stops the chip and the tiles', () => {
     const rm = rules.find(r => r.cond === '@media (prefers-reduced-motion: reduce)'
       && /\.pick-tile/.test(r.sel) && /\.pick-chip/.test(r.sel));

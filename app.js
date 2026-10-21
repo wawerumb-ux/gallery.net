@@ -2268,6 +2268,9 @@ const closeUploadModal = () => {
   // is the one on top, so it is unwound first.
   if (phaseMenuIndex !== null) overlayClose(PICK_MENU_ID);
   el('uploadModalOverlay').hidden = true;
+  // Revoke the photo preview object URLs so we do not leak blob memory.
+  const p = state.pendingUploads;
+  if (p && p.previews) for (const url of p.previews) URL.revokeObjectURL(url);
   state.pendingUploads = null;
 };
 const closeSortModal = () => { el('sortModalOverlay').hidden = true; };
@@ -2827,12 +2830,17 @@ function openUploadConfirm(fileList, contextFolder) {
     return offered.includes(prefill) ? prefill : 'General';
   });
   state.pendingUploads = { files, context: contextFolder, choice };
+  // A thumbnail of each photo, so the album you pick is the album for *this*
+  // picture. The object URLs are revoked when the dialog closes.
+  const previews = files.map(file => URL.createObjectURL(file));
+  state.pendingUploads.previews = previews;
   el('uploadPickList').innerHTML = files.map((file, i) => {
     const guess = suggestPhase(file.name);
     const j = guess ? journeyFor(guess) : null;
     const hint = guess && guess !== contextFolder
       ? `<span class="pick-hint">suggested: ${escapeHtml(guess)}${j ? ' · ' + escapeHtml(j.stage) : ''}</span>` : '';
     return `<div class="pick-row" data-idx="${i}">
+      <img class="pick-preview" src="${previews[i]}" alt="${escapeAttr(file.name)}" loading="lazy">
       <div class="pick-stack">
         <div class="pick-head">
           <span class="pick-name" title="${escapeAttr(file.name)}">${escapeHtml(file.name)}</span>
@@ -2866,6 +2874,10 @@ async function performUploads() {
     (groups[folder] = groups[folder] || []).push(file);
   });
   overlayClose('uploadModalOverlay');
+  // The dialog is closed — the preview object URLs are no longer needed.
+  const p = state.pendingUploads;
+  if (p && p.previews) for (const url of p.previews) URL.revokeObjectURL(url);
+  state.pendingUploads = null;
 
   let total = Object.values(groups).reduce((a, g) => a + g.length, 0);
   let skipped = 0, failed = 0;

@@ -1686,6 +1686,22 @@ select.text-input option { background: var(--surface-3); color: var(--text); }
 .pick-stack { flex: 1; min-width: 0; }
 .pick-control { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 .pick-hint { display: block; margin-top: 5px; color: var(--text-faint); font-size: 11px; font-family: var(--font-mono); }
+/* A thumbnail of the photo being filed, on the left of its row — so the
+   album you pick is the album for *this* picture. It is there as soon as the
+   confirm dialog opens, and is the thing you are deciding about while the
+   dropdown list is out. */
+.pick-preview {
+  flex: none;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  border-radius: 8px;
+  object-fit: cover;
+  border: 1px solid var(--hairline);
+  background: var(--surface-2);
+  display: block;
+}
+.pick-row.is-open .pick-preview { border-color: var(--hairline-strong); }
 
 /* The row's album dropdown. ONE box.
 
