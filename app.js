@@ -1779,11 +1779,20 @@ function albumCardMarkup(folder) {
   const needsReview = items.some(img => classifyPhoto(img).needsReview);
   const coverIdx = items.length - 1;
   const cover = items[coverIdx];
+  // The photos fanned out from behind the cover on hover: the ones just
+  // before the cover, newest first, capped so a big album stays cheap.
+  const fan = items.slice(Math.max(0, coverIdx - 5), coverIdx);
   return `<figure class="album" data-tour-target="album-cover" data-folder="${escapeAttr(folder)}" data-index="${coverIdx}" data-group="${escapeAttr(j ? j.group : '')}">
     <div class="album-cover">
-      <img src="${thumbSrc(cover)}" data-full="${cardSrc(cover)}" alt="${escapeAttr(stageName)}" loading="lazy" decoding="async">
+      <img src="${thumbSrc(cover)}" data-full="${cardSrc(cover)}" alt="${escapeAttr(stageName)}" loading="lazy" decoding="async" class="album-cover-img">
       ${needsReview ? `<span class="album-badge" title="Some photos here have no journey stage assigned">Needs review</span>` : ''}
       ${state.adminMode ? `<button class="album-more" data-folder="${escapeAttr(folder)}" aria-label="Options for ${escapeAttr(stageName)}" data-tour-target="album-menu">${ICONS.ellipsis}</button>` : ''}
+    </div>
+    <div class="album-hover-stack" aria-hidden="true">
+      ${fan.map(img => {
+        const pretty = prettyName(img.name);
+        return `<img class="album-hover-little" src="${thumbSrc(img)}" alt="${escapeAttr(pretty)}" loading="lazy" decoding="async">`;
+      }).join('')}
     </div>
     <figcaption class="album-meta">
       <span class="album-name">${escapeHtml(stageName)}</span>
