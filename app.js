@@ -2085,6 +2085,11 @@ function wireHoverGlow() {
       if (!next) return;
       card = next;
     }
+    // Moved onto the background with no card still under the pointer:
+    // release() above already nulled it, and the rect below has nothing
+    // to read. Without this the second move off a tile throws here, and
+    // every move after it throws again.
+    if (!card) return;
     if (!box) box = card.getBoundingClientRect();
     // Written straight through: a pointermove is already delivered about once
     // per frame, and these two properties only invalidate paint. Coalescing
