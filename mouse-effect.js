@@ -68,6 +68,25 @@
   var canvas = null, ctx = null, hud = null;
   var enabled = false, running = false, rafId = 0;
   var typeIdx = 0, skinIdx = 0;
+
+  /* Ceilings. Nothing here is a leak — particles and letters both age out
+     through their own decay — but the RATE is unbounded: a fast flick
+     emits up to 24 particles per mousemove and a browser delivers several
+     moves per frame, so a 4 GB machine could be handed a few thousand
+     live objects (and, at the glow setting, a few thousand blur passes)
+     from one drag. The caps make the worst case a constant.
+
+     GLOW_MAX is the CPU half of the same problem: a shadow is a separate
+     blur pass per draw call, and past a certain crowd the eye cannot
+     resolve the glow anyway — so it is spent while the trail is sparse
+     and dropped when the trail is dense. */
+  var PARTICLE_CAP = 400;
+  var LETTER_CAP = 40;
+  var GLOW_MAX = 60;
+  /* Idle frames before the loop parks itself: ~3/4s of an empty canvas. */
+  var IDLE_FRAMES = 45;
+  var idleFrames = 0;
+
   var reduce = false;
   try { reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches; } catch (_) {}
 
@@ -121,6 +140,21 @@
     if (!canvas) return;
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
+    // A resize clears the backing store, so whatever was drawn is gone —
+    // put one frame back rather than leaving a blank overlay until the
+    // pointer happens to move.
+    wake();
+  }
+
+  /* Restart the frame loop if a gesture stopped it. Everything that can
+     change what the canvas shows must go through here, because the loop
+     parks itself once there is nothing left to animate. */
+  function wake() {
+    idleFrames = 0;
+    if (enabled && !running) {
+      running = true;
+      rafId = window.requestAnimationFrame(frame);
+    }
   }
 
   /* ── Gestures ──────────────────────────────────────────────────── */
@@ -128,6 +162,7 @@
   function onMove(e) {
     if (!enabled) return;
     mouse.x = e.clientX; mouse.y = e.clientY;
+    wake();   // the aura now sits somewhere else — make sure a frame draws it
     // Measure travel against the PREVIOUS move, not against the trail's
     // emit point: the emit point only advances when the trail type is on,
     // so leaning on it would under-count (or, with the trail off, count
@@ -152,6 +187,7 @@
     e.preventDefault();
     skinIdx = (skinIdx + 1) % SKINS.length;
     syncHud();
+    wake();   // a different skin is a different aura, drawn now or not at all
     tourAction('mouse-effect-skin');
   }
   function onUp(e) {
@@ -167,7 +203,7 @@
     e.preventDefault();
     var before = typeIdx;
     typeIdx = (typeIdx + (e.deltaY < 0 ? 1 : -1) + TYPES.length) % TYPES.length;
-    if (typeIdx !== before) { syncHud(); tourAction('mouse-effect-cycle'); }
+    if (typeIdx !== before) { syncHud(); wake(); tourAction('mouse-effect-cycle'); }
   }
 
   function onAux(e) {
@@ -189,6 +225,9 @@
     // The pointer may never have entered the window; a letter parked at
     // the sentinel would be drawn somewhere off-screen entirely.
     if (mouse.x < -900) return;
+    // Oldest letters out first — the ones already fading are the ones the
+    // eye has stopped following.
+    while (letters.length >= LETTER_CAP) letters.shift();
     letters.push({
       char: e.key, x: mouse.x + (Math.random() * 24 - 12), y: mouse.y,
       // Under reduced motion the letter appears where it was typed and
@@ -197,6 +236,7 @@
       life: 1, decay: reduce ? 0.05 : 0.012,
       hue: (hueBase + Math.random() * 120) % 360,
     });
+    wake();
     tourAction('mouse-effect-letter');
   }
 
@@ -207,6 +247,9 @@
     var spd = Math.random() * 1.2 + 0.25;
     var vy = Math.sin(ang) * spd * 0.5;
     if (kind === 'Hearts' || kind === 'Stars') vy -= 1.1; else vy += 0.25;
+    // Oldest out first: it is the head of the trail, the part still on
+    // screen, that the effect exists to draw.
+    while (particles.length >= PARTICLE_CAP) particles.shift();
     particles.push({
       x: x, y: y, vx: Math.cos(ang) * spd * 0.5, vy: vy,
       life: 1, decay: (reduce ? 0.03 : Math.random() * 0.012 + 0.008),
@@ -264,7 +307,10 @@
       if (p.kind === 'Embers') hue = (20 + p.hue * 0.2) % 60;   // warm coals
       ctx.save();
       ctx.globalAlpha = a;
-      if (!reduce) { ctx.shadowBlur = 10; ctx.shadowColor = 'hsl(' + hue + ', 100%, 60%)'; }
+      if (!reduce && particles.length <= GLOW_MAX) {
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = 'hsl(' + hue + ', 100%, 60%)';
+      }
       ctx.fillStyle = 'hsl(' + hue + ', 100%, ' + (p.kind === 'Rainbow' ? 66 : 60) + '%)';
       ctx.beginPath();
       ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
@@ -414,6 +460,19 @@
     drawParticles();
     drawLetters();
     if (mouse.x > -900) drawCursorAura();
+    /* Park when there is nothing left to animate. With the trail faded
+       out and no letter floating, every further frame clears an empty
+       canvas and stops — 60 times a second, for as long as the page is
+       open, for nothing. On a machine with a core to spare that is a
+       rounding error; on an i3 sharing 4 GB it is a permanent tax.
+       The next gesture calls wake(). */
+    if (particles.length || letters.length) {
+      idleFrames = 0;
+    } else if (++idleFrames > IDLE_FRAMES) {
+      running = false;
+      rafId = 0;
+      return;
+    }
     rafId = window.requestAnimationFrame(frame);
   }
 
@@ -428,7 +487,7 @@
     // over so the first sweep after switching on is a real sweep.
     lastEmit.x = -999; lastEmit.y = -999;
     moved = 0; movedOnce = false;
-    if (!running) { running = true; rafId = window.requestAnimationFrame(frame); }
+    wake();
     if (persist !== false) store(true);
     syncButton();
     tourAction('mouse-effect-on');
@@ -440,6 +499,7 @@
     particles.length = 0; letters.length = 0;
     if (rafId) { window.cancelAnimationFrame(rafId); rafId = 0; }
     running = false;
+    idleFrames = 0;
     if (ctx && canvas) ctx.clearRect(0, 0, canvas.width, canvas.height);
     if (hud) hud.hidden = true;
     if (persist !== false) store(false);

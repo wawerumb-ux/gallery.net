@@ -909,6 +909,23 @@ function wireVideoBg() {
 
   const reduce = window.matchMedia('(prefers-reduced-motion: reduce)');
 
+  /* A looping background is a decoder that never stops: tens of megabytes
+     of frame buffers held for the whole visit, plus a continuous CPU cost
+     that lands on whatever the machine has spare. On a laptop with cores
+     to spare that is invisible. On 4 GB shared with an i3 it is a
+     permanent slice of a finite budget, spent on footage that sits behind
+     a scrim.
+
+     deviceMemory is the one signal a page gets about the physical RAM it
+     is actually running on, and 4 is where the trade stops being worth
+     it: a machine that reports it gets the same frame, frozen. It is also
+     absent in Firefox and Safari — and the absent case deliberately
+     changes NOTHING, so the default is the site as it stands today rather
+     than a guess about the visitor's hardware. */
+  const lowMem = typeof navigator !== 'undefined'
+    && typeof navigator.deviceMemory === 'number'
+    && navigator.deviceMemory <= 4;
+
   // The reduced-motion stylesheet hides the element; pausing keeps the
   // decoder from running against display:none.
   function syncMotion() {
@@ -916,10 +933,22 @@ function wireVideoBg() {
     else safePlay();
   }
   function safePlay() {
-    // Rejected promises are the normal path here, not an error: autoplay
-    // policy refuses unmuted and low-power playback alike.
+    if (!lowMem) {
+      // Rejected promises are the normal path here, not an error: autoplay
+      // policy refuses unmuted and low-power playback alike.
+      const p = video.play();
+      if (p && p.catch) p.catch(() => {});
+      return;
+    }
+    // Frozen on its first frame: still a background, no decoder. With
+    // preload="metadata" nothing has been decoded yet, so this play() is
+    // what fetches a frame — and the pause is what keeps it. A paused
+    // video keeps painting its current frame, which makes every later
+    // call a no-op: once readyState reaches HAVE_CURRENT_DATA there is
+    // nothing left to ask for.
+    if (video.readyState >= 2) { video.pause(); return; }
     const p = video.play();
-    if (p && p.catch) p.catch(() => {});
+    if (p && p.then) p.then(() => video.pause()).catch(() => {});
   }
 
   // Every overlay that covers the viewport with an opaque surface.
@@ -1792,8 +1821,18 @@ function albumCardMarkup(folder) {
     </div>
     <div class="album-hover-stack" aria-hidden="true">
       ${fan.map(img => {
-        const pretty = prettyName(img.name);
-        return `<img class="album-hover-little" src="${thumbSrc(img)}" alt="${escapeAttr(pretty)}" loading="lazy" decoding="async">`;
+        // No src until it is asked for. The fan is a flourish seen only
+        // while the pointer is on the album, and rendering it at page load
+        // decodes five extra bitmaps per album (~690 KB each, ~20 MB for a
+        // shelf of albums) at opacity 0, for photographs most visitors
+        // never hover over. The box is entirely CSS (26% square, object-fit
+        // cover), so withholding the source changes nothing until the
+        // pointer arrives — and an absent src, not an empty one, is what
+        // keeps the browser from fetching the page itself as an image.
+        // alt is empty rather than a name: the stack is aria-hidden and the
+        // box is a placeholder until the bytes land, and a name here would
+        // paint as text the moment the fan comes into view.
+        return `<img class="album-hover-little" alt="" data-fan="${escapeAttr(thumbSrc(img))}" decoding="async">`;
       }).join('')}
     </div>
     <figcaption class="album-meta">
@@ -1960,6 +1999,19 @@ function renderAlbumDetail() {
   window.scrollTo(0, keepY);
 }
 
+/* The hover fan arrives with the pointer, not with the page. albumCardMarkup
+   holds the five photos back behind `data-fan` (see the note there); this is
+   the moment they are actually wanted. It runs per album per render, and the
+   album node itself is rebuilt on every render, so it cannot stack. */
+function hydrateAlbumFan(e) {
+  const album = e.currentTarget;
+  if (!album || !album.querySelectorAll) return;
+  album.querySelectorAll('img[data-fan]').forEach(img => {
+    img.src = img.dataset.fan;
+    img.removeAttribute('data-fan');   // second hover is a no-op
+  });
+}
+
 function wireGalleryEvents() {
   const gallery = el('gallery');
   gallery.querySelectorAll('img[data-full]').forEach(img => {
@@ -1995,6 +2047,7 @@ function wireGalleryEvents() {
       if (e.target.closest('.album-more')) return;
       openAlbumDetail(fig.dataset.folder);
     });
+    fig.addEventListener('pointerenter', hydrateAlbumFan, { passive: true });
   });
   gallery.querySelectorAll('.album-more').forEach(btn => {
     btn.addEventListener('click', (e) => {
@@ -4569,6 +4622,15 @@ function fillSlot(node, img) {
   if (!node || !img) { if (node) releaseSlot(node); return; }
   const cheap = node.id !== 'lightboxImg';
   const src = cheap ? thumbSrc(img) : lightboxSrc(img);
+  // A neighbour is never owed the original, so it must not be left holding
+  // a target for one. The id moves with the role (applySlideRoles) but a
+  // dataset does not: a slot that slides back into the centre still
+  // carrying the full-res URL of whichever photo it LAST displayed there
+  // would layer that photo's pixels in under the new one's name — and, on
+  // the way past, would decode a ~49 MB original for a slot parked off
+  // screen. releaseSlot makes this same clear on the way out; this is the
+  // clear for a slot that is merely being handed a different photo.
+  if (cheap) delete node.dataset.full;
   if (node.dataset.path !== img.path) {
     node.dataset.path = img.path;
     node.classList.remove('is-loaded');
@@ -4635,6 +4697,38 @@ function paintViewerChrome(img, items) {
     });
   }
 }
+/* The full-res original is the largest single thing this app puts in RAM:
+   4080x3060 is ~49 MB of decoded bitmap (the upload note carries the same
+   figures). Layering one in the moment each photo arrives means every step
+   through the viewer decodes another, each overlapping the last in the
+   frame buffer — and it is the PEAK a 4 GB machine feels, paid to someone
+   who has already pressed next.
+   So the swap waits for the visitor to settle. Flicking through the viewer
+   costs only the cheap tier that is already on screen; stopping on a photo
+   for half a second is what earns it the original. Stepping on also
+   cancels the previous photo's pending swap, so a browse never queues up
+   a backlog of decodes. */
+const LB_UPGRADE_MS = 500;
+let lbUpgradeTimer = 0;
+function cancelLbUpgrade() {
+  if (lbUpgradeTimer) { clearTimeout(lbUpgradeTimer); lbUpgradeTimer = 0; }
+}
+function scheduleLbUpgrade() {
+  cancelLbUpgrade();
+  const lb = el('lightboxImg');
+  if (!lb || !lb.dataset.full || lb.src === lb.dataset.full) return;
+  lbUpgradeTimer = setTimeout(() => {
+    lbUpgradeTimer = 0;
+    // Re-resolve the slot rather than reusing the node the load fired on.
+    // The id moves with the centre as the track rotates (applySlideRoles),
+    // and a `full` left sitting on a slot that has since slid out of the
+    // middle belongs to a different photo — so the only slot this may
+    // promote is whichever one holds the centre now.
+    const now = el('lightboxImg');
+    if (now && now.dataset.full && now.src !== now.dataset.full) now.src = now.dataset.full;
+  }, LB_UPGRADE_MS);
+}
+
 function updateLightbox() {
   const items = lightboxItems(state.lightboxFolder);
   if (state.lightboxIndex >= items.length) state.lightboxIndex = Math.max(0, items.length - 1);
@@ -4651,6 +4745,7 @@ function updateLightbox() {
   // that mismatch is invisible in code and obvious to anyone looking at it.
   const start = state.lightboxStartSrc || lightboxSrc(img);
   state.lightboxStartSrc = null;
+  cancelLbUpgrade();                      // the previous photo's settle is not this one's
   lb.src = start;
   lb.dataset.full = imgSrc(img);          // full-res — background upgrade only
   lb.classList.add('is-loaded');          // open clear, never blurred
@@ -4659,8 +4754,13 @@ function updateLightbox() {
   // would arrive invisible, or shrunk into a corner.
   lb.classList.remove('is-eaten');
   lb.getAnimations().forEach(a => { if (a.id === EAT_ANIM_ID) a.cancel(); });
-  lb.onload = () => { if (lb.src !== lb.dataset.full && lb.dataset.full) lb.src = lb.dataset.full; };
-  lb.onerror = () => { if (lb.src !== lb.dataset.full && lb.dataset.full) lb.src = lb.dataset.full; };
+  // The tier that painted first is a done deal; the original waits for a
+  // viewer that has stopped moving (see LB_UPGRADE_MS). A failure is the
+  // exception to that: if the cheap tier will not load, the original IS
+  // the fallback, and waiting half a second to discover that would leave
+  // a blank frame where a photo was going to be.
+  lb.onload = scheduleLbUpgrade;
+  lb.onerror = () => { cancelLbUpgrade(); if (lb.dataset.full && lb.src !== lb.dataset.full) lb.src = lb.dataset.full; };
   lb.alt = prettyName(img.name);
   applySlideRoles();
   resetSlideTrack();
@@ -4690,6 +4790,7 @@ async function viewerDelete() {
    holding three decoded photos is 50 MB of bitmap nobody is looking at.
    The main thread then has the wall to itself again. */
 function closeLightbox() {
+  cancelLbUpgrade();          // nothing is being looked at to justify the decode
   el('lightbox').hidden = true;
   const track = el('lightboxTrack');
   if (track) {

@@ -800,6 +800,32 @@ body.is-selecting .tabbar, body.is-selecting .fab { transform: translateY(110%);
      below). */
   border-radius: 0;
   overflow: hidden;
+  /* Off-screen tiles are not styled, laid out or painted.
+     A wall of hundreds of photos is the one place this pays for itself:
+     the browser keeps no layout data for a tile nobody can see, and
+     scrolling into a day that has not been reached yet costs no work
+     at all until it is reached. On a 4 GB machine that is the difference
+     between holding a whole archive's worth of style and layout in memory
+     and holding only the part of it that is on screen.
+
+     The tile's own box is untouched, and that is what makes this safe to
+     put here rather than on some wrapper: size comes from `aspect-ratio`
+     above, which is computed from the grid's column width and not from
+     anything inside the tile — so a skipped tile is exactly the size it
+     will be once rendered, the scrollbar never jumps, and everything that
+     measures the tile itself (the tour's highlight, the hover glow) still
+     gets a real rectangle. The opaque mat and the shadow that fill the
+     gutters are the tile's own decoration, not its contents, so they paint
+     whether or not the photo inside has been reached. The one thing that
+     measures INSIDE a tile is the eat animation, and it already discards
+     anything with no box — an off-screen tile fades instead of flying,
+     which is what it did before this line existed.
+
+     Only `.card`, never `.album`: an album's menu button lives INSIDE it,
+     and a skipped subtree gives its descendants no box — which would
+     report the album's options as unrendered and skip the step that
+     teaches them. */
+  content-visibility: auto;
   cursor: pointer;
   transform: translateZ(0);
   /* A spread shadow rather than a border, because a border would join the

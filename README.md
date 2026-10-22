@@ -161,6 +161,77 @@ It also has native twins: `mouse-effect/mouse_effect.py` and
 `mouse-effect/src/main.rs` are the same effect and the same three controls,
 as terminal and window programs.
 
+## Memory
+
+An archive has no natural end and a laptop has a finite one. Most of what
+this gallery spends, it spends on decoded bitmaps, so the budget is set by
+two numbers: a photo original is ~2,700 KB of bytes and **~49 MB once
+decoded** (4080×3060 RGBA), while the -480 webp tier the wall actually
+displays is ~12 KB in and a few hundred KB decoded. Everything below is the
+same decision taken six times — put the second number where the first one
+used to go.
+
+**The viewer waits before it upgrades.** A photo opens straight to the
+largest committed tier, and the full-res original layers in 500 ms later,
+once the visitor has stopped still. Flicking through fifty photos decodes
+none of them; stopping on one earns it. This is the largest single saving
+available, because a stepped-over original is a ~49 MB decode nobody ever
+saw, and the old behaviour paid that per photo with each one overlapping
+the last in the frame buffer — it is the *peak* a 4 GB machine feels.
+
+**A slide slot never holds another photo's target.** The three viewer slots
+rotate, and the `lightboxImg` id moves with the centre — but a slot's
+dataset does not, so a slot that had slid out of the middle kept the
+full-res URL of whichever photo it last displayed there. That was a
+wrong-pixels bug waiting to happen *and* a ~49 MB decode for a slot parked
+off screen. `fillSlot` now drops the target from every neighbour it fills,
+and the upgrade re-resolves the centre rather than trusting the node whose
+load fired.
+
+**Off-screen tiles are not laid out.** `.card` carries `content-visibility:
+auto`, so a tile nobody can see contributes no style, no layout and no
+paint, and a day not yet scrolled to costs nothing to have been rendered.
+The tile's own box is untouched — its size comes from `aspect-ratio`, not
+from anything inside it — so the scrollbar never jumps and the tour's
+highlight and the hover glow still measure a real rectangle.
+
+**The album hover fan waits for the pointer.** Each album previews five
+photos behind its cover. They are now `data-fan` hints rather than `src`
+values, fetched and decoded on the first `pointerenter`, instead of ~20 MB
+of bitmaps resting at `opacity: 0` for photographs most visitors never
+hover over.
+
+**The service worker's cache has a ceiling.** Two of them: nothing over
+1 MB is kept at all — the wall does not display originals, only the webp
+tiers, so the files worth keeping are exactly the files that pass — and
+past 60 entries the oldest are evicted. It is also now *strictly*
+cache-first; the old handler answered from the cache and re-fetched
+regardless, so every repeat view paid for a download and a buffered clone
+it never used. The cache name moved to `v3`, which purges whatever earlier
+visits accumulated.
+
+**The cursor trail stops when nothing is moving.** After three quarters of
+a second with an empty canvas the frame loop parks itself and restarts on
+the next gesture. Particles and letters are capped, oldest out first, and
+the per-particle glow — a separate blur pass per draw call — is dropped
+once the trail is dense enough that the eye could not resolve it anyway.
+
+**A machine reporting 4 GB or less gets a still background.** The looping
+video is a decoder that never stops, on footage that sits behind a scrim.
+`navigator.deviceMemory` is the one signal a page has about the physical
+RAM it is actually running on, and at 4 the trade stops being worth it: the
+video plays just far enough to decode one frame and then holds it.
+Firefox and Safari do not expose the property, and the absent case changes
+nothing — the default is the site as it stands, not a guess about the
+visitor.
+
+Two costs are left standing deliberately. The wall is still rendered whole,
+with no virtualisation, and each render still rebinds its tiles' listeners
+rather than delegating them. Both are real and both are correctness risks in
+code that is measured and animated per tile, so both are worth taking only
+when the archive itself rather than the machine is the thing under pressure.
+At the current size of the archive neither one is the binding constraint.
+
 ## Notifications
 
 Every message in the gallery goes through one wrapper, `showToast()`, over
