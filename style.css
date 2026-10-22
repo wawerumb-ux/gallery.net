@@ -1111,10 +1111,10 @@ body.is-selecting .tabbar, body.is-selecting .fab { transform: translateY(110%);
 }
 .album-count { display: block; font-size: 12px; color: var(--text-faint); margin-top: 1px; }
 
-/* Hover fan: the other photos in the album peek out from behind the cover
-   when hovered — a small, contained hand of cards inside the album's own
-   grid cell so it never collides with a neighbour. The cover tilts
-   slightly like the swiper's "big card", clipped inside the cover box. */
+/* Hover spread: the other photos in the album spread out horizontally behind
+   the cover when hovered — cards laid side by side inside the album's own
+   grid cell, like fanning a hand on a table. Never collides with a neighbour.
+   The cover tilts slightly, clipped inside the cover box. */
 .album-hover-stack {
   position: absolute;
   inset: 0;
@@ -1124,7 +1124,7 @@ body.is-selecting .tabbar, body.is-selecting .fab { transform: translateY(110%);
 .album-hover-little {
   position: absolute;
   top: 50%; left: 50%;
-  width: 26%; height: 26%;
+  width: 28%; height: 28%;
   aspect-ratio: 1 / 1;
   transform: translate(-50%, -50%) scale(0);
   border-radius: 7px;
@@ -1138,16 +1138,16 @@ body.is-selecting .tabbar, body.is-selecting .fab { transform: translateY(110%);
   transform: translate(-50%, -50%) scale(1);
   opacity: 1;
 }
-/* Minimal fan positions — small offsets from the centre, all inside the
-   cover bounds so adjacent albums stay untouched. */
-.album:hover .album-hover-little:nth-child(1) { transform: translate(-70%, -70%) scale(1) rotate(-6deg); }
-.album:hover .album-hover-little:nth-child(2) { transform: translate(70%, -70%) scale(1) rotate(6deg); }
-.album:hover .album-hover-little:nth-child(3) { transform: translate(-50%, 50%) scale(1) rotate(-4deg); }
-.album:hover .album-hover-little:nth-child(4) { transform: translate(50%, 50%) scale(1) rotate(4deg); }
-.album:hover .album-hover-little:nth-child(5) { transform: translate(0%, 60%) scale(1) rotate(0deg); }
+/* Horizontal card spread across the cover — side by side, slight overlap,
+   gentle alternating rotations, all inside the cover bounds. */
+.album:hover .album-hover-little:nth-child(1) { transform: translate(-110%, -50%) scale(1) rotate(-5deg); }
+.album:hover .album-hover-little:nth-child(2) { transform: translate(-55%, -50%) scale(1) rotate(-3deg); }
+.album:hover .album-hover-little:nth-child(3) { transform: translate(0%, -50%) scale(1) rotate(0deg); }
+.album:hover .album-hover-little:nth-child(4) { transform: translate(55%, -50%) scale(1) rotate(3deg); }
+.album:hover .album-hover-little:nth-child(5) { transform: translate(110%, -50%) scale(1) rotate(5deg); }
 /* The cover tilts slightly, clipped inside the cover box. */
 .album:hover .album-cover img {
-  transform: rotate(-3deg) scale(1.02);
+  transform: rotate(-2deg) scale(1.01);
 }
 
 /* Phone-width columns: the labels. A four-across grid in a 480px column
