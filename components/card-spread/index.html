@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Card Spread Component — gallery.net</title>
+  <link rel="stylesheet" href="card-spread.css">
+  <style>
+    body {
+      margin: 0;
+      background: #f5f5f5;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+  </style>
+</head>
+<body>
+
+  <main class="card-spread-demo">
+    <h2>Card Spread</h2>
+    <p>Cards stack on load, spread on click, collapse on click again.</p>
+
+    <div class="card-spread" id="cardSpread">
+      <div class="card-spread__stack">
+        <img class="card-spread__card" src="#" alt="Card 1" loading="lazy">
+        <img class="card-spread__card" src="#" alt="Card 2" loading="lazy">
+        <img class="card-spread__card" src="#" alt="Card 3" loading="lazy">
+        <img class="card-spread__card" src="#" alt="Card 4" loading="lazy">
+        <img class="card-spread__card" src="#" alt="Card 5" loading="lazy">
+        <img class="card-spread__card" src="#" alt="Card 6" loading="lazy">
+      </div>
+    </div>
+
+    <button class="card-spread__toggle" id="toggleCardSpread" data-card-spread-toggle>
+      Spread cards
+    </button>
+  </main>
+
+  <script src="card-spread.js"></script>
+</body>
+</html>

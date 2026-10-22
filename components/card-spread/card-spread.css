@@ -1,0 +1,213 @@
+/* ── Card Spread component ──
+   A modular, dependency-free card-spread animation. Cards start stacked in a
+   single pile; on toggle they spread horizontally into a row (linear spread)
+   with staggered, cascading motion; on reverse they collapse back into the
+   stack.
+
+   Trigger preference: button click. Click again to reverse.
+
+   Custom properties (override to theme / resize):
+     --cs-card-count     number of cards in the stack  (default 6)
+     --cs-card-size      collapsed card width/height   (default 14vmin)
+     --cs-spread-width   total width of the spread     (default 70vmin)
+     --cs-duration       per-card animation length     (default 500ms)
+     --cs-stagger        delay between each card       (default 80ms)
+     --cs-ease           easing function               (default cubic-bezier(.2, 0, 0, 1))
+
+   Integration: drop `.card-spread` + `.card-spread__stack` + N `.card-spread__card`
+   into any page, add the toggle button with `data-card-spread-toggle`, and
+   include this stylesheet plus card-spread.js. */
+
+:root {
+  --cs-card-count: 6;
+  --cs-card-size: 14vmin;
+  --cs-spread-width: 70vmin;
+  --cs-duration: 500ms;
+  --cs-stagger: 80ms;
+  --cs-ease: cubic-bezier(0.2, 0, 0, 1);
+  --cs-bg: #ffffff;
+  --cs-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  --cs-border: rgba(0, 0, 0, 0.06);
+}
+
+/* Animatable angle custom property — lets us rotate smoothly with @property. */
+@property --cs-rotate {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 0deg;
+}
+
+/* The wrapper sizes itself to the stack so nothing reflows when cards spread. */
+.card-spread {
+  position: relative;
+  width: var(--cs-card-size);
+  height: var(--cs-card-size);
+  margin: 2vmin auto;
+  /* Persist the spread width so layout doesn't shift while animating. */
+  min-width: var(--cs-spread-width);
+  touch-action: manipulation;
+}
+
+/* The pile: every card starts dead-centre, stacked in source order so the
+   last card sits on top. */
+.card-spread__stack {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/* Each card: identical size, centred, absolutely stacked. */
+.card-spread__card {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: var(--cs-card-size);
+  height: var(--cs-card-size);
+  margin-top: calc(var(--cs-card-size) / -2);
+  margin-left: calc(var(--cs-card-size) / -2);
+  border-radius: 10px;
+  border: 1px solid var(--cs-border);
+  background: var(--cs-bg);
+  box-shadow: var(--cs-shadow);
+  object-fit: cover;
+  object-position: center;
+  /* Transform origin at centre so rotate spins in place around the middle. */
+  transform-origin: 50% 50%;
+  /* Animated properties: translateX (spread), --cs-rotate (tilt), scale. */
+  transform: translate(-50%, -50%);
+  transition:
+    transform var(--cs-duration) var(--cs-ease),
+    opacity var(--cs-duration) var(--cs-ease),
+    box-shadow var(--cs-duration) var(--cs-ease);
+  /* Staggered start delay: each card begins a little after the previous one. */
+  transition-delay: var(--cs-stagger-start, 0ms);
+  cursor: pointer;
+  /* Click passes through to the toggle button; cards themselves are visual. */
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Initial collapsed state — everything on top of everything. Uses
+   @starting-style so the browser can animate the very first paint into view
+   (entrance animation) without JS setting classes up front. */
+@starting-style {
+  .card-spread__card {
+    transform: translate(-50%, -50%);
+    opacity: 1;
+  }
+}
+
+/* Spread state: classed on the wrapper. Each child translates to its own
+   slot along the X axis and tilts slightly for a dealt-cards feel. */
+.card-spread--spread .card-spread__card {
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.22);
+}
+
+.card-spread--spread .card-spread__card:nth-child(1) {
+  --cs-translate-x: calc(var(--cs-spread-width) / -2 + var(--cs-card-size) / 2);
+  --cs-rotate: -8deg;
+}
+.card-spread--spread .card-spread__card:nth-child(2) {
+  --cs-translate-x: calc(var(--cs-spread-width) / -4 + var(--cs-card-size) / 4);
+  --cs-rotate: -4deg;
+}
+.card-spread--spread .card-spread__card:nth-child(3) {
+  --cs-translate-x: calc(0px + var(--cs-card-size) / 2 - var(--cs-card-size) / 2);
+  --cs-rotate: 0deg;
+}
+.card-spread--spread .card-spread__card:nth-child(4) {
+  --cs-translate-x: calc(var(--cs-spread-width) / 4 - var(--cs-card-size) / 4);
+  --cs-rotate: 4deg;
+}
+.card-spread--spread .card-spread__card:nth-child(5) {
+  --cs-translate-x: calc(var(--cs-spread-width) / 2 - var(--cs-card-size) / 2);
+  --cs-rotate: 8deg;
+}
+.card-spread--spread .card-spread__card:nth-child(6) {
+  --cs-translate-x: calc(var(--cs-spread-width) / 2 + var(--cs-card-size) / 2);
+  --cs-rotate: 12deg;
+}
+
+.card-spread--spread .card-spread__card {
+  transform: translate(calc(var(--cs-translate-x, 0px) - 50%), -50%)
+             rotate(var(--cs-rotate, 0deg));
+}
+
+/* Reduced motion: snap instead of spreading. */
+@media (prefers-reduced-motion: reduce) {
+  .card-spread__card,
+  .card-spread--spread .card-spread__card {
+    transition: none;
+  }
+}
+
+/* ── Toggle button (demo chrome; swap in your own UI) ── */
+.card-spread__toggle {
+  margin-top: 3vmin;
+  padding: 10px 18px;
+  font: inherit;
+  font-weight: 600;
+  color: var(--cs-bg);
+  background: #000000;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+}
+.card-spread__toggle:hover {
+  background: #1a1a1a;
+}
+.card-spread__toggle.is-spread {
+  background: #4a4a4a;
+}
+
+/* ── Demo shell (remove when integrating) ── */
+.card-spread-demo {
+  max-width: 700px;
+  margin: 4vmin auto;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  color: #1a1a1a;
+}
+.card-spread-demo h2 {
+  margin: 0 0 1vmin;
+  font-size: 1.5rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+}
+.card-spread-demo p {
+  margin: 0 0 3vmin;
+  color: #555;
+  font-size: 0.95rem;
+}
+.card-spread-demo .card-spread {
+  width: 16vmin;
+  height: 16vmin;
+  min-width: 60vmin;
+}
+.card-spread-demo .card-spread__card {
+  --cs-card-size: 16vmin;
+}
+
+/* Example images — replace with your own assets. */
+.card-spread-demo .card-spread__card:nth-child(1) {
+  background-image: url('https://images.unsplash.com/photo-1529626455594-4ff0802cfb7e?auto=format&fit=crop&w=400&q=60');
+}
+.card-spread-demo .card-spread__card:nth-child(2) {
+  background-image: url('https://images.unsplash.com/photo-1534438327276-14e5306c3b48?auto=format&fit=crop&w=400&q=60');
+}
+.card-spread-demo .card-spread__card:nth-child(3) {
+  background-image: url('https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&w=400&q=60');
+}
+.card-spread-demo .card-spread__card:nth-child(4) {
+  background-image: url('https://images.unsplash.com/photo-1550684838-f33e99319b7d?auto=format&fit=crop&w=400&q=60');
+}
+.card-spread-demo .card-spread__card:nth-child(5) {
+  background-image: url('https://images.unsplash.com/photo-1526874384782-09099c5e5364?auto=format&fit=crop&w=400&q=60');
+}
+.card-spread-demo .card-spread__card:nth-child(6) {
+  background-image: url('https://images.unsplash.com/photo-1544976713-e03f99515545?auto=format&fit=crop&w=400&q=60');
+}
