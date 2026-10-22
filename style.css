@@ -1138,7 +1138,7 @@ body.is-selecting .tabbar, body.is-selecting .fab { transform: translateY(110%);
 .album:hover .album-cover img {
   /* Pop out: scales up on its own centre axis so the hero stays centred
      over the pile it is dealing from, clipped by the cover box. */
-  transform: scale(1.1);
+  transform: scale(1.12);
 }
 /* The dealt cards sit just below the main image, inside the cover's box. */
 .album-hover-stack {
@@ -1157,7 +1157,7 @@ body.is-selecting .tabbar, body.is-selecting .fab { transform: translateY(110%);
 .album-hover-little {
   position: absolute;
   top: 50%; left: 50%;
-  width: 22%; height: 22%;
+  width: 26%; height: 26%;
   aspect-ratio: 1 / 1;
   /* Collapsed: stacked at the centre, hidden inside the main image. */
   transform: translate(-50%, -50%) scale(0.5);
@@ -1178,10 +1178,10 @@ body.is-selecting .tabbar, body.is-selecting .fab { transform: translateY(110%);
    album collapses every card back into the pile at once. Odd cards go left,
    even cards go right, alternating rotations so it fans like a hand dealt
    across the table. */
-.album:hover .album-hover-little:nth-child(1) { transform: translate(-130%, -50%) scale(1) rotate(-8deg); transition-delay: 90ms; }
-.album:hover .album-hover-little:nth-child(2) { transform: translate(130%, -50%) scale(1) rotate(8deg); transition-delay: 135ms; }
-.album:hover .album-hover-little:nth-child(3) { transform: translate(-65%, -50%) scale(1) rotate(-4deg); transition-delay: 0ms; }
-.album:hover .album-hover-little:nth-child(4) { transform: translate(65%, -50%) scale(1) rotate(4deg); transition-delay: 45ms; }
+.album:hover .album-hover-little:nth-child(1) { transform: translate(-125%, -50%) scale(1) rotate(-8deg); transition-delay: 90ms; }
+.album:hover .album-hover-little:nth-child(2) { transform: translate(125%, -50%) scale(1) rotate(8deg); transition-delay: 135ms; }
+.album:hover .album-hover-little:nth-child(3) { transform: translate(-62%, -50%) scale(1) rotate(-4deg); transition-delay: 0ms; }
+.album:hover .album-hover-little:nth-child(4) { transform: translate(62%, -50%) scale(1) rotate(4deg); transition-delay: 45ms; }
 .album:hover .album-hover-little:nth-child(5) { transform: translate(0%, -50%) scale(1) rotate(0deg); transition-delay: 180ms; }
 
 /* Phone-width columns: the labels. A four-across grid in a 480px column

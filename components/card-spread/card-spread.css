@@ -8,8 +8,8 @@
 
    Custom properties (override to theme / resize):
      --cs-card-count     number of cards in the stack  (default 6)
-     --cs-card-size      collapsed card width/height   (default 14vmin)
-     --cs-spread-width   total width of the spread     (default 70vmin)
+     --cs-card-size      collapsed card width/height   (default 16vmin)
+     --cs-spread-width   total width of the spread     (default 76vmin)
      --cs-duration       per-card animation length     (default 500ms)
      --cs-stagger        delay between each card       (default 80ms)
      --cs-ease           easing function               (default cubic-bezier(.2, 0, 0, 1))
@@ -20,8 +20,8 @@
 
 :root {
   --cs-card-count: 6;
-  --cs-card-size: 14vmin;
-  --cs-spread-width: 70vmin;
+  --cs-card-size: 16vmin;
+  --cs-spread-width: 76vmin;
   --cs-duration: 500ms;
   --cs-stagger: 80ms;
   --cs-ease: cubic-bezier(0.2, 0, 0, 1);
@@ -184,12 +184,12 @@
   font-size: 0.95rem;
 }
 .card-spread-demo .card-spread {
-  width: 16vmin;
-  height: 16vmin;
-  min-width: 60vmin;
+  width: 18vmin;
+  height: 18vmin;
+  min-width: 64vmin;
 }
 .card-spread-demo .card-spread__card {
-  --cs-card-size: 16vmin;
+  --cs-card-size: 18vmin;
 }
 
 /* Example images — replace with your own assets. */
