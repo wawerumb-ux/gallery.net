@@ -615,6 +615,12 @@ browsing the archive has no way to discover there is an admin side at all.
 The gesture is the one Samsung's own settings screens use for a hidden
 panel.
 
+Both titles take it. The app bar carries "Gallery" twice and only one of
+them is on screen at a time — the big hero title at the top of the page,
+and the compact title that takes over once the hero folds away on scroll.
+Whichever word you can see is the one to click; the other is still in the
+page and still counts, so a run may pass between them as the bar folds.
+
 Once the box is up it is entirely ordinary: paste the token, **Sign in**
 works as it always did, **Cancel** closes it, and the session behaves the
 same. The clicks do not select the word either (`user-select: none` on the

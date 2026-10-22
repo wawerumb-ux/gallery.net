@@ -2404,7 +2404,7 @@ const TITLE_TAP_MS = 600;
    and the session is the same one it has always been. */
 function wireTitleDoor() {
   let taps = 0, tapTimer = 0;
-  el('appbarMini').addEventListener('click', () => {
+  const tap = () => {
     taps += 1;
     clearTimeout(tapTimer);
     if (taps < TITLE_TAP_COUNT) {
@@ -2413,7 +2413,17 @@ function wireTitleDoor() {
     }
     taps = 0;
     openAdminModal();
-  });
+  };
+  // Both titles carry the same word, and only one of them is ever visible:
+  // the hero is what you see at the top of the page, the compact title is
+  // what takes over once the hero has folded away on scroll. The one that
+  // is not showing is still there and still receives clicks, so wiring only
+  // the compact title made the door work exactly while you could not see
+  // it — which is how it first shipped.
+  for (const id of ['appbarMini', 'appbarTitle']) {
+    const node = el(id);
+    if (node) node.addEventListener('click', tap);
+  }
 }
 
 function wireStaticEvents() {

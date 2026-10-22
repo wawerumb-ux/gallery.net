@@ -302,6 +302,10 @@ code {
   font-weight: 700;
   letter-spacing: -0.02em;
   line-height: 1.15;
+  /* The other half of the admin door (see .appbar-mini): the hero title is
+     the word you actually see at the top of the page, so it takes the
+     triple-click too — and must not paint a selection on the way in. */
+  user-select: none;
 }
 .appbar-sub {
   margin: 6px 0 0;

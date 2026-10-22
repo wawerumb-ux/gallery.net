@@ -45,13 +45,17 @@ const TAP_MS = Number(/const TITLE_TAP_MS = (\d+);/.exec(source)[1]);
 /* One pending timer is all this door ever holds, so the clock holds one. */
 function door(state) {
   let now = 0, pending = null, opened = 0;
-  const title = {
+  const makeTitle = () => ({
     listener: null,
     addEventListener(type, fn) { if (type === 'click') this.listener = fn; },
-  };
+  });
+  // Both titles carry the same word and both are wired. Which one is on
+  // screen depends on whether the hero has folded away on scroll, so the
+  // suite taps each of them.
+  const titles = { appbarMini: makeTitle(), appbarTitle: makeTitle() };
   const sandbox = {
     state,
-    el: () => title,
+    el: (id) => titles[id] || makeTitle(),
     openAdminModal: () => { opened++; },
     setTimeout: (fn, ms) => { pending = { at: now + ms, fn }; return 1; },
     clearTimeout: () => { pending = null; },
@@ -61,9 +65,13 @@ function door(state) {
   const ctx = vm.createContext(sandbox);
   vm.runInContext(body('wireTitleDoor'), ctx, { filename: 'app.js' });
   vm.runInContext('wireTitleDoor()', ctx, { filename: 'app.js' });
-  assert.ok(title.listener, 'the door bound no click on the title');
+  assert.ok(titles.appbarMini.listener, 'the door bound no click on #appbarMini');
+  assert.ok(titles.appbarTitle.listener, 'the door bound no click on #appbarTitle');
   return {
-    tap() { title.listener(); },
+    tap(id = 'appbarMini') {
+      assert.ok(titles[id].listener, `the door bound no click on #${id}`);
+      titles[id].listener();
+    },
     tick(ms) { now += ms; if (pending && pending.at <= now) { const f = pending.fn; pending = null; f(); } },
     get opened() { return opened; },
   };
@@ -133,6 +141,28 @@ describe('D — three clicks on the title open the sign-in box', () => {
   test('D8 — the door is three clicks, not two or four', () => {
     assert.equal(TAP_COUNT, 3, 'TITLE_TAP_COUNT is the published gesture');
     assert.ok(TAP_MS > 0 && TAP_MS <= 1000, 'the window is short enough to mean "continuously"');
+  });
+
+  test('D9 — the hero title takes the gesture too', () => {
+    // At the top of the page the hero is the word you can actually see. The
+    // compact title is still in the DOM and still takes clicks, but at
+    // opacity 0 — so wiring only it made the door work exactly while nobody
+    // could see what to click.
+    const d = door({ adminMode: false, adminSession: null });
+    d.tap('appbarTitle'); d.tick(50);
+    d.tap('appbarTitle'); d.tick(50);
+    d.tap('appbarTitle');
+    assert.equal(d.opened, 1, 'three clicks on the hero must open the box');
+  });
+
+  test('D10 — the two titles share one count', () => {
+    // It is the same word and the same door whichever of the two is showing,
+    // so a run may pass between them as the hero folds on scroll.
+    const d = door({ adminMode: false, adminSession: null });
+    d.tap('appbarTitle'); d.tick(50);
+    d.tap('appbarMini'); d.tick(50);
+    d.tap('appbarTitle');
+    assert.equal(d.opened, 1, 'mixing the two titles must still add up');
   });
 });
 
