@@ -2378,6 +2378,11 @@ const TITLE_TAP_MS = 600;
    end, so "continuously" means what it says — a pause past the window
    drops the count, and the next click starts a fresh three.
 
+   It opens whatever the state, on purpose. An admin already signed in, or
+   a session another browser holds, still gets the box — the box is what
+   says why a token would be refused, and pre-filtering here turned a
+   stale lock into a door with no way to find out it had stopped working.
+
    Deliberately pointer-only. Making the title focusable would put a tab
    stop on every visit and announce a button reading "Gallery", which is
    precisely the discovery this is built to avoid. Once the box is up it
@@ -2386,9 +2391,6 @@ const TITLE_TAP_MS = 600;
 function wireTitleDoor() {
   let taps = 0, tapTimer = 0;
   el('appbarMini').addEventListener('click', () => {
-    // Already in, or another admin holding the shared session, and there is
-    // nothing to open — the menu row this replaced said the same.
-    if (state.adminMode || state.adminSession) return;
     taps += 1;
     clearTimeout(tapTimer);
     if (taps < TITLE_TAP_COUNT) {

@@ -606,10 +606,13 @@ panel.
 
 Once the box is up it is entirely ordinary: paste the token, **Sign in**
 works as it always did, **Cancel** closes it, and the session behaves the
-same. An admin already signed in, or a session another browser holds, gets
-nothing from the clicks — there is nothing left to open. The clicks do not
-select the word either (`user-select: none` on the title), so the gesture
-paints nothing on its way in.
+same. The clicks do not select the word either (`user-select: none` on the
+title), so the gesture paints nothing on its way in.
+
+The door opens whatever the gallery's state. An admin already signed in, or
+a session another browser still holds, gets the box too — the box is what
+says why a token would be refused, and a door that quietly refused to open
+would leave no way to find out why.
 
 If you would rather the entrance were visible, it is one line: put the row
 back in `mainMenu()` in `app.js` (the commit that removed it has the exact

@@ -114,16 +114,20 @@ describe('D — three clicks on the title open the sign-in box', () => {
     assert.equal(d.opened, 1, 'a fourth click must not reopen the box');
   });
 
-  test('D6 — an admin already signed in has nothing to open', () => {
-    const d = door({ adminMode: true, adminSession: false });
+  test('D6 — a stale session cannot strand the door', () => {
+    // gallery.json carries __admin_session__ when an admin closed the tab
+    // without signing out. That makes adminSession truthy for everyone,
+    // and a guard here once silenced the door for good while the box — the
+    // one place that explains why — stayed out of reach.
+    const d = door({ adminMode: false, adminSession: { since: '2026-10-22T01:07:23.021Z' } });
     d.tap(); d.tap(); d.tap();
-    assert.equal(d.opened, 0, 'a signed-in admin must not be re-prompted');
+    assert.equal(d.opened, 1, 'a held session must not lock the door');
   });
 
-  test('D7 — a session another admin holds has nothing to open', () => {
-    const d = door({ adminMode: false, adminSession: true });
+  test('D7 — an admin already signed in can still open it', () => {
+    const d = door({ adminMode: true, adminSession: null });
     d.tap(); d.tap(); d.tap();
-    assert.equal(d.opened, 0, 'a held session must not raise a second prompt');
+    assert.equal(d.opened, 1, 'the box is what explains itself — do not pre-filter');
   });
 
   test('D8 — the door is three clicks, not two or four', () => {
