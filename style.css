@@ -1111,44 +1111,55 @@ body.is-selecting .tabbar, body.is-selecting .fab { transform: translateY(110%);
 }
 .album-count { display: block; font-size: 12px; color: var(--text-faint); margin-top: 1px; }
 
-/* Hover spread: the other photos in the album spread out horizontally behind
-   the cover when hovered — cards laid side by side inside the album's own
-   grid cell, like fanning a hand on a table. Never collides with a neighbour.
-   The cover tilts slightly, clipped inside the cover box. */
+/* Hover spread on albums: the main cover image pops up as the hero, and the
+   album's other photos are dealt out left and right from behind it — like
+   drawing cards from a single pile. Everything stays inside the album's own
+   grid cell so neighbours are never disturbed. */
+.album-cover img {
+  position: relative;
+  z-index: 3;
+}
+.album:hover .album-cover img {
+  /* Pop up as the main: lifts and scales within the cover box. */
+  transform: translateY(-2px) scale(1.08);
+}
+
+/* The dealt cards sit just below the main image. */
 .album-hover-stack {
   position: absolute;
   inset: 0;
   z-index: 2;
   pointer-events: none;
+  display: flex;
+  justify-content: center;
+  align-items: center;
 }
 .album-hover-little {
   position: absolute;
   top: 50%; left: 50%;
-  width: 28%; height: 28%;
+  width: 22%; height: 22%;
   aspect-ratio: 1 / 1;
-  transform: translate(-50%, -50%) scale(0);
+  /* Collapsed: stacked at the centre, hidden inside the main image. */
+  transform: translate(-50%, -50%) scale(0.5);
   border-radius: 7px;
   object-fit: cover; object-position: center;
   border: 1px solid var(--hairline);
   opacity: 0;
-  box-shadow: 0 0 4px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 0 5px rgba(0, 0, 0, 0.45);
   transition: transform 350ms var(--ease-spring), opacity 200ms ease;
 }
-.album:hover .album-hover-stack .album-hover-little {
-  transform: translate(-50%, -50%) scale(1);
+.album:hover .album-hover-little {
   opacity: 1;
+  transform: translate(-50%, -50%) scale(1);
 }
-/* Horizontal card spread across the cover — side by side, slight overlap,
-   gentle alternating rotations, all inside the cover bounds. */
-.album:hover .album-hover-little:nth-child(1) { transform: translate(-110%, -50%) scale(1) rotate(-5deg); }
-.album:hover .album-hover-little:nth-child(2) { transform: translate(-55%, -50%) scale(1) rotate(-3deg); }
-.album:hover .album-hover-little:nth-child(3) { transform: translate(0%, -50%) scale(1) rotate(0deg); }
-.album:hover .album-hover-little:nth-child(4) { transform: translate(55%, -50%) scale(1) rotate(3deg); }
-.album:hover .album-hover-little:nth-child(5) { transform: translate(110%, -50%) scale(1) rotate(5deg); }
-/* The cover tilts slightly, clipped inside the cover box. */
-.album:hover .album-cover img {
-  transform: rotate(-2deg) scale(1.01);
-}
+/* Linear left-and-right spread dealt from the centre (the main image).
+   Odd cards go left, even cards go right, alternating rotations so they
+   fan out like a hand being dealt across the table. */
+.album:hover .album-hover-little:nth-child(1) { transform: translate(-130%, -50%) scale(1) rotate(-8deg); }
+.album:hover .album-hover-little:nth-child(2) { transform: translate(130%, -50%) scale(1) rotate(8deg); }
+.album:hover .album-hover-little:nth-child(3) { transform: translate(-65%, -50%) scale(1) rotate(-4deg); }
+.album:hover .album-hover-little:nth-child(4) { transform: translate(65%, -50%) scale(1) rotate(4deg); }
+.album:hover .album-hover-little:nth-child(5) { transform: translate(0%, -50%) scale(1) rotate(0deg); }
 
 /* Phone-width columns: the labels. A four-across grid in a 480px column
    leaves a cover around 92–102px, and a nowrap name in that track ellipsised
