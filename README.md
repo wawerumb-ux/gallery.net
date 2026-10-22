@@ -506,6 +506,39 @@ the audience filter, and the full 68-step authored tour end to end — plus a
 coverage audit that fails if any button in `index.html` loses its tour step
 without appearing in that suite's `EXCLUDED` map.
 
+## Moving a dialog out of the way
+
+A dialog sits over a scrim, and the thing you often need while filling one
+in is the archive behind it. Grab the box's own **title** and it follows
+the pointer, so the gap it leaves can be read through. All seven
+`.modal-overlay` boxes work this way, and the position is dropped the
+moment the box hides — Cancel, the scrim, Esc, or a successful submit — so
+every box reopens where it started rather than where you last dropped it.
+
+The handle is the title the dialog already names for screen readers
+(`aria-labelledby`, falling back to its first heading). That is deliberate:
+**no separate drag handle is bolted onto the markup.** The title is the one
+part of a box nobody needs to click, select, or type into, it is already
+the widest target in the box, and adding a grip would mean editing all
+seven dialogs' HTML to add something that only exists for a mouse.
+
+Two things make the gesture and the click coexist, and both are load
+bearing. The offset is **clamped to the viewport** with a 24px margin, so
+a box cannot be dragged off the edge with no way back — the only other way
+out is Cancel, which is on the box. And the drag is **lazy**: a press on
+the title is not a drag until the pointer has travelled 4px. Below that
+threshold nothing is prevented, so a plain click still reaches the
+listeners on the title. That matters because the guided tour registers a
+`click` listener on whatever a step is pointing at, and swallowing that
+click would stall a first visitor's run on its very first step. Past the
+threshold the press is cancelled, so a drag is not also read as a click by
+whatever it was released over.
+
+The bottom sheet is deliberately left out — it already swipes to dismiss,
+and a drag competing with that would be ambiguous. The lightbox and the
+welcome panel are out for their own reasons: the lightbox pans a photo,
+and the welcome panel is read, not worked in.
+
 ## Testing it before you have a repo
 
 Open `index.html` with `owner`/`repo` still blank in `app.js` and the site

@@ -2426,6 +2426,141 @@ function wireTitleDoor() {
   }
 }
 
+/* ── Dialogs can be dragged aside ─────────────────────────────────
+   A dialog sits over a scrim, and the thing you often need while filling
+   one in is the archive behind it. Grab the dialog's own title and the box
+   follows the pointer, so the gap it leaves can be read through.
+
+   The handle is the title the dialog already names for screen readers
+   (aria-labelledby, falling back to its first heading) rather than a
+   handle bolted onto every box: the title is the one part of a dialog
+   nobody needs to click, select or type into, and every modal in the page
+   already has one. The drag is clamped to the viewport so a box can never
+   be pushed somewhere it cannot be got back from, and it goes back to the
+   middle when it closes — the next open should find it centred, with the
+   pop-in animation owning transform as it runs. */
+function wireModalDrag() {
+  // How much of the frame a dragged box has to stay inside. Wide enough
+  // that the box never touches the edge, and that the archive behind it
+  // is not shadowed by a box parked hard against the side — the whole
+  // point of moving one is to see past it.
+  const MARGIN = 24;
+  // How far the pointer has to travel before a press on a title becomes a
+  // drag rather than a click. Deliberately larger than a shaky hand but
+  // far smaller than any intended drag, so the two never feel ambiguous.
+  const DRAG_THRESHOLD = 4;
+  const dialogs = new Map();
+  let drag = null;
+
+  const read = (dialog) => ({
+    x: Number.parseFloat(dialog.dataset.dragX) || 0,
+    y: Number.parseFloat(dialog.dataset.dragY) || 0,
+  });
+  const write = (dialog, x, y) => {
+    if (x === 0 && y === 0) {
+      dialog.style.transform = '';
+      delete dialog.dataset.dragX;
+      delete dialog.dataset.dragY;
+      return;
+    }
+    dialog.style.transform = 'translate(' + x + 'px, ' + y + 'px)';
+    dialog.dataset.dragX = String(x);
+    dialog.dataset.dragY = String(y);
+  };
+
+  const overlays = Array.prototype.slice.call(document.querySelectorAll('.modal-overlay'));
+  for (const overlay of overlays) {
+    const dialog = overlay.querySelector('.modal');
+    const ref = dialog && dialog.getAttribute('aria-labelledby');
+    const handle = (ref && document.getElementById(ref)) || (dialog && dialog.querySelector('h2, h3'));
+    if (!dialog || !handle) continue;
+    dialogs.set(overlay, dialog);
+    handle.classList.add('modal-drag-handle');
+
+    handle.addEventListener('pointerdown', (e) => {
+      // Left button only on a mouse; a touch has no button to speak of.
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      if (drag) return;
+      const r = dialog.getBoundingClientRect();
+      const cur = read(dialog);
+      drag = {
+        // The handle records where the press landed, but the box is not
+        // committed to a drag until the pointer has moved a little. Until
+        // then nothing is prevented, so a plain click still reaches the
+        // click listeners on the title — the guided tour registers one on
+        // the step it is pointing at, and swallowing that click would
+        // stall a first visitor's very first step.
+        armed: false,
+        id: e.pointerId, dialog, handle,
+        sx: e.clientX, sy: e.clientY,
+        ox: cur.x, oy: cur.y,
+        // Where the box sits with nothing applied, so the clamp below can
+        // be written against the viewport instead of against wherever the
+        // last drag left it.
+        left: r.left - cur.x, top: r.top - cur.y,
+        w: r.width, h: r.height,
+      };
+    });
+
+    handle.addEventListener('pointermove', (e) => {
+      if (!drag || drag.id !== e.pointerId) return;
+      if (!drag.armed) {
+        // Past this point it is a drag, not a click: the pointer is
+        // outside the window a press and release inside would produce, and
+        // the title is about to be pulled out from under whatever the
+        // pointer is now over.
+        if (Math.abs(e.clientX - drag.sx) < DRAG_THRESHOLD
+          && Math.abs(e.clientY - drag.sy) < DRAG_THRESHOLD) return;
+        drag.armed = true;
+        try { drag.handle.setPointerCapture(e.pointerId); } catch (_) {}
+        drag.dialog.classList.add('is-dragging');
+        // Cancelling the press cancels the click it would have produced,
+        // so the tour does not step on a release that was really a drag.
+        e.preventDefault();
+      }
+      const vw = window.innerWidth, vh = window.innerHeight;
+      const nx = drag.ox + (e.clientX - drag.sx);
+      const ny = drag.oy + (e.clientY - drag.sy);
+      // Clamp on both sides. The two bounds are crossed for a box taller
+      // or wider than the frame, so each pair is ordered before it is
+      // applied rather than assumed low-then-high.
+      const x0 = MARGIN - drag.left, x1 = vw - drag.w - MARGIN - drag.left;
+      const y0 = MARGIN - drag.top, y1 = vh - drag.h - MARGIN - drag.top;
+      const cx = Math.min(Math.max(nx, Math.min(x0, x1)), Math.max(x0, x1));
+      const cy = Math.min(Math.max(ny, Math.min(y0, y1)), Math.max(y0, y1));
+      write(dialog, Math.round(cx), Math.round(cy));
+    });
+
+    const end = (e) => {
+      if (!drag || drag.id !== e.pointerId) return;
+      // Capture is only ever taken once the drag is armed, and releasing
+      // something never captured throws — hence the guard, not a blanket
+      // swallow, so a capture that silently failed would still be visible.
+      if (drag.armed) {
+        try { drag.handle.releasePointerCapture(e.pointerId); } catch (_) {}
+        drag.dialog.classList.remove('is-dragging');
+      }
+      drag = null;
+    };
+    handle.addEventListener('pointerup', end);
+    handle.addEventListener('pointercancel', end);
+  }
+
+  // One observer over all of them: closing is where the position is
+  // dropped, and it has to happen whichever way the box goes — Cancel,
+  // the scrim, the Esc hatch, or a successful submit.
+  const observer = new MutationObserver((records) => {
+    for (const record of records) {
+      if (!record.target.hidden) continue;
+      const dialog = dialogs.get(record.target);
+      if (dialog) write(dialog, 0, 0);
+    }
+  });
+  for (const overlay of overlays) {
+    observer.observe(overlay, { attributes: true, attributeFilter: ['hidden'] });
+  }
+}
+
 function wireStaticEvents() {
   // Bottom tabs
   el('tabPictures').addEventListener('click', () => setView('images'));
@@ -2437,6 +2572,9 @@ function wireStaticEvents() {
 
   /* The admin login has no visible door — see wireTitleDoor above. */
   wireTitleDoor();
+
+  /* Every dialog can be pulled aside by its title — see wireModalDrag. */
+  wireModalDrag();
 
   // Eye-comfort background picker (app bar toggle → bottom sheet)
   el('comfortBtn').addEventListener('click', openComfortPicker);
