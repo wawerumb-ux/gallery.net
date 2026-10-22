@@ -1701,7 +1701,18 @@ select.text-input option { background: var(--surface-3); color: var(--text); }
   background: var(--surface-2);
   display: block;
 }
-.pick-row.is-open .pick-preview { border-color: var(--hairline-strong); }
+.pick-row.is-open .pick-preview {
+  /* Dropdown open: the left pane shows the full image so the admin can see
+     exactly which photo they are filing, with the flex container of controls
+     to the right. object-fit: contain keeps the whole image in view rather
+     than cropping it to the box. */
+  width: 128px;
+  height: 128px;
+  min-width: 128px;
+  object-fit: contain;
+  border-color: var(--hairline-strong);
+  background: var(--surface-2);
+}
 
 /* The row's album dropdown. ONE box.
 
