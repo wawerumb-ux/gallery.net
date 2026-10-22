@@ -1686,32 +1686,60 @@ select.text-input option { background: var(--surface-3); color: var(--text); }
 .pick-stack { flex: 1; min-width: 0; }
 .pick-control { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
 .pick-hint { display: block; margin-top: 5px; color: var(--text-faint); font-size: 11px; font-family: var(--font-mono); }
-/* A thumbnail of the photo being filed, on the left of its row — so the
-   album you pick is the album for *this* picture. It is there as soon as the
-   confirm dialog opens, and is the thing you are deciding about while the
-   dropdown list is out. */
-.pick-preview {
+/* The left pane of an upload row: the photo being filed. */
+.pick-preview-pane {
+  flex: none;
+  position: relative;
+  border-radius: 8px;
+  border: 1px solid var(--hairline);
+  background: var(--surface-2);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+}
+.pick-preview-pane .pick-preview {
   flex: none;
   width: 44px;
   height: 44px;
   min-width: 44px;
-  border-radius: 8px;
   object-fit: cover;
-  border: 1px solid var(--hairline);
-  background: var(--surface-2);
   display: block;
 }
-.pick-row.is-open .pick-preview {
-  /* Dropdown open: the left pane shows the full image so the admin can see
-     exactly which photo they are filing, with the flex container of controls
-     to the right. object-fit: contain keeps the whole image in view rather
-     than cropping it to the box. */
-  width: 128px;
-  height: 128px;
-  min-width: 128px;
-  object-fit: contain;
+.pick-preview-pane .pick-preview-caption {
+  /* Closed: no caption. */
+  display: none;
+}
+
+/* Dropdown open: the left pane shows the full image, covering the entire
+   pane (object-fit: cover, nothing cropped), with the file name overlaid at
+   the top. The flex container of name + album picker sits to the right of
+   the pane. */
+.pick-row.is-open .pick-preview-pane {
+  width: 160px;
+  height: 160px;
+  min-width: 160px;
   border-color: var(--hairline-strong);
-  background: var(--surface-2);
+}
+.pick-row.is-open .pick-preview-pane .pick-preview {
+  width: 100%;
+  height: 100%;
+  min-width: 0;
+  object-fit: cover;
+}
+.pick-row.is-open .pick-preview-pane .pick-preview-caption {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  padding: 4px 6px;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  line-height: 1.2;
+  color: var(--text);
+  background: rgba(0, 0, 0, 0.55);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  z-index: 2;
 }
 
 /* The row's album dropdown. ONE box.

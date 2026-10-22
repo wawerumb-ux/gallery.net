@@ -2873,7 +2873,10 @@ function openUploadConfirm(fileList, contextFolder) {
     const hint = guess && guess !== contextFolder
       ? `<span class="pick-hint">suggested: ${escapeHtml(guess)}${j ? ' · ' + escapeHtml(j.stage) : ''}</span>` : '';
     return `<div class="pick-row" data-idx="${i}">
-      <img class="pick-preview" src="${previews[i]}" alt="${escapeAttr(file.name)}" loading="lazy">
+      <div class="pick-preview-pane">
+        <img class="pick-preview" src="${previews[i]}" alt="${escapeAttr(file.name)}" loading="lazy">
+        <span class="pick-preview-caption">${escapeHtml(file.name)}</span>
+      </div>
       <div class="pick-stack">
         <div class="pick-head">
           <span class="pick-name" title="${escapeAttr(file.name)}">${escapeHtml(file.name)}</span>
