@@ -5,3 +5,5 @@ node_modules/
 # workflow uploads, and it is rebuilt on every run.
 wasm/target/
 wasm/dist/
+mouse-effect/target/
+__pycache__/

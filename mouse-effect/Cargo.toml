@@ -1,0 +1,12 @@
+[package]
+name = "mouse-effect"
+version = "0.1.0"
+edition = "2021"
+description = "Mouse Effect Playground — particles trail the cursor (Rust/macroquad port)"
+
+[dependencies]
+macroquad = "0.4"
+
+[[bin]]
+name = "mouse-effect"
+path = "src/main.rs"
