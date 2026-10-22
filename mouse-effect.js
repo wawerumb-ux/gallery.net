@@ -489,7 +489,6 @@
     moved = 0; movedOnce = false;
     wake();
     if (persist !== false) store(true);
-    syncButton();
     tourAction('mouse-effect-on');
   }
 
@@ -503,7 +502,6 @@
     if (ctx && canvas) ctx.clearRect(0, 0, canvas.width, canvas.height);
     if (hud) hud.hidden = true;
     if (persist !== false) store(false);
-    syncButton();
     tourAction('mouse-effect-off');
   }
 
@@ -520,13 +518,6 @@
   function suppress() { disable(false); }
   function tourResume() { enable(false); }
 
-  /* The app bar button mirrors the state; the ⋮ menu row reads it too. */
-  function syncButton() {
-    var btn = document.getElementById('mouseEffectBtn');
-    if (!btn) return;
-    btn.setAttribute('aria-pressed', enabled ? 'true' : 'false');
-  }
-
   window.MouseEffect = {
     enable: enable,
     disable: disable,
@@ -534,7 +525,6 @@
     tourResume: tourResume,
     toggle: toggle,
     isEnabled: isEnabled,
-    syncButton: syncButton,
   };
 
   /* Restore the remembered choice once the page is up. The tour steps that
@@ -542,10 +532,8 @@
      it on simply finds it already running; one who never switched it on
      gets it the moment the tour's own click turns it on. */
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', function () { if (recall()) enable(); else syncButton(); });
+    document.addEventListener('DOMContentLoaded', function () { if (recall()) enable(); });
   } else if (recall()) {
     enable();
-  } else {
-    syncButton();
   }
 })();

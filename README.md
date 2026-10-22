@@ -128,11 +128,16 @@ and not one of the ten newest palettes is either.
 
 ## Mouse effect
 
-The app bar's sparkle button switches on a cursor trail: particles drag
-behind the pointer, an aura rides around it, and typing floats letters up
-from where you are. It is one canvas, `mouse-effect.js`, loaded as a
-sibling of `app.js` rather than a page of its own — the effect belongs on
-the photo wall, not in a demo folder.
+The ⋮ menu's **Mouse effect** row — the one carrying a mouse icon — switches
+on a cursor trail: particles drag behind the pointer, an aura rides around
+it, and typing floats letters up from where you are. It lives in the ⋮ menu
+and nowhere else. It used to carry a second switch in the app bar, which
+put a flourish most people never turn on in front of the two controls they
+do use, and the row's icon was a sparkle until it became a mouse.
+
+It is one canvas, `mouse-effect.js`, loaded as a sibling of `app.js` rather
+than a page of its own — the effect belongs on the photo wall, not in a
+demo folder.
 
 | Input | Effect |
 | --- | --- |

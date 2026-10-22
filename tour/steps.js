@@ -251,7 +251,7 @@ const TOUR_STEPS = [
      A cursor-trail flourish the archive carries (mouse-effect.js). These
      six steps are gated on what the effect itself reports rather than on a
      click counted in isolation: the middle four on the REAL gesture
-     (move / hold-scroll / middle-click / type), and the two button steps
+     (move / hold-scroll / middle-click / type), and the two toggle steps
      on the state that clicking actually produced — "switch on" is done
      when it is on, "switch off" when it is off. Each is dispatched by the
      module as a `tour:action` event, so the module stays the single
@@ -259,15 +259,21 @@ const TOUR_STEPS = [
      Because the whole subject here is a gesture, these are also the one
      set where Next counts as done rather than as a skip: an experienced
      visitor steps past the run and the record says they know it, which is
-     what pressing Next on a flourish you have already seen means. */
+     what pressing Next on a flourish you have already seen means.
+
+     The switch lives in the ⋮ menu and nowhere else, so all six anchor on
+     the ⋮ button rather than on the row: the row only exists while the
+     sheet is open, and four of these steps are waiting on a gesture the
+     visitor makes with the sheet shut. None of the six is a click action —
+     the anchor is where the ring sits, not what has to be pressed. */
   {
     id: 'mouse-effect-toggle',
     nextCountsAsDone: true,
     order: 13,
     title: 'Switch on the mouse effect',
-    prompt: 'Click the sparkle button in the app bar.',
+    prompt: 'Open the ⋮ menu and choose Mouse effect.',
     hint: 'It remembers your choice, so this is the same switch you would use any day.',
-    target: { kind: 'selector', selector: '[data-tour-target="mouse-effect-toggle"]', label: 'the mouse-effect button' },
+    target: { kind: 'selector', selector: '[data-tour-target="menu-btn"]', label: 'the ⋮ menu, where the switch lives' },
     action: { kind: 'custom', eventName: 'mouse-effect-on' },
     confirm: { kind: 'pulse' },
     unlockMessage: 'Mouse effect on.',
@@ -279,7 +285,7 @@ const TOUR_STEPS = [
     title: 'Move to leave a trail',
     prompt: 'Sweep the cursor across the photos.',
     hint: 'Particles drag behind it like a comet tail. Already know it? Next counts as done.',
-    target: { kind: 'selector', selector: '[data-tour-target="mouse-effect-toggle"]', label: 'the mouse-effect button' },
+    target: { kind: 'selector', selector: '[data-tour-target="menu-btn"]', label: 'the ⋮ menu, where the switch lives' },
     action: { kind: 'custom', eventName: 'mouse-effect-move' },
     confirm: { kind: 'pulse' },
     unlockMessage: 'Trail drawn.',
@@ -291,7 +297,7 @@ const TOUR_STEPS = [
     title: 'Cycle the particles',
     prompt: 'Hold the left button and scroll.',
     hint: 'Sparkle → Hearts → Stars → Rainbow → Embers. Scroll down to step back.',
-    target: { kind: 'selector', selector: '[data-tour-target="mouse-effect-toggle"]', label: 'the mouse-effect button' },
+    target: { kind: 'selector', selector: '[data-tour-target="menu-btn"]', label: 'the ⋮ menu, where the switch lives' },
     action: { kind: 'custom', eventName: 'mouse-effect-cycle' },
     confirm: { kind: 'pulse' },
     unlockMessage: 'Particles changed.',
@@ -303,7 +309,7 @@ const TOUR_STEPS = [
     title: 'Swap the cursor skin',
     prompt: 'Click the mouse wheel — a middle-click.',
     hint: 'The aura around your pointer changes. It rides around the real cursor, never replaces it.',
-    target: { kind: 'selector', selector: '[data-tour-target="mouse-effect-toggle"]', label: 'the mouse-effect button' },
+    target: { kind: 'selector', selector: '[data-tour-target="menu-btn"]', label: 'the ⋮ menu, where the switch lives' },
     action: { kind: 'custom', eventName: 'mouse-effect-skin' },
     confirm: { kind: 'pulse' },
     unlockMessage: 'Cursor skin swapped.',
@@ -315,7 +321,7 @@ const TOUR_STEPS = [
     title: 'Type to float letters',
     prompt: 'Press any letter key.',
     hint: 'It floats up from the cursor and fades. Typing in the search box still just searches.',
-    target: { kind: 'selector', selector: '[data-tour-target="mouse-effect-toggle"]', label: 'the mouse-effect button' },
+    target: { kind: 'selector', selector: '[data-tour-target="menu-btn"]', label: 'the ⋮ menu, where the switch lives' },
     action: { kind: 'custom', eventName: 'mouse-effect-letter' },
     confirm: { kind: 'pulse' },
     unlockMessage: 'Letter floated.',
@@ -325,9 +331,9 @@ const TOUR_STEPS = [
     nextCountsAsDone: true,
     order: 18,
     title: 'Switch it back off',
-    prompt: 'Click the sparkle button again.',
+    prompt: 'Open the ⋮ menu and choose Mouse effect again.',
     hint: 'Leaving the archive as you found it — flip it back on whenever you like.',
-    target: { kind: 'selector', selector: '[data-tour-target="mouse-effect-toggle"]', label: 'the mouse-effect button' },
+    target: { kind: 'selector', selector: '[data-tour-target="menu-btn"]', label: 'the ⋮ menu, where the switch lives' },
     action: { kind: 'custom', eventName: 'mouse-effect-off' },
     confirm: { kind: 'pulse' },
     unlockMessage: 'Mouse effect off.',

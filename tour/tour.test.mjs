@@ -269,13 +269,6 @@ function setup({ reducedMotion = false, multiplierPatch = null, seedState = null
   const comfortSwatch = reg(makeEl('button', { rect: { top: 300, left: 400, right: 880, bottom: 348, width: 480, height: 48 } }));
   comfortSwatch.setAttribute('data-tour-target', 'comfort-pick');
   body.appendChild(comfortSwatch);
-  // The mouse-effect toggle lives in the app bar beside the two pickers.
-  // The six mouse-effect steps all anchor on it, so the fixture only needs
-  // this one element for the whole segment to resolve.
-  const mouseEffectBtn = reg(makeEl('button', { rect: { top: 20, left: 1200, right: 1244, bottom: 64, width: 44, height: 44 } }));
-  mouseEffectBtn.id = 'mouseEffectBtn';
-  mouseEffectBtn.setAttribute('data-tour-target', 'mouse-effect-toggle');
-  body.appendChild(mouseEffectBtn);
   // The sheet and its dim. The dim is the visitor tour's last step: tapping
   // outside the menu is how a real visitor puts it away, and the tour ends
   // there rather than on the sign-in box it used to reveal.
@@ -591,7 +584,6 @@ function setup({ reducedMotion = false, multiplierPatch = null, seedState = null
     fontSwatch,
     comfortBtn,
     comfortSwatch,
-    mouseEffectBtn,
     sheetOverlay,
     menuAddPhotos,
     menuNewAlbum,
