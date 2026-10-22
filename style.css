@@ -1067,7 +1067,10 @@ body.is-selecting .tabbar, body.is-selecting .fab { transform: translateY(110%);
   border-radius: var(--radius-cover);
   overflow: hidden;
   background: var(--surface);
-  transition: transform var(--duration-fast) var(--ease-spring);
+  /* box-shadow joins the transition so the hover lift below raises the card
+     onto a soft shadow rather than snapping one in. */
+  transition: transform var(--duration-fast) var(--ease-spring),
+              box-shadow var(--duration-fast) ease;
 }
 .album:active .album-cover { transform: scale(0.97); }
 .album-cover img {
@@ -1111,29 +1114,46 @@ body.is-selecting .tabbar, body.is-selecting .fab { transform: translateY(110%);
 }
 .album-count { display: block; font-size: 12px; color: var(--text-faint); margin-top: 1px; }
 
-/* Hover spread on albums: the main cover image pops up as the hero, and the
-   album's other photos are dealt out left and right from behind it — like
-   drawing cards from a single pile. Everything stays inside the album's own
-   grid cell so neighbours are never disturbed. */
+/* Hover spread on albums: the cover stays centred on the spread axis and
+   pops out as the hero — the image grows, the card lifts onto a soft shadow —
+   while the album's other photos are dealt out left and right from behind it,
+   like drawing cards off a deck. The stack is pinned to the cover box itself
+   (top-anchored, square) rather than the whole figure, so the pile is centred
+   on the cover image — the caption below would otherwise pull the midpoint
+   down. Everything stays inside the album's own grid cell: neighbours never
+   move. */
 .album-cover img {
   position: relative;
   z-index: 3;
 }
-.album:hover .album-cover img {
-  /* Pop up as the main: lifts and scales within the cover box. */
-  transform: translateY(-2px) scale(1.08);
+.album:hover .album-cover {
+  /* The raised card: lifts off the page onto a soft shadow. */
+  transform: translateY(-3px);
+  box-shadow: 0 8px 18px -6px rgba(0, 0, 0, 0.5);
 }
-
-/* The dealt cards sit just below the main image. */
+/* Press has to beat the lift while the pointer is down, so it is re-declared
+   here, after the hover rule, at the higher specificity — pressing drops the
+   card back to the plane and acknowledges the click. */
+.album:hover:active .album-cover { transform: scale(0.97); }
+.album:hover .album-cover img {
+  /* Pop out: scales up on its own centre axis so the hero stays centred
+     over the pile it is dealing from, clipped by the cover box. */
+  transform: scale(1.1);
+}
+/* The dealt cards sit just below the main image, inside the cover's box. */
 .album-hover-stack {
   position: absolute;
-  inset: 0;
+  top: 0; left: 0; right: 0;
+  aspect-ratio: 1 / 1;
   z-index: 2;
   pointer-events: none;
   display: flex;
   justify-content: center;
   align-items: center;
+  transition: transform var(--duration-fast) var(--ease-spring);
 }
+/* Lifts with the cover so the pile stays locked behind the hero. */
+.album:hover .album-hover-stack { transform: translateY(-3px); }
 .album-hover-little {
   position: absolute;
   top: 50%; left: 50%;
@@ -1153,13 +1173,16 @@ body.is-selecting .tabbar, body.is-selecting .fab { transform: translateY(110%);
   transform: translate(-50%, -50%) scale(1);
 }
 /* Linear left-and-right spread dealt from the centre (the main image).
-   Odd cards go left, even cards go right, alternating rotations so they
-   fan out like a hand being dealt across the table. */
-.album:hover .album-hover-little:nth-child(1) { transform: translate(-130%, -50%) scale(1) rotate(-8deg); }
-.album:hover .album-hover-little:nth-child(2) { transform: translate(130%, -50%) scale(1) rotate(8deg); }
-.album:hover .album-hover-little:nth-child(3) { transform: translate(-65%, -50%) scale(1) rotate(-4deg); }
-.album:hover .album-hover-little:nth-child(4) { transform: translate(65%, -50%) scale(1) rotate(4deg); }
-.album:hover .album-hover-little:nth-child(5) { transform: translate(0%, -50%) scale(1) rotate(0deg); }
+   The delay sits on the hover rules only: the deal is staggered card by card
+   — near cards leave the pile first, far ones follow — while leaving the
+   album collapses every card back into the pile at once. Odd cards go left,
+   even cards go right, alternating rotations so it fans like a hand dealt
+   across the table. */
+.album:hover .album-hover-little:nth-child(1) { transform: translate(-130%, -50%) scale(1) rotate(-8deg); transition-delay: 90ms; }
+.album:hover .album-hover-little:nth-child(2) { transform: translate(130%, -50%) scale(1) rotate(8deg); transition-delay: 135ms; }
+.album:hover .album-hover-little:nth-child(3) { transform: translate(-65%, -50%) scale(1) rotate(-4deg); transition-delay: 0ms; }
+.album:hover .album-hover-little:nth-child(4) { transform: translate(65%, -50%) scale(1) rotate(4deg); transition-delay: 45ms; }
+.album:hover .album-hover-little:nth-child(5) { transform: translate(0%, -50%) scale(1) rotate(0deg); transition-delay: 180ms; }
 
 /* Phone-width columns: the labels. A four-across grid in a 480px column
    leaves a cover around 92–102px, and a nowrap name in that track ellipsised
@@ -2904,7 +2927,7 @@ body.view-large .grid-albums { grid-template-columns: repeat(3, minmax(0, 1fr));
 
 /* ── Reduced motion ──────────────────────────────────────────────── */
 @media (prefers-reduced-motion: reduce) {
-  .card, .album-cover, .fab, .tab, .tab-ic, .appbar-hero, .appbar-mini,
+  .card, .album-cover, .album-cover img, .fab, .tab, .tab-ic, .appbar-hero, .appbar-mini,
   .welcome-card, .welcome-faces, .pop, .pop-overlay,
   .search-menu, .search-tile,
   .pick-drop, .pick-chip, .pick-chip-caret, .pick-tile, .pick-tile-check,
@@ -2913,10 +2936,18 @@ body.view-large .grid-albums { grid-template-columns: repeat(3, minmax(0, 1fr));
   .card img, .card-pick, .appbar-icon, .viewer-icon, .viewer-action, .btn,
   .comfort-swatch, .trash, .trash-lid, .is-eating .trash, .is-gulp .trash,
   .confirm-bin, .confirm-bin.is-in,
-  .card img.is-eaten, .album.is-eaten, #lightboxImg.is-eaten {
+  .card img.is-eaten, .album.is-eaten, #lightboxImg.is-eaten,
+  .album-hover-stack, .album-hover-little {
     transition: none !important;
     animation: none !important;
   }
+  /* The album hover deal is decorative — the album opens on click — so it is
+     skipped rather than snapped: the cover neither pops nor lifts, and the
+     spread cards stay in the pile instead of jumping to their slots. */
+  .album:hover .album-cover,
+  .album:hover .album-cover img,
+  .album:hover .album-hover-stack { transform: none; box-shadow: none; }
+  .album:hover .album-hover-little { opacity: 0; }
   /* The bar sweeps rather than steps, and stops dead instead: a frozen
      sweep would claim to be reporting a number it does not have. */
   .toast-progress-fill { transition: none !important; animation: none !important; }
