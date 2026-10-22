@@ -2361,6 +2361,45 @@ const closeTagModal = () => { el('tagModalOverlay').hidden = true; state.tagging
 
 /* ── Admin: sign in / out ─────────────────────────────────────── */
 
+/* The two numbers the door is made of — see wireTitleDoor just below. */
+const TITLE_TAP_COUNT = 3;
+const TITLE_TAP_MS = 600;
+
+/* The admin door, and the whole of it. Three clicks on the title in the
+   app bar, each within TITLE_TAP_MS of the last, opens the sign-in box —
+   and there is no other way in. A visitor's ⋮ menu offers no row for it,
+   nothing on the page links to it, and the tour does not point at it (see
+   tour/steps.js), because a tour that taught the gesture would be the one
+   place it stopped being hidden. It is the gesture Samsung's own settings
+   screen uses to reach a hidden panel, and it costs nothing to carry: a
+   counter and a timer.
+
+   The window restarts on every click rather than measuring the run end to
+   end, so "continuously" means what it says — a pause past the window
+   drops the count, and the next click starts a fresh three.
+
+   Deliberately pointer-only. Making the title focusable would put a tab
+   stop on every visit and announce a button reading "Gallery", which is
+   precisely the discovery this is built to avoid. Once the box is up it
+   is entirely ordinary: the token field takes focus, Cancel closes it,
+   and the session is the same one it has always been. */
+function wireTitleDoor() {
+  let taps = 0, tapTimer = 0;
+  el('appbarMini').addEventListener('click', () => {
+    // Already in, or another admin holding the shared session, and there is
+    // nothing to open — the menu row this replaced said the same.
+    if (state.adminMode || state.adminSession) return;
+    taps += 1;
+    clearTimeout(tapTimer);
+    if (taps < TITLE_TAP_COUNT) {
+      tapTimer = setTimeout(() => { taps = 0; }, TITLE_TAP_MS);
+      return;
+    }
+    taps = 0;
+    openAdminModal();
+  });
+}
+
 function wireStaticEvents() {
   // Bottom tabs
   el('tabPictures').addEventListener('click', () => setView('images'));
@@ -2369,6 +2408,9 @@ function wireStaticEvents() {
   // ⋮ overflow → bottom sheet
   el('menuBtn').addEventListener('click', mainMenu);
   el('sheetOverlay').addEventListener('click', e => { if (e.target.id === 'sheetOverlay') overlayClose('sheetOverlay'); });
+
+  /* The admin login has no visible door — see wireTitleDoor above. */
+  wireTitleDoor();
 
   // Eye-comfort background picker (app bar toggle → bottom sheet)
   el('comfortBtn').addEventListener('click', openComfortPicker);
@@ -2688,7 +2730,6 @@ const ICONS = {
   checkCircle: '<svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>',
   gear: '<svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true"><path d="M19.14 12.94c.04-.3.06-.61.06-.94 0-.32-.02-.64-.07-.94l2.03-1.58c.18-.14.23-.41.12-.61l-1.92-3.32c-.12-.22-.37-.29-.59-.22l-2.39.96c-.5-.38-1.03-.7-1.62-.94l-.36-2.54c-.04-.24-.24-.41-.48-.41h-3.84c-.24 0-.43.17-.47.41l-.36 2.54c-.59.24-1.13.57-1.62.94l-2.39-.96c-.22-.08-.47 0-.59.22L2.74 8.87c-.12.21-.08.47.12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58c-.18.14-.23.41-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.05.24.24.41.48.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32c.12-.22.07-.47-.12-.61l-2.01-1.58zM12 15.6c-1.98 0-3.6-1.62-3.6-3.6s1.62-3.6 3.6-3.6 3.6 1.62 3.6 3.6-1.62 3.6-3.6 3.6z"/></svg>',
   signOut: '<svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true"><path d="M17 7l-1.41 1.41L18.17 11H8v2h10.17l-2.58 2.58L17 17l5-5zM4 5h8V3H4C2.9 3 2 3.9 2 5v14c0 1.1.9 2 2 2h8v-2H4V5z"/></svg>',
-  signIn: '<svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true"><path d="M11 7 9.6 8.4l2.6 2.6H2v2h10.2l-2.6 2.6L11 17l5-5-5-5zm9 12h-8v2h8c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2h-8v2h8v14z"/></svg>',
   route: '<svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true"><path d="M19 15.18V5c0-1.1-.9-2-2-2H7C5.9 3 5 3.9 5 5v10.18c-1.16.41-2 1.51-2 2.82 0 1.66 1.34 3 3 3s3-1.34 3-3c0-1.3-.84-2.4-2-2.82V7h8v8.18c-1.16.41-2 1.51-2 2.82 0 1.66 1.34 3 3 3s3-1.34 3-3c0-1.31-.84-2.41-2-2.82z"/></svg>',
   play: '<svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>',
   soundOn: '<svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0 0 14 7.97v8.05A4.47 4.47 0 0 0 16.5 12zM14 3.23v2.06a7 7 0 0 1 0 13.42v2.06a9 9 0 0 0 0-17.54z"/></svg>',
@@ -2747,11 +2788,7 @@ function mainMenu() {
       { icon: ICONS.checkCircle, label: 'Select photos', tourTarget: 'menu-select-photos', onTap: () => enterSelectMode() },
       { icon: ICONS.gear, label: 'Album settings', tourTarget: 'menu-album-settings', onTap: () => openSettingsModal() },
       { icon: ICONS.signOut, label: 'Sign out', tourTarget: 'menu-sign-out', onTap: signOut },
-    ] : state.adminSession ? [] : [
-      // While another admin holds the shared session there is nothing to offer
-      // — the sign-in option returns when they sign out.
-      { icon: ICONS.signIn, label: 'Admin sign in', tourTarget: 'menu-admin-signin', onTap: openAdminModal },
-    ]),
+    ] : []),
   ];
   openSheet({ title: DEMO_MODE ? 'Demo data — nothing leaves this tab' : undefined, items });
 }

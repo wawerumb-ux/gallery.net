@@ -19,9 +19,11 @@
         the Albums tab, an album, an album photo, the two display
         preferences — typeface and eye-comfort background — and the ⋮
         menu.
-     2. visitorOnly: where admins sign in — the sign-in box is a
-        public surface (anyone may open it), so visitors see it and
-        close it. The tour then completes.
+     2. visitorOnly: close the menu the shared path opened, and
+        finish. This segment used to reveal where admins sign in.
+        The sign-in box has no visible door now — three clicks on
+        the app-bar title (see app.js) — and a tour that pointed at
+        it would be the one place it stopped being hidden.
      3. adminOnly: every admin control, each as the real action —
         add photos and the upload dialog, search (type, scope,
         clear), new album, select + mark + move + delete, album
@@ -109,7 +111,7 @@
 /* The authored tour. The `order` fields are the authored sequence;
    boot.js renumbers the audience-filtered list before the engine
    walks it, so the on-screen "N / total" is always right for both
-   audiences (21 steps for visitors, 66 for signed-in admins). */
+   audiences (20 steps for visitors, 66 for signed-in admins). */
 const TOUR_STEPS = [
   /* ── Segment 1: the shared path (every visitor) ─────────── */
 
@@ -342,28 +344,22 @@ const TOUR_STEPS = [
     unlockMessage: 'Menu open.',
   },
 
-  /* ── Segment 2: visitor-only — where admins sign in ─────── */
+  /* ── Segment 2: visitor-only — put the menu away ───────────
+     This segment used to walk a visitor to where admins sign in. It
+     cannot any more: the sign-in box has no visible door now (three
+     clicks on the app-bar title, see app.js), and a tour that pointed
+     at it would be the single place it stopped being hidden. So the
+     visitor's walk closes the menu the shared path opened and ends
+     there, on the same completion toast it has always ended on. */
 
   {
-    id: 'menu-admin-signin',
+    id: 'menu-close',
     order: 20,
     visitorOnly: true,
-    title: 'See where admins sign in',
-    prompt: 'Click Admin sign in.',
-    hint: 'The sign-in box takes a repo-scoped token.',
-    target: { kind: 'selector', selector: '[data-tour-target="menu-admin-signin"]', label: 'Admin sign in item' },
-    action: { kind: 'click' },
-    confirm: { kind: 'pulse' },
-    unlockMessage: 'Sign-in box open.',
-  },
-  {
-    id: 'admin-modal-cancel',
-    order: 21,
-    visitorOnly: true,
-    title: 'Close the sign-in box',
-    prompt: 'Click Cancel.',
+    title: 'Close the options menu',
+    prompt: 'Tap anywhere outside the menu.',
     hint: 'That is the whole visitor tour — the archive is yours.',
-    target: { kind: 'selector', selector: '[data-tour-target="admin-modal-cancel"]', label: 'Cancel button' },
+    target: { kind: 'selector', selector: '[data-tour-target="menu-close"]', label: 'the dim backdrop' },
     action: { kind: 'click' },
     confirm: { kind: 'toast', text: 'Tour complete — welcome to the archive.' },
   },
@@ -375,7 +371,7 @@ const TOUR_STEPS = [
 
   {
     id: 'menu-add-photos',
-    order: 22,
+    order: 21,
     adminOnly: true,
     title: 'Add photos to the archive',
     prompt: 'Click Add photos.',
@@ -387,7 +383,7 @@ const TOUR_STEPS = [
   },
   {
     id: 'upload-confirm',
-    order: 23,
+    order: 22,
     adminOnly: true,
     commit: true,
     title: 'Upload the picked photos',
@@ -400,7 +396,7 @@ const TOUR_STEPS = [
   },
   {
     id: 'upload-cancel',
-    order: 24,
+    order: 23,
     adminOnly: true,
     title: 'Cancel the upload dialog',
     prompt: 'Click Cancel in the upload dialog.',
@@ -412,7 +408,7 @@ const TOUR_STEPS = [
   },
   {
     id: 'fab-add',
-    order: 25,
+    order: 24,
     adminOnly: true,
     title: 'Add photos from the + button',
     prompt: 'Click the + button.',
@@ -424,7 +420,7 @@ const TOUR_STEPS = [
   },
   {
     id: 'upload-cancel-2',
-    order: 26,
+    order: 25,
     adminOnly: true,
     title: 'Cancel this upload too',
     prompt: 'Click Cancel in the upload dialog.',
@@ -436,7 +432,7 @@ const TOUR_STEPS = [
   },
   {
     id: 'pictures-tab',
-    order: 27,
+    order: 26,
     adminOnly: true,
     title: 'Back to the Pictures wall',
     prompt: 'Click the Pictures tab.',
@@ -448,7 +444,7 @@ const TOUR_STEPS = [
   },
   {
     id: 'search-type',
-    order: 28,
+    order: 27,
     adminOnly: true,
     title: 'Search the archive',
     prompt: 'Type in the search box.',
@@ -460,7 +456,7 @@ const TOUR_STEPS = [
   },
   {
     id: 'search-view',
-    order: 29,
+    order: 28,
     adminOnly: true,
     title: 'Arrange the wall',
     prompt: 'Open the view options.',
@@ -472,7 +468,7 @@ const TOUR_STEPS = [
   },
   {
     id: 'search-clear',
-    order: 30,
+    order: 29,
     adminOnly: true,
     title: 'Clear the search',
     prompt: 'Delete the search text.',
@@ -486,7 +482,7 @@ const TOUR_STEPS = [
   },
   {
     id: 'menu-open-2',
-    order: 31,
+    order: 30,
     adminOnly: true,
     title: 'Open the options menu',
     prompt: 'Click the More options button.',
@@ -498,7 +494,7 @@ const TOUR_STEPS = [
   },
   {
     id: 'menu-new-album',
-    order: 32,
+    order: 31,
     adminOnly: true,
     title: 'Start a new album',
     prompt: 'Click New album…',
@@ -510,7 +506,7 @@ const TOUR_STEPS = [
   },
   {
     id: 'new-album-pick',
-    order: 33,
+    order: 32,
     adminOnly: true,
     title: 'Choose photos for the album',
     prompt: 'Click Choose photos.',
@@ -522,7 +518,7 @@ const TOUR_STEPS = [
   },
   {
     id: 'new-album-cancel',
-    order: 34,
+    order: 33,
     adminOnly: true,
     title: 'Close the new-album box',
     prompt: 'Click Cancel.',
@@ -534,7 +530,7 @@ const TOUR_STEPS = [
   },
   {
     id: 'menu-open-3',
-    order: 35,
+    order: 34,
     adminOnly: true,
     title: 'Open the options menu',
     prompt: 'Click the More options button.',
@@ -546,7 +542,7 @@ const TOUR_STEPS = [
   },
   {
     id: 'menu-select-photos',
-    order: 36,
+    order: 35,
     adminOnly: true,
     title: 'Select several photos',
     prompt: 'Click Select photos.',
@@ -558,7 +554,7 @@ const TOUR_STEPS = [
   },
   {
     id: 'pick-photo',
-    order: 37,
+    order: 36,
     adminOnly: true,
     title: 'Mark a photo',
     prompt: 'Click a photo to mark it.',
@@ -570,7 +566,7 @@ const TOUR_STEPS = [
   },
   {
     id: 'select-move',
-    order: 38,
+    order: 37,
     adminOnly: true,
     title: 'Move the marked photos',
     prompt: 'Click Move.',
@@ -582,7 +578,7 @@ const TOUR_STEPS = [
   },
   {
     id: 'move-confirm',
-    order: 39,
+    order: 38,
     adminOnly: true,
     title: 'See the Move photos button',
     prompt: 'Click Move photos.',
@@ -594,7 +590,7 @@ const TOUR_STEPS = [
   },
   {
     id: 'move-cancel',
-    order: 40,
+    order: 39,
     adminOnly: true,
     title: 'Cancel the move',
     prompt: 'Click Cancel in the move dialog.',
@@ -606,7 +602,7 @@ const TOUR_STEPS = [
   },
   {
     id: 'select-delete',
-    order: 41,
+    order: 40,
     adminOnly: true,
     title: 'Delete the marked photos',
     prompt: 'Click Delete in the selection bar.',
@@ -618,7 +614,7 @@ const TOUR_STEPS = [
   },
   {
     id: 'select-close',
-    order: 42,
+    order: 41,
     adminOnly: true,
     title: 'Exit selection mode',
     prompt: 'Click the Close button in the bar.',
@@ -630,7 +626,7 @@ const TOUR_STEPS = [
   },
   {
     id: 'menu-open-4',
-    order: 43,
+    order: 42,
     adminOnly: true,
     title: 'Open the options menu',
     prompt: 'Click the More options button.',
@@ -642,7 +638,7 @@ const TOUR_STEPS = [
   },
   {
     id: 'menu-album-settings',
-    order: 44,
+    order: 43,
     adminOnly: true,
     title: 'Open album settings',
     prompt: 'Click Album settings.',
@@ -654,7 +650,7 @@ const TOUR_STEPS = [
   },
   {
     id: 'settings-rename',
-    order: 45,
+    order: 44,
     adminOnly: true,
     title: 'Rename an album',
     prompt: 'Click Rename.',
@@ -666,7 +662,7 @@ const TOUR_STEPS = [
   },
   {
     id: 'settings-remove',
-    order: 46,
+    order: 45,
     adminOnly: true,
     title: 'Remove an album',
     prompt: 'Click Remove album.',
@@ -678,7 +674,7 @@ const TOUR_STEPS = [
   },
   {
     id: 'remove-confirm',
-    order: 47,
+    order: 46,
     adminOnly: true,
     title: 'Answer the guard',
     prompt: 'Click Cancel.',
@@ -690,7 +686,7 @@ const TOUR_STEPS = [
   },
   {
     id: 'settings-undo',
-    order: 48,
+    order: 47,
     adminOnly: true,
     commit: true,
     title: 'Step back the last change',
@@ -704,7 +700,7 @@ const TOUR_STEPS = [
   },
   {
     id: 'settings-revert',
-    order: 49,
+    order: 48,
     adminOnly: true,
     title: 'Revert every change',
     prompt: 'Click Revert every change.',
@@ -717,7 +713,7 @@ const TOUR_STEPS = [
   },
   {
     id: 'revert-confirm',
-    order: 50,
+    order: 49,
     adminOnly: true,
     title: 'Answer the guard',
     prompt: 'Click Cancel.',
@@ -729,7 +725,7 @@ const TOUR_STEPS = [
   },
   {
     id: 'album-settings-cancel',
-    order: 51,
+    order: 50,
     adminOnly: true,
     title: 'Close album settings',
     prompt: 'Click Cancel.',
@@ -741,7 +737,7 @@ const TOUR_STEPS = [
   },
   {
     id: 'albums-tab-2',
-    order: 52,
+    order: 51,
     adminOnly: true,
     title: 'Back to the album covers',
     prompt: 'Click the Albums tab.',
@@ -753,7 +749,7 @@ const TOUR_STEPS = [
   },
   {
     id: 'album-menu-open',
-    order: 53,
+    order: 52,
     adminOnly: true,
     title: "Open an album's own menu",
     prompt: 'Click the ⋮ on an album cover.',
@@ -765,7 +761,7 @@ const TOUR_STEPS = [
   },
   {
     id: 'album-menu-add-photos',
-    order: 54,
+    order: 53,
     adminOnly: true,
     title: 'Add photos to this album',
     prompt: 'Click Add photos.',
@@ -777,7 +773,7 @@ const TOUR_STEPS = [
   },
   {
     id: 'album-menu-open-2',
-    order: 55,
+    order: 54,
     adminOnly: true,
     title: "Open that album's menu again",
     prompt: 'Click the ⋮ on an album cover.',
@@ -789,7 +785,7 @@ const TOUR_STEPS = [
   },
   {
     id: 'menu-album-settings-2',
-    order: 56,
+    order: 55,
     adminOnly: true,
     title: "Open this album's settings",
     prompt: 'Click Album settings.',
@@ -801,7 +797,7 @@ const TOUR_STEPS = [
   },
   {
     id: 'album-settings-cancel-2',
-    order: 57,
+    order: 56,
     adminOnly: true,
     title: 'Close album settings',
     prompt: 'Click Cancel.',
@@ -813,7 +809,7 @@ const TOUR_STEPS = [
   },
   {
     id: 'pictures-tab-2',
-    order: 58,
+    order: 57,
     adminOnly: true,
     title: 'Back to the Pictures wall',
     prompt: 'Click the Pictures tab.',
@@ -825,7 +821,7 @@ const TOUR_STEPS = [
   },
   {
     id: 'wall-photo-2',
-    order: 59,
+    order: 58,
     adminOnly: true,
     title: 'Open a photo again',
     prompt: 'Click any photo on the wall.',
@@ -837,7 +833,7 @@ const TOUR_STEPS = [
   },
   {
     id: 'viewer-download',
-    order: 60,
+    order: 59,
     adminOnly: true,
     title: 'Download the photo',
     prompt: 'Click the download button.',
@@ -851,7 +847,7 @@ const TOUR_STEPS = [
   },
   {
     id: 'viewer-classify',
-    order: 61,
+    order: 60,
     adminOnly: true,
     title: 'Classify the photo',
     prompt: 'Click Classify.',
@@ -863,7 +859,7 @@ const TOUR_STEPS = [
   },
   {
     id: 'classify-save',
-    order: 62,
+    order: 61,
     adminOnly: true,
     title: 'Save the classification',
     prompt: 'Click Save.',
@@ -875,7 +871,7 @@ const TOUR_STEPS = [
   },
   {
     id: 'viewer-classify-2',
-    order: 63,
+    order: 62,
     adminOnly: true,
     title: 'Open classify again',
     prompt: 'Click Classify.',
@@ -887,7 +883,7 @@ const TOUR_STEPS = [
   },
   {
     id: 'classify-cancel',
-    order: 64,
+    order: 63,
     adminOnly: true,
     title: 'Close the classify box',
     prompt: 'Click Cancel.',
@@ -899,7 +895,7 @@ const TOUR_STEPS = [
   },
   {
     id: 'viewer-delete',
-    order: 65,
+    order: 64,
     adminOnly: true,
     title: 'Delete a photo',
     prompt: 'Click Delete.',
@@ -911,7 +907,7 @@ const TOUR_STEPS = [
   },
   {
     id: 'viewer-close-2',
-    order: 66,
+    order: 65,
     adminOnly: true,
     title: 'Close the viewer',
     prompt: 'Click the Back arrow.',
@@ -923,7 +919,7 @@ const TOUR_STEPS = [
   },
   {
     id: 'menu-open-5',
-    order: 67,
+    order: 66,
     adminOnly: true,
     title: 'Open the options menu',
     prompt: 'Click the More options button.',
@@ -935,7 +931,7 @@ const TOUR_STEPS = [
   },
   {
     id: 'menu-sign-out',
-    order: 68,
+    order: 67,
     adminOnly: true,
     title: 'Sign out of admin mode',
     prompt: 'Click Sign out.',

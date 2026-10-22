@@ -276,8 +276,12 @@ function setup({ reducedMotion = false, multiplierPatch = null, seedState = null
   mouseEffectBtn.id = 'mouseEffectBtn';
   mouseEffectBtn.setAttribute('data-tour-target', 'mouse-effect-toggle');
   body.appendChild(mouseEffectBtn);
-  const sheetOverlay = reg(makeEl('div'));
+  // The sheet and its dim. The dim is the visitor tour's last step: tapping
+  // outside the menu is how a real visitor puts it away, and the tour ends
+  // there rather than on the sign-in box it used to reveal.
+  const sheetOverlay = reg(makeEl('div', { rect: { top: 0, left: 0, right: 1280, bottom: 800, width: 1280, height: 800 } }));
   sheetOverlay.id = 'sheetOverlay';
+  sheetOverlay.setAttribute('data-tour-target', 'menu-close');
   const sheetList = reg(makeEl('div'));
   sheetList.id = 'sheetList';
   const sheetItem = (target) => {
@@ -286,7 +290,6 @@ function setup({ reducedMotion = false, multiplierPatch = null, seedState = null
     sheetList.appendChild(b);
     return b;
   };
-  const menuAdminSignin = sheetItem('menu-admin-signin');
   const menuAddPhotos = sheetItem('menu-add-photos');
   const menuNewAlbum = sheetItem('menu-new-album');
   const menuSelectPhotos = sheetItem('menu-select-photos');
@@ -589,7 +592,7 @@ function setup({ reducedMotion = false, multiplierPatch = null, seedState = null
     comfortBtn,
     comfortSwatch,
     mouseEffectBtn,
-    menuAdminSignin,
+    sheetOverlay,
     menuAddPhotos,
     menuNewAlbum,
     menuSelectPhotos,
@@ -1381,9 +1384,9 @@ describe('S — the speed multiplier is the single timing source', () => {
 /* ── Integration: the real authored tour ──────────────────── */
 
 describe('T — the real TOUR_STEPS integration', () => {
-  test('T1 — the authored 68-step tour runs end to end on the real targets', () => {
+  test('T1 — the authored 67-step tour runs end to end on the real targets', () => {
     const h = setup();
-    assert.equal(h.X.TOUR_STEPS.length, 68);
+    assert.equal(h.X.TOUR_STEPS.length, 67);
     const tour = h.X.createGuidedTour({ steps: h.X.TOUR_STEPS });
     tour.start();
     // A step's action listener is bound when it reaches
@@ -1440,9 +1443,10 @@ describe('T — the real TOUR_STEPS integration', () => {
     gesture('mouse-effect-letter', 'mouse-effect-letter');
     gesture('mouse-effect-off', 'mouse-effect-off');
     step('menu-open', h.menuBtn);
-    // Segment 2 — the visitor-only sign-in reveal.
-    step('menu-admin-signin', h.menuAdminSignin);
-    step('admin-modal-cancel', h.tokenCancel, toastArmNext);
+    // Segment 2 — the visitor-only close. The sign-in box this segment
+    // used to reveal has no visible door any more, so a step pointing at
+    // it would be the one place the hidden gesture stopped being hidden.
+    step('menu-close', h.sheetOverlay, toastArmNext);
     // Segment 3 — every admin control. The raw authored
     // array walks it end to end here; boot.js hands these
     // steps to the engine only when the tour starts signed
@@ -1511,7 +1515,7 @@ describe('T — the real TOUR_STEPS integration', () => {
       'font-open', 'font-pick', 'comfort-open', 'comfort-pick',
       'mouse-effect-toggle', 'mouse-effect-move', 'mouse-effect-cycle',
       'mouse-effect-skin', 'mouse-effect-letter', 'mouse-effect-off',
-      'menu-open', 'menu-admin-signin', 'admin-modal-cancel',
+      'menu-open', 'menu-close',
       'menu-add-photos', 'upload-confirm', 'upload-cancel',
       'fab-add', 'upload-cancel-2', 'pictures-tab',
       'search-type', 'search-view', 'search-clear',
@@ -1805,12 +1809,12 @@ describe('T — the real TOUR_STEPS integration', () => {
     const h = setup();
     const visitor = h.X.selectTourSteps(h.X.TOUR_STEPS, false);
     const admin = h.X.selectTourSteps(h.X.TOUR_STEPS, true);
-    // Visitors never see admin steps; admins never see the
-    // sign-in reveal — the tour never renders a step the
-    // user cannot perform.
+    // Visitors never see admin steps; admins never see the visitor's
+    // menu close — the tour never renders a step the user cannot
+    // perform.
     assert.ok(visitor.every(s => !s.adminOnly));
     assert.ok(admin.every(s => !s.visitorOnly));
-    assert.equal(visitor.length, 21);
+    assert.equal(visitor.length, 20);
     assert.equal(admin.length, 66);
     // Orders renumber 1..N for the audience's own walk.
     sameDeep(visitor.map(s => s.order), visitor.map((_, i) => i + 1));
@@ -1820,12 +1824,12 @@ describe('T — the real TOUR_STEPS integration', () => {
     // too.
     sameDeep(visitor.slice(0, 19).map(s => s.id), admin.slice(0, 19).map(s => s.id));
     // Each walk ends on its own completion toast.
-    assert.equal(visitor[visitor.length - 1].id, 'admin-modal-cancel');
+    assert.equal(visitor[visitor.length - 1].id, 'menu-close');
     assert.equal(admin[admin.length - 1].id, 'menu-sign-out');
     // The authored array itself is never mutated.
-    assert.equal(h.X.TOUR_STEPS.length, 68);
+    assert.equal(h.X.TOUR_STEPS.length, 67);
     assert.equal(h.X.TOUR_STEPS[0].order, 1);
-    assert.equal(h.X.TOUR_STEPS[67].order, 68);
+    assert.equal(h.X.TOUR_STEPS[66].order, 67);
   });
 
   test('T4 — an input step with valueMatches "" counts only an empty box', () => {
@@ -1882,13 +1886,13 @@ describe('T — the real TOUR_STEPS integration', () => {
     // Exactly one step ends each audience's walk, on a toast.
     sameDeep(
       h.X.TOUR_STEPS.filter(s => s.confirm.kind === 'toast').map(s => s.id),
-      ['admin-modal-cancel', 'menu-sign-out']);
-    // The segments: 19 shared, 2 visitor-only, 47 admin-only. The shared
+      ['menu-close', 'menu-sign-out']);
+    // The segments: 19 shared, 1 visitor-only, 47 admin-only. The shared
     // path grew twice: first when the two display preferences joined it — a
     // typeface and an eye-comfort background are a visitor's business, not
     // an admin's — then when the mouse effect did, which is a flourish
     // everyone can switch on from the app bar.
-    assert.equal(h.X.TOUR_STEPS.filter(s => s.visitorOnly).length, 2);
+    assert.equal(h.X.TOUR_STEPS.filter(s => s.visitorOnly).length, 1);
     assert.equal(h.X.TOUR_STEPS.filter(s => s.adminOnly).length, 47);
     assert.equal(h.X.TOUR_STEPS.filter(s => !s.adminOnly && !s.visitorOnly).length, 19);
   });
@@ -1920,6 +1924,7 @@ describe('U — every button is toured', () => {
   //     panel is hidden and the buttons are not in the document to highlight.
   const EXCLUDED = {
     tokenSubmit: 'signing in needs a real repo token — a visitor cannot perform it',
+    tokenCancel: 'the sign-in box has no visible door now — touring its Cancel would give the gesture away',
     confirmOk: 'delete confirmation — its steps are gated on pulse and leave the dialog open',
     welcomeCard: 'welcome panel renders only after the walkthrough completes',
     welcomeDismiss: 'welcome panel renders only after the walkthrough completes',
@@ -1948,7 +1953,7 @@ describe('U — every button is toured', () => {
     const app = fs.readFileSync(join(here, '..', 'app.js'), 'utf8');
     for (const t of ['album-menu', 'album-menu-add-photos', 'album-menu-album-settings',
                      'menu-add-photos', 'menu-new-album', 'menu-select-photos',
-                     'menu-album-settings', 'menu-sign-out', 'menu-admin-signin']) {
+                     'menu-album-settings', 'menu-sign-out']) {
       // A menu item is hooked via tourTarget: '…'; the album chip
       // carries data-tour-target="…" inside its template. Accept either.
       const hooked = app.includes('data-tour-target="' + t + '"') ||

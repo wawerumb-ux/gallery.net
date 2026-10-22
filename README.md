@@ -459,8 +459,8 @@ completed tour never restarts on its own.
 The tour has two audiences. Everyone walks the shared path: the photo wall,
 the viewer's arrows, the Albums tab, an album, the mouse effect (switch it
 on, trail it, cycle the particles, swap the aura, float a letter, switch it
-back off — each gated on the real gesture), and the ⋮ menu — including
-where admins sign in (21 steps). A user who is already signed in as admin when
+back off — each gated on the real gesture), and the ⋮ menu, which they then
+put away (20 steps). A user who is already signed in as admin when
 the tour starts walks **every admin control** instead (47 steps): add photos
 from the menu and from the + button, the upload dialog, search (type, view
 options, clear), new album, select → mark → move → delete, album settings (rename,
@@ -469,14 +469,16 @@ remove, undo, revert), the per-album ⋮ menu, the viewer's download, classify
 tour to see that walk. Admin steps are filtered out for visitors — the tour
 never renders a step the signed-out user cannot perform.
 
-Three buttons are deliberately not tour steps, and `tour/tour.test.mjs`
+Five controls are deliberately not tour steps, and `tour/tour.test.mjs`
 names each: **Delete** in the delete confirmation (the steps that reach it
 are gated on `confirm: { kind: 'pulse' }` and are written to leave that
 dialog sitting open — and accepting one deletes a photo, an album, or the
 whole gallery), and the two in the welcome panel (it renders only once the
 walkthrough has run to its last card, so a visitor mid-tour has no such
-buttons in the document). **Sign in** is the fourth: signing in needs a real
-repo token, which a visitor cannot supply.
+buttons in the document). **Sign in** and **Cancel** in the sign-in box are
+the last two: signing in needs a real repo token, which a visitor cannot
+supply, and the box has no visible door now — a tour step on either would
+point at the one thing the gallery hides.
 
 The confirmation's **Cancel** *is* a step, twice (`remove-confirm`,
 `revert-confirm`). Remove an album and Revert every change are asked from
@@ -581,15 +583,37 @@ and paste in yourself each session.
    time).
 5. Generate, copy the token (starts with `github_pat_...`).
 
-On the site, click **Admin** in the header and paste the token in. It's
-checked once against the repo and then kept only in that browser tab's
-session storage — it's cleared when you close the tab, and it's never
-written into the repo or sent anywhere except `api.github.com`.
+On the site, open the sign-in box (three clicks on the word **Gallery** in
+the top bar) and paste the token in. It's checked once against the repo and
+then kept only in that browser tab's session storage — it's cleared when you
+close the tab, and it's never written into the repo or sent anywhere except
+`api.github.com`.
 
 **Treat the token like a password.** Anyone who has it can add or delete
 files in this one repo (that's all it can touch, since it's scoped to just
 this repo). Don't paste it into the site on a shared or public computer, and
 click "Sign out" when you're done to clear it early.
+
+### How the sign-in box is reached
+
+**Three clicks on the word "Gallery" in the top bar, close together** — each
+within 600 ms of the last. That is the whole entrance, and it is the only
+one: the ⋮ menu deliberately carries no *Admin sign in* row, the guided tour
+does not point at it, and nothing in `index.html` reaches it, so a visitor
+browsing the archive has no way to discover there is an admin side at all.
+The gesture is the one Samsung's own settings screens use for a hidden
+panel.
+
+Once the box is up it is entirely ordinary: paste the token, **Sign in**
+works as it always did, **Cancel** closes it, and the session behaves the
+same. An admin already signed in, or a session another browser holds, gets
+nothing from the clicks — there is nothing left to open. The clicks do not
+select the word either (`user-select: none` on the title), so the gesture
+paints nothing on its way in.
+
+If you would rather the entrance were visible, it is one line: put the row
+back in `mainMenu()` in `app.js` (the commit that removed it has the exact
+text) and the box becomes a menu item again.
 
 ## 4. Using it day to day
 
@@ -597,7 +621,8 @@ click "Sign out" when you're done to clear it early.
   **Albums** for one cover per phase. Tap any photo for the fullscreen
   viewer — swipe (or arrow keys) to move between photos, tap the photo to
   hide the bars, back-arrow or swipe-down to close.
-- **Signing in:** tap **⋮** (top right) → **Admin sign in**.
+- **Signing in:** click the word **Gallery** in the top bar three times, fast.
+  There is no menu item for it — see the note under step 3.
 - **Adding photos:** while signed in, tap the blue **+** button, or an album
   cover's **⋮ → Add photos**. **⋮ → New album…** starts a brand-new phase.
   Multi-select works. Each file lands on its own row, ending in a small chip

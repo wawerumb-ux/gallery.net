@@ -154,7 +154,11 @@
 </div>
 
 <!-- One UI bottom sheet (overflow menus) -->
-<div class="sheet-overlay" id="sheetOverlay" hidden>
+<!-- The dim is the sheet's own dismiss, and the guided tour's final
+     visitor step targets it (tap anywhere outside closes the menu). It
+     carries the tour target here rather than on the sheet panel: the
+     panel is what the tour must NOT dismiss the sheet by clicking. -->
+<div class="sheet-overlay" id="sheetOverlay" data-tour-target="menu-close" hidden>
   <div class="sheet" role="menu" aria-label="Options">
     <div class="sheet-handle" aria-hidden="true"></div>
     <div class="sheet-title" id="sheetTitle" hidden></div>
@@ -246,7 +250,7 @@
     <input type="password" id="tokenInput" class="text-input" placeholder="github_pat_..." autocomplete="off">
     <p class="modal-error" id="tokenError" hidden></p>
     <div class="modal-actions">
-      <button class="btn btn-ghost" id="tokenCancel" data-tour-target="admin-modal-cancel">Cancel</button>
+      <button class="btn btn-ghost" id="tokenCancel">Cancel</button>
       <button class="btn btn-primary" id="tokenSubmit">Sign in</button>
     </div>
   </div>

@@ -248,6 +248,13 @@ code {
   opacity: 0;
   transform: translateY(4px);
   transition: opacity var(--duration-fast) ease, transform var(--duration-fast) var(--ease-spring);
+  /* Three clicks on this title is how an admin reaches the sign-in box
+     (see wireTitleDoor in app.js). A triple-click is also how a browser
+     selects a line, so left to itself the gesture paints a blue selection
+     across the word "Gallery" on the way to opening the box — which reads
+     as a bug rather than as the door it is. The title is a label and there
+     is nothing in it worth copying. */
+  user-select: none;
 }
 .appbar.is-collapsed .appbar-mini { opacity: 1; transform: none; }
 .appbar-actions { margin-left: auto; display: flex; align-items: center; gap: 4px; }
