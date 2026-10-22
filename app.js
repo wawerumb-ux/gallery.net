@@ -278,10 +278,21 @@ function allPhaseOptions(extra) {
 
 const IMG_EXT = /\.(png|jpe?g|gif|webp|avif)$/i;
 const TOKEN_KEY = 'sn_gallery_token';
-// Reserved key in gallery.json that holds the one active admin session, so
-// only one admin can be signed in at a time across every visitor. It never
-// collides with a real image path (those live under images/).
-const ADMIN_SESSION_KEY = '__admin_session__';
+
+/* An admin session lives and dies with the tab that started it, because the
+   token it stands for is already in sessionStorage and sessionStorage is
+   cleared when the tab goes away. Nothing about being signed in is written
+   into the repo any more, so there is no lock for anyone else to trip over
+   and nothing to strand: close the tab and you are signed out.
+
+   It used to be shared through a reserved __admin_session__ key in
+   gallery.json, released only by an explicit Sign out. An admin who closed
+   the tab instead left that key behind for good, and every later visitor —
+   and the admin themselves — was refused with "An admin is already signed
+   in" until someone deleted the file by hand. loadMetadata still drops that
+   key out of anything it reads, so a value left over from that era is
+   ignored and quietly falls off the file on the next save. */
+const LEGACY_ADMIN_SESSION_KEY = '__admin_session__';
 
 const state = {
   folders: {},   // folderName -> [{ path, name, sha }] (one canonical item per logical asset)
@@ -290,7 +301,6 @@ const state = {
   duplicateSummary: { totalFiles: 0, uniqueAssets: 0, exactDuplicateFiles: 0, visualDuplicateCandidates: 0 },
   adminMode: false,
   token: null,
-  adminSession: null, // { since } — the one active admin session, shared lock
   view: 'images', // 'images' = Pictures tab (day-grouped wall), 'phases' = Albums tab
   viewSize: 'comfy',    // the search pill's panel: how many tiles a row holds, and
   viewOrder: 'newest',  // ...which way the wall runs
@@ -1078,8 +1088,6 @@ async function loadMetadata(auth = false) {
   // write. githubPut recovers from a bad sha (409 or 422 both re-read), but
   // the cache is only an optimisation when it is honest.
   state._metaSha = null;
-  // A failed load must not leave a stale shared admin session behind either.
-  state.adminSession = null;
   if (DEMO_MODE) return;
   const headers = {};
   if (auth && state.token) headers.Authorization = `Bearer ${state.token}`;
@@ -1087,13 +1095,13 @@ async function loadMetadata(auth = false) {
     const res = await githubFetch(rawUrl('gallery.json'), { headers });
     if (!res.ok) return;
     const data = JSON.parse(await res.text());
-    // Split the shared admin session out of the photo classifications so it
-    // is never treated as a classifyable image.
-    state.adminSession = data && typeof data === 'object' && data[ADMIN_SESSION_KEY] ? data[ADMIN_SESSION_KEY] : null;
     state.metadata = {};
     if (data && typeof data === 'object') {
       for (const [path, value] of Object.entries(data)) {
-        if (path !== ADMIN_SESSION_KEY) state.metadata[path] = value;
+        // Drop the retired session key rather than adopt it: a value left in
+        // the file by the old shared lock is not an image, is not read into
+        // state, and is not written back — so the next save removes it.
+        if (path !== LEGACY_ADMIN_SESSION_KEY) state.metadata[path] = value;
       }
     }
   } catch (err) {
@@ -1133,9 +1141,10 @@ async function refreshMetaSha() {
    content is unchanged. Demo mode never touches GitHub. */
 async function persistMetadata() {
   if (DEMO_MODE) return;
-  // The admin session rides in the same file so the one-active-admin lock is
-  // shared with every visitor through the repo, not just this tab.
-  const payload = { ...state.metadata, ...(state.adminSession ? { [ADMIN_SESSION_KEY]: state.adminSession } : {}) };
+  // Only the photo classifications go in. Nothing about an admin session is
+  // written here, so a legacy __admin_session__ value that loadMetadata
+  // filtered out is simply not carried forward and disappears on this save.
+  const payload = { ...state.metadata };
   const json = JSON.stringify(payload, null, 2);
   if (state._metaHash === json) return;
   const encoded = btoa(unescape(encodeURIComponent(json)));
@@ -2645,14 +2654,6 @@ async function trySignIn() {
   }
   const submit = el('tokenSubmit');
   submit.disabled = true; submit.textContent = 'Checking…';
-  // Only one admin session at a time, shared through the repo: if another
-  // admin is already signed in, this token cannot take over.
-  if (state.adminSession) {
-    el('tokenError').hidden = false;
-    el('tokenError').textContent = 'An admin is already signed in — the sign-in option returns when they sign out.';
-    submit.disabled = false; submit.textContent = 'Sign in';
-    return;
-  }
   try {
     const res = await githubFetch(`https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}`, {
       headers: { Authorization: `Bearer ${token}` }
@@ -2662,7 +2663,6 @@ async function trySignIn() {
     if (!data.permissions || !data.permissions.push) throw new Error('This token does not have write access to the repo.');
     state.token = token;
     state.adminMode = true;
-    state.adminSession = { since: new Date().toISOString() };
     sessionStorage.setItem(TOKEN_KEY, token);
     console.warn('GitHub PAT stored in sessionStorage — do not share screenshots of this console.');
     overlayClose('adminModalOverlay');
@@ -2680,15 +2680,18 @@ async function trySignIn() {
   }
 }
 
+/* Signing out is the explicit half of a session that also ends by itself:
+   the token lives in sessionStorage, so closing the tab ends the session
+   with no call here at all. This is the other half — for the admin who is
+   done but staying on the page. Nothing is written to the repo, because
+   there is no shared lock left to release. */
 async function signOut() {
   state.token = null;
   state.adminMode = false;
-  state.adminSession = null;
   exitBatchSelect();
   sessionStorage.removeItem(TOKEN_KEY);
   updateAdminUI();          // the sign-in option reappears immediately
   render();
-  if (!DEMO_MODE) await persistMetadata();  // release the shared lock
   showToast('Signed out.', { type: 'info' });
 }
 

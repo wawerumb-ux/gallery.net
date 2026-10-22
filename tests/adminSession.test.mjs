@@ -1,9 +1,16 @@
-/* Only one admin can be signed in at a time, shared through gallery.json.
+/* An admin session belongs to the tab that started it, and dies with it.
 
-   The active admin session is stored under the reserved __admin_session__ key
-   so every visitor sees the same lock: while an admin is signed in the sign-in
-   option disappears, and it reappears when they sign out and release the lock.
-*/
+   The token it stands for is already in sessionStorage, and the browser
+   clears sessionStorage when the tab closes — so "signed in" is released by
+   closing the tab, with no request and no lock for anyone else to trip over.
+
+   It used to be shared through a reserved __admin_session__ key in
+   gallery.json, released only by an explicit Sign out. An admin who closed
+   the tab instead left that key behind, and every later visitor was refused
+   with "An admin is already signed in" until the file was edited by hand.
+   This suite pins both halves of the replacement: nothing about a session is
+   read into state or written to the repo, and a value left over from that
+   era is filtered out and falls off the file on the next save. */
 
 import { test, describe } from 'node:test';
 import assert from 'node:assert';
@@ -72,41 +79,56 @@ async function boot(galleryText = '{}') {
   return { api, calls, storedGetter: () => stored };
 }
 
-describe('the shared one-admin session lock', () => {
-  test('loadMetadata reads the session out of gallery.json and keeps it out of metadata', async () => {
-    const gallery = JSON.stringify({
-      'images/a/1.jpg': { phase: 'Cable Installation', activity: '' },
-      __admin_session__: { since: '2026-10-21T10:00:00.000Z' },
-    });
-    const { api } = await boot(gallery);
+const legacyLock = JSON.stringify({
+  'images/a/1.jpg': { phase: 'Cable Installation', activity: '' },
+  __admin_session__: { since: '2026-10-22T01:07:23.021Z' },
+});
+
+describe('the admin session is the tab, not the repo', () => {
+  test('a session left in gallery.json is never loaded into state', async () => {
+    const { api } = await boot(legacyLock);
     await api.loadMetadata(true);
-    assert.deepEqual(api.state.adminSession, { since: '2026-10-21T10:00:00.000Z' },
-      'the shared admin session is loaded');
+    assert.equal('adminSession' in api.state, false,
+      'state carries no shared session at all — there is no lock to inherit');
+  });
+
+  test('the retired key is not treated as a photo classification', async () => {
+    const { api } = await boot(legacyLock);
+    await api.loadMetadata(true);
     assert.ok(!('__admin_session__' in api.state.metadata),
-      'the session key is not treated as a photo classification');
-    assert.deepEqual(api.state.metadata, { 'images/a/1.jpg': { phase: 'Cable Installation', activity: '' } });
+      'it would otherwise be rendered as a classifyable image');
+    assert.deepEqual(api.state.metadata,
+      { 'images/a/1.jpg': { phase: 'Cable Installation', activity: '' } },
+      'the real classifications survive the filter');
   });
 
-  test('loadMetadata starts with no session when gallery.json holds none', async () => {
-    const { api } = await boot('{}');
-    await api.loadMetadata(true);
-    assert.equal(api.state.adminSession, null, 'no admin session by default');
-  });
-
-  test('persistMetadata writes the session into gallery.json and removes it on release', async () => {
-    const { api, storedGetter } = await boot('{}');
+  test('nothing about a session is ever written back', async () => {
+    const { api, storedGetter } = await boot(legacyLock);
     await api.loadMetadata(true);
     api.state._metaSha = 'sha-1'; // warm the cache so the save is one PUT
-    // Acquire the lock.
-    api.state.adminSession = { since: '2026-10-21T10:00:00.000Z' };
     await api.persistMetadata();
     const written = JSON.parse(Buffer.from(storedGetter(), 'base64').toString());
-    assert.deepEqual(written.__admin_session__, { since: '2026-10-21T10:00:00.000Z' },
-      'persisting writes the admin session to gallery.json');
-    // Release the lock.
-    api.state.adminSession = null;
+    assert.ok(!('__admin_session__' in written), 'persist must not carry the lock forward');
+    assert.ok(!('adminSession' in written), 'nor under any other name');
+  });
+
+  test('the next save takes a legacy lock off the file for good', async () => {
+    const { api, storedGetter } = await boot(legacyLock);
+    await api.loadMetadata(true);
+    api.state._metaSha = 'sha-1';
     await api.persistMetadata();
-    const released = JSON.parse(Buffer.from(storedGetter(), 'base64').toString());
-    assert.ok(!('__admin_session__' in released), 'signing out removes the session lock');
+    const written = JSON.parse(Buffer.from(storedGetter(), 'base64').toString());
+    assert.deepEqual(Object.keys(written), ['images/a/1.jpg'],
+      'the stale lock is gone and the classifications are untouched');
+  });
+
+  test('signing in needs no lock to release first', async () => {
+    // The refusal that used to live in trySignIn read state.adminSession.
+    // With the field gone from state there is nothing for it to test, so
+    // assert the branch is not merely unreachable but absent.
+    assert.ok(!/state\.adminSession/.test(code),
+      'app.js still reads the removed shared session somewhere');
+    assert.ok(!/An admin is already signed in/.test(code),
+      'the message that refused every sign-in is still reachable');
   });
 });

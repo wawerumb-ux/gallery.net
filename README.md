@@ -585,14 +585,25 @@ and paste in yourself each session.
 
 On the site, open the sign-in box (three clicks on the word **Gallery** in
 the top bar) and paste the token in. It's checked once against the repo and
-then kept only in that browser tab's session storage — it's cleared when you
-close the tab, and it's never written into the repo or sent anywhere except
-`api.github.com`.
+then kept only in that browser tab's session storage — never written into
+the repo, and never sent anywhere except `api.github.com`.
+
+**Closing the tab is signing out.** The token lives in session storage, and
+the browser clears that when the tab goes away, so an admin session ends by
+itself the moment you close the page. There is no lock left behind for
+anyone else to trip over. **Sign out** in the ⋮ menu is the other half, for
+when you're done but staying on the page.
+
+An older version shared this lock through a reserved `__admin_session__`
+key in `gallery.json`, released only by an explicit sign-out. An admin who
+simply closed the tab stranded that key, and every later visitor was
+refused with "An admin is already signed in" until the file was edited by
+hand. The key is no longer read or written: one still sitting in the file is
+ignored, and the next save drops it.
 
 **Treat the token like a password.** Anyone who has it can add or delete
 files in this one repo (that's all it can touch, since it's scoped to just
-this repo). Don't paste it into the site on a shared or public computer, and
-click "Sign out" when you're done to clear it early.
+this repo). Don't paste it into the site on a shared or public computer.
 
 ### How the sign-in box is reached
 
@@ -609,10 +620,9 @@ works as it always did, **Cancel** closes it, and the session behaves the
 same. The clicks do not select the word either (`user-select: none` on the
 title), so the gesture paints nothing on its way in.
 
-The door opens whatever the gallery's state. An admin already signed in, or
-a session another browser still holds, gets the box too — the box is what
-says why a token would be refused, and a door that quietly refused to open
-would leave no way to find out why.
+The door opens whatever the gallery's state. An admin already signed in
+gets it too, so being signed in can never hide the one thing that explains
+what a token is for.
 
 If you would rather the entrance were visible, it is one line: put the row
 back in `mainMenu()` in `app.js` (the commit that removed it has the exact
