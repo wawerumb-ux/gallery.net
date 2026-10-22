@@ -278,6 +278,10 @@ function allPhaseOptions(extra) {
 
 const IMG_EXT = /\.(png|jpe?g|gif|webp|avif)$/i;
 const TOKEN_KEY = 'sn_gallery_token';
+// Reserved key in gallery.json that holds the one active admin session, so
+// only one admin can be signed in at a time across every visitor. It never
+// collides with a real image path (those live under images/).
+const ADMIN_SESSION_KEY = '__admin_session__';
 
 const state = {
   folders: {},   // folderName -> [{ path, name, sha }] (one canonical item per logical asset)
@@ -286,6 +290,7 @@ const state = {
   duplicateSummary: { totalFiles: 0, uniqueAssets: 0, exactDuplicateFiles: 0, visualDuplicateCandidates: 0 },
   adminMode: false,
   token: null,
+  adminSession: null, // { since } — the one active admin session, shared lock
   view: 'images', // 'images' = Pictures tab (day-grouped wall), 'phases' = Albums tab
   viewSize: 'comfy',    // the search pill's panel: how many tiles a row holds, and
   viewOrder: 'newest',  // ...which way the wall runs
@@ -1044,6 +1049,8 @@ async function loadMetadata(auth = false) {
   // write. githubPut recovers from a bad sha (409 or 422 both re-read), but
   // the cache is only an optimisation when it is honest.
   state._metaSha = null;
+  // A failed load must not leave a stale shared admin session behind either.
+  state.adminSession = null;
   if (DEMO_MODE) return;
   const headers = {};
   if (auth && state.token) headers.Authorization = `Bearer ${state.token}`;
@@ -1051,7 +1058,15 @@ async function loadMetadata(auth = false) {
     const res = await githubFetch(rawUrl('gallery.json'), { headers });
     if (!res.ok) return;
     const data = JSON.parse(await res.text());
-    state.metadata = data && typeof data === 'object' ? data : {};
+    // Split the shared admin session out of the photo classifications so it
+    // is never treated as a classifyable image.
+    state.adminSession = data && typeof data === 'object' && data[ADMIN_SESSION_KEY] ? data[ADMIN_SESSION_KEY] : null;
+    state.metadata = {};
+    if (data && typeof data === 'object') {
+      for (const [path, value] of Object.entries(data)) {
+        if (path !== ADMIN_SESSION_KEY) state.metadata[path] = value;
+      }
+    }
   } catch (err) {
     console.warn('No gallery.json metadata yet — starting clean.', err && err.message);
     return;
@@ -1089,7 +1104,10 @@ async function refreshMetaSha() {
    content is unchanged. Demo mode never touches GitHub. */
 async function persistMetadata() {
   if (DEMO_MODE) return;
-  const json = JSON.stringify(state.metadata, null, 2);
+  // The admin session rides in the same file so the one-active-admin lock is
+  // shared with every visitor through the repo, not just this tab.
+  const payload = { ...state.metadata, ...(state.adminSession ? { [ADMIN_SESSION_KEY]: state.adminSession } : {}) };
+  const json = JSON.stringify(payload, null, 2);
   if (state._metaHash === json) return;
   const encoded = btoa(unescape(encodeURIComponent(json)));
   const sha = state._metaSha || undefined;
@@ -2510,6 +2528,14 @@ async function trySignIn() {
   }
   const submit = el('tokenSubmit');
   submit.disabled = true; submit.textContent = 'Checking…';
+  // Only one admin session at a time, shared through the repo: if another
+  // admin is already signed in, this token cannot take over.
+  if (state.adminSession) {
+    el('tokenError').hidden = false;
+    el('tokenError').textContent = 'An admin is already signed in — the sign-in option returns when they sign out.';
+    submit.disabled = false; submit.textContent = 'Sign in';
+    return;
+  }
   try {
     const res = await githubFetch(`https://api.github.com/repos/${CONFIG.owner}/${CONFIG.repo}`, {
       headers: { Authorization: `Bearer ${token}` }
@@ -2519,10 +2545,13 @@ async function trySignIn() {
     if (!data.permissions || !data.permissions.push) throw new Error('This token does not have write access to the repo.');
     state.token = token;
     state.adminMode = true;
+    state.adminSession = { since: new Date().toISOString() };
     sessionStorage.setItem(TOKEN_KEY, token);
     console.warn('GitHub PAT stored in sessionStorage — do not share screenshots of this console.');
     overlayClose('adminModalOverlay');
     updateAdminUI();
+    await refreshMetaSha();
+    await persistMetadata();   // publish the shared lock to the repo
     await loadMetadata(true);
     await loadTree(true);
     showToast('Signed in — you can add and remove photos now.', { type: 'success' });
@@ -2534,13 +2563,15 @@ async function trySignIn() {
   }
 }
 
-function signOut() {
+async function signOut() {
   state.token = null;
   state.adminMode = false;
+  state.adminSession = null;
   exitBatchSelect();
   sessionStorage.removeItem(TOKEN_KEY);
-  updateAdminUI();
+  updateAdminUI();          // the sign-in option reappears immediately
   render();
+  if (!DEMO_MODE) await persistMetadata();  // release the shared lock
   showToast('Signed out.', { type: 'info' });
 }
 
@@ -2637,7 +2668,9 @@ function mainMenu() {
       { icon: ICONS.checkCircle, label: 'Select photos', tourTarget: 'menu-select-photos', onTap: () => enterSelectMode() },
       { icon: ICONS.gear, label: 'Album settings', tourTarget: 'menu-album-settings', onTap: () => openSettingsModal() },
       { icon: ICONS.signOut, label: 'Sign out', tourTarget: 'menu-sign-out', onTap: signOut },
-    ] : [
+    ] : state.adminSession ? [] : [
+      // While another admin holds the shared session there is nothing to offer
+      // — the sign-in option returns when they sign out.
       { icon: ICONS.signIn, label: 'Admin sign in', tourTarget: 'menu-admin-signin', onTap: openAdminModal },
     ]),
   ];
