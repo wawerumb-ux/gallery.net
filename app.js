@@ -1719,9 +1719,11 @@ function pickSearchOption(group, value) {
   overlayClose('searchMenu');
 }
 
-/* Admin quick-find: hide cards/albums that don't match the query, and fold
+/* Quick-find: hide cards/albums that don't match the query, and fold
    away day groups left empty by the filter. One query, both kinds of
-   result — the placeholder has always said "photos or albums". */
+   result — the placeholder has always said "photos or albums". It runs
+   against the loaded tree, so it works for a visitor exactly as it does
+   for an admin. */
 function applyAdminFilter() {
   const input = el('adminSearch');
   const wrap = el('searchWrap');
@@ -2589,7 +2591,10 @@ function updateAdminUI() {
   // the header ⋮ and the album ⋮ menus, so the button stays out of the
   // way of the wall on the live gallery.
   el('fabAdd').hidden = !(state.adminMode && DEMO_MODE);
-  el('searchWrap').hidden = !state.adminMode;
+  // The search pill is available to everyone, not just admins: it filters the
+  // already-loaded tree client-side, which a visitor has just as much as an
+  // admin does. The view/arrange button rides along in the same pill.
+  el('searchWrap').hidden = false;
   syncChromeH(); // the search pill changes the app bar height
   if (!state.adminMode) {
     state.batchSelect = false;
