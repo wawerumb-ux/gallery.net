@@ -829,16 +829,20 @@ function createGuidedTour(config) {
     unlock(index + 1);
   }
 
-  function skipAction() {
+  /* Moves past the current step without the action having fired. One
+     definition of "left this step behind"; only the RECORD differs, and
+     who is believed to have done the work (see tourNext). */
+  function skipAction(asDone) {
     if (ended) return;
     if (phase !== 'waiting' && phase !== 'prompting') return;
     if (settleTimer) { clearTimeout(settleTimer); settleTimer = null; }
     if (detachAction) { detachAction(); detachAction = null; }
     if (detachAnchor) { detachAnchor(); detachAnchor = null; }
     if (target) { target.removeAttribute('aria-describedby'); unfocusable(target); }
-    // Advances as if the action succeeded — but is NOT recorded
-    // as completed.
-    saveState({ skipped: [step.id] });
+    // Advances as if the action succeeded — recorded as skipped, not as
+    // completed, unless the step says Next means done.
+    if (asDone) saveState({ completed: [step.id] });
+    else saveState({ skipped: [step.id] });
     unlock(index + 1);
   }
 
@@ -949,7 +953,15 @@ function createGuidedTour(config) {
     // skipAction already means: the step is left behind and recorded as
     // skipped, not silently counted as completed. Reusing it keeps one
     // definition of "moved on without doing it".
-    skipAction();
+    //
+    // A step may claim otherwise, and the mouse-effect steps do: their
+    // subject is a gesture the visitor has performed a hundred times
+    // before opening a tour, and "Next" from someone who already knows it
+    // is them saying as much. Recording that as a skip would call them a
+    // liar for knowing the thing the step exists to teach. The escape
+    // hatch above does not inherit it — "Skip this step" still means
+    // skipped; only Next on such a step counts as done.
+    skipAction(step && step.nextCountsAsDone);
   }
 
   function tourPrev() {

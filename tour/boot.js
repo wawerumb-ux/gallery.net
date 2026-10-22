@@ -49,6 +49,25 @@
   const begin = () => {
     const gallery = (typeof window !== 'undefined' && window.__gallery) || null;
     const adminMode = !!(gallery && gallery.adminMode);
+    // The mouse-effect segment needs a known starting state: its first
+    // step is the effect being switched ON, so it arms from OFF — a
+    // returning visitor who had it on would otherwise spend that step
+    // turning it off, and the four gesture steps behind it would never
+    // fire. Resuming INTO the segment runs the other way: those steps
+    // need it running, so it comes back on.
+    //
+    // Both calls are the tour's own bookkeeping, not a decision about
+    // what the visitor wants to be reminded of next visit, so neither
+    // rewrites the stored preference — only their click on the real
+    // toggle persists. See mouse-effect.js.
+    const ME_GESTURE_STEPS = ['mouse-effect-move', 'mouse-effect-cycle',
+      'mouse-effect-skin', 'mouse-effect-letter', 'mouse-effect-off'];
+    try {
+      if (window.MouseEffect) {
+        if (ME_GESTURE_STEPS.includes(saved && saved.currentStepId)) window.MouseEffect.tourResume();
+        else window.MouseEffect.suppress();
+      }
+    } catch (_) {}
     const steps = selectTourSteps(TOUR_STEPS, adminMode);
     const tour = createGuidedTour({ steps });
     tour.start({ resume: !!(saved && saved.currentStepId && !saved.finished) });

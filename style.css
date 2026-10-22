@@ -2389,6 +2389,40 @@ select.text-input option { background: var(--surface-3); color: var(--text); }
   user-select: none;
 }
 
+/* ── Mouse effect ─────────────────────────────────────────────────
+   An opt-in cursor trail (mouse-effect.js). The canvas floats over
+   everything — including the tour's own overlay, so a step that asks
+   you to move the mouse has something to show for it — but it is
+   pointer-events:none, so every click passes straight through to
+   whatever is underneath. Nothing below can ever be blocked by it. */
+#meCanvas {
+  position: fixed; inset: 0;
+  width: 100vw; height: 100vh;
+  pointer-events: none;
+  z-index: 400;                 /* over the tour overlay (300) and modals (130) */
+}
+#meHud {
+  /* Above the tab bar on the same line the welcome strip and FAB use, so
+     it clears both without a magic number of its own. */
+  position: fixed;
+  left: 16px;
+  bottom: calc(var(--tabbar-h) + 18px + env(safe-area-inset-bottom, 0px));
+  padding: 6px 12px;
+  border-radius: var(--radius-pill);
+  background: var(--plate);
+  border: 1px solid var(--hairline);
+  color: var(--text);
+  font-size: 12px; font-weight: 500;
+  pointer-events: none;
+  z-index: 400;
+  user-select: none;
+}
+#meHud[hidden] { display: none; }
+
+/* The app bar toggle reads as "on" the same way the eye-comfort and
+   typeface buttons do — a tinted plate behind the glyph. */
+#mouseEffectBtn[aria-pressed="true"] { background: var(--plate-mid); color: var(--accent, currentColor); }
+
 .font-grid {
   display: flex;
   flex-direction: column;

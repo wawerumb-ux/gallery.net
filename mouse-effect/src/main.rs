@@ -13,7 +13,8 @@
 //!     Type                letters float up from the cursor
 //!     Esc                 quit
 //!
-//! The native twin of the browser playground in index.html.
+//! The native twin of the web build in `mouse-effect.js`, which the gallery
+//! itself loads.
 
 use macroquad::prelude::*;
 

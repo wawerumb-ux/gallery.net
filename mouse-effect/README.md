@@ -1,43 +1,49 @@
-# Mouse Effect Playground
+# Mouse Effect — the native ports
 
-Particles trail your cursor, the cursor itself is a swappable skin, and typing
-floats letters up from the pointer. One effect, three implementations — same
-controls in each.
+Particles trail your cursor, the cursor has a swappable aura, and typing
+floats letters up from the pointer. The same effect, the same controls.
 
-The **web version** (`index.html`) runs in the browser with no install and opens
-with a built-in step-by-step guide that teaches the controls (re-open it anytime
-with the **?** button, top right).
+The web build is **not here any more** — it moved into the gallery itself as
+[`mouse-effect.js`](../mouse-effect.js), because an effect that belongs on the
+photo wall should not live in a demo folder. It is switched on from the app
+bar's sparkle button (or the ⋮ menu), remembered under `gallery.mouseEffect`,
+and the guided tour walks through it. This folder keeps the two native
+implementations.
 
-## Controls (identical across all three)
+## Controls (the same three gestures everywhere)
 
 | Input | Effect |
 | --- | --- |
 | **Move** | Particles drag behind the cursor like a comet tail. |
-| **Hold left button + scroll up** | Cycle the particle type: `None → Particles → Hearts → Stars → Rainbow → None`. The first two click+scrolls stay on `None`; the particles begin on the **3rd** scroll up. Scroll down to step back. |
-| **Middle-click** (the scroll wheel as a button) | Cycle the cursor skin: `Chroma / Roblox / NextGen / macOS / Aero`. |
+| **Hold left button + scroll up** | Cycle the particle type. Scroll down to step back. |
+| **Middle-click** (the scroll wheel as a button) | Cycle the cursor aura/skin. |
 | **Type** | Press any letter key — it floats up from the cursor and fades. |
-| **Esc** | Quit (Python / Rust). In the browser it just closes the guide. |
+| **Esc** | Quit (Python / Rust). In the gallery there is nothing to quit: the sparkle button switches it off. |
 
-## Run each version
+What the gestures *are* is shared; what they *produce* has drifted per build
+and each is authoritative for itself:
 
-### 1 · JavaScript (no install)
+| | Types | Skins |
+| --- | --- | --- |
+| Web (`../mouse-effect.js`) | Sparkle → Hearts → Stars → Rainbow → Embers → None | Chroma / Pulse / Sparkle / Comet / Reticle |
+| Python, Rust | None ×3 → Particles → Hearts → Stars → Rainbow | Chroma / Roblox / NextGen / macOS / Aero |
 
-Open `index.html` in any browser:
+The web build departs from these two in ways the ports do not need to: it
+keeps the **native cursor visible** (each skin is an aura around it, so you can
+still aim at a photo or a button), and it only swallows a scroll performed
+**while the left button is held**, so normal page scrolling still works. Both
+are explained at the top of `mouse-effect.js`.
 
-```
-open mouse-effect/index.html      # macOS
-xdg-open mouse-effect/index.html  # Linux
-start mouse-effect\index.html     # Windows
-```
+## Run the native versions
 
-### 2 · Python
+### 1 · Python
 
 ```
 pip install pygame
 python mouse-effect/mouse_effect.py
 ```
 
-### 3 · Rust
+### 2 · Rust
 
 ```
 cd mouse-effect
@@ -48,13 +54,12 @@ cargo run --release
 
 | File | What it is |
 | --- | --- |
-| `index.html` | The browser playground (canvas + HUD + built-in guide). |
-| `mouse-effect.css` | Styles for the page, HUD and guide. |
-| `mouse-effect.js` | The effect engine and the guide logic. |
+| `../mouse-effect.js` | The web build — the one the gallery loads. |
 | `mouse_effect.py` | The Python (pygame) port. |
 | `src/main.rs` | The Rust (macroquad) port. |
 | `Cargo.toml` | Rust manifest. |
 
-All three builds share the same particle model (`TYPES`), skin list (`SKINS`),
-trail-based emission, and floating-letter behaviour, so they feel identical to
-use.
+All three were written from one design — a trail emitted along the pointer's
+path, a named list of skins, and floating letters — and they feel alike to
+use, but the type and skin *names* are listed per build above rather than
+guaranteed equal.

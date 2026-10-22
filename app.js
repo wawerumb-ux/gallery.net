@@ -2320,6 +2320,10 @@ function wireStaticEvents() {
   // Eye-comfort background picker (app bar toggle → bottom sheet)
   el('comfortBtn').addEventListener('click', openComfortPicker);
   el('fontBtn').addEventListener('click', openFontPicker);
+  // Mouse effect: a pure client-side flourish (mouse-effect.js owns the
+  // canvas and the state). The button only flips it; the module reflects
+  // the result back onto aria-pressed.
+  el('mouseEffectBtn').addEventListener('click', () => window.MouseEffect && window.MouseEffect.toggle());
   wireFontPopover();
   wireComfortPopover();
   el('comfortOverlay').addEventListener('click', e => { if (e.target.id === 'comfortOverlay') overlayClose('comfortOverlay'); });
@@ -2636,6 +2640,7 @@ const ICONS = {
   play: '<svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>',
   soundOn: '<svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3A4.5 4.5 0 0 0 14 7.97v8.05A4.47 4.47 0 0 0 16.5 12zM14 3.23v2.06a7 7 0 0 1 0 13.42v2.06a9 9 0 0 0 0-17.54z"/></svg>',
   soundOff: '<svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true"><path d="M16.5 12A4.5 4.5 0 0 0 14 7.97v2.21l2.45 2.45c.03-.2.05-.42.05-.63zM19 12c0 .94-.2 1.82-.54 2.64l1.51 1.51A8.8 8.8 0 0 0 21 12a9 9 0 0 0-7-8.77v2.06A7 7 0 0 1 19 12zM4.27 3L3 4.27 7.73 9H3v6h4l5 5v-6.73L16.73 17.27A6.9 6.9 0 0 1 14 18.73v2.06a9 9 0 0 0 3.69-1.53L19.73 21 21 19.73 4.27 3zM12 4L9.91 6.09 12 8.18V4z"/></svg>',
+  sparkle: '<svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true"><path d="M12 3l1.9 4.6L18.5 9l-4.6 1.9L12 15.5l-1.9-4.6L5.5 9l4.6-1.4zM18 15l.9 2.1L21 18l-2.1.9L18 21l-.9-2.1L15 18l2.1-.9z"/></svg>',
 };
 
 function openSheet(cfg) {
@@ -2676,6 +2681,13 @@ function mainMenu() {
       onTap: () => setToastSound(!toastSoundOn),
     },
     { icon: ICONS.play, label: 'Guided tour', onTap: () => { window.location.href = 'tour/'; } },
+    // A display flourish like the typeface/eye-comfort pickers, so it is
+    // offered to everyone and its state is read live off the module.
+    {
+      icon: ICONS.sparkle,
+      label: window.MouseEffect && window.MouseEffect.isEnabled() ? 'Mouse effect on' : 'Mouse effect off',
+      onTap: () => window.MouseEffect && window.MouseEffect.toggle(),
+    },
     ...(state.adminMode ? [
       { icon: ICONS.photoAdd, label: 'Add photos', tourTarget: 'menu-add-photos', onTap: () => pickFiles(null) },
       { icon: ICONS.folderAdd, label: 'New album…', tourTarget: 'menu-new-album', onTap: openNewAlbumModal },

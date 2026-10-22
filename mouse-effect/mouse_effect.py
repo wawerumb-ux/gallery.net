@@ -13,8 +13,9 @@ Controls (identical across the JS / Python / Rust builds):
     Type               letters float up from the cursor
     Esc                quit
 
-This is the native twin of the browser playground in index.html. It prints
-the same control hints to the console on start and shows them in the HUD.
+This is the native twin of the web build in ../mouse-effect.js (loaded by the
+gallery itself). It prints the same control hints to the console on start and
+shows them in the HUD.
 """
 
 import colorsys

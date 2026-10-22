@@ -126,6 +126,41 @@ This set replaced fourteen themes drawn from a 2,292-palette search. The five
 that went — graphite, slate, dusk, mist, paper — were the neutrals and cools,
 and not one of the ten newest palettes is either.
 
+## Mouse effect
+
+The app bar's sparkle button switches on a cursor trail: particles drag
+behind the pointer, an aura rides around it, and typing floats letters up
+from where you are. It is one canvas, `mouse-effect.js`, loaded as a
+sibling of `app.js` rather than a page of its own — the effect belongs on
+the photo wall, not in a demo folder.
+
+| Input | Effect |
+| --- | --- |
+| **Move** | Particles drag behind the cursor. |
+| **Hold left button + scroll** | Cycle the particle type: Sparkle → Hearts → Stars → Rainbow → Embers → None. |
+| **Middle-click** | Cycle the cursor aura: Chroma / Pulse / Sparkle / Comet / Reticle. |
+| **Type** | Press any letter key — it floats up from the cursor and fades. |
+
+Two deliberate departures from the standalone playground this grew out of,
+because it now runs over an interface you have to keep using. **The native
+cursor stays visible**: each skin is an aura drawn *around* the pointer, so
+swapping it is a real change but you never lose the precision you need to
+click a photo or a button. And **plain scrolling still scrolls** — only a
+scroll performed while the left button is held is swallowed, since the
+playground could afford to intercept every wheel event and a gallery of
+things to click cannot.
+
+Typing is ignored while focus is in a text field, so the search box keeps
+searching. The choice is stored under `gallery.mouseEffect` and restored on
+load; turning it off clears the canvas and its listeners, so a visitor who
+never switches it on pays nothing for it. `prefers-reduced-motion` thins
+the trail to a few short-lived particles and drops the glow, but the
+controls still work — which matters, because the tour is gated on them.
+
+It also has native twins: `mouse-effect/mouse_effect.py` and
+`mouse-effect/src/main.rs` are the same effect and the same three controls,
+as terminal and window programs.
+
 ## Notifications
 
 Every message in the gallery goes through one wrapper, `showToast()`, over
@@ -351,8 +386,10 @@ starts it when the gallery is opened with `?tour=1`. Progress persists in
 completed tour never restarts on its own.
 
 The tour has two audiences. Everyone walks the shared path: the photo wall,
-the viewer's arrows, the Albums tab, an album, and the ⋮ menu — including
-where admins sign in (15 steps). A user who is already signed in as admin when
+the viewer's arrows, the Albums tab, an album, the mouse effect (switch it
+on, trail it, cycle the particles, swap the aura, float a letter, switch it
+back off — each gated on the real gesture), and the ⋮ menu — including
+where admins sign in (21 steps). A user who is already signed in as admin when
 the tour starts walks **every admin control** instead (47 steps): add photos
 from the menu and from the + button, the upload dialog, search (type, view
 options, clear), new album, select → mark → move → delete, album settings (rename,
@@ -387,7 +424,7 @@ Run the tour's test suite with `node --test` (Node 18+; same
 `node:test` + `vm`-sandbox harness as `tests/`). It covers gating, action
 detection (including synthetic-event rejection), the confirm/unlock
 hand-off, escapes, persistence, reduced-motion, a11y, the speed multiplier,
-the audience filter, and the full 62-step authored tour end to end — plus a
+the audience filter, and the full 68-step authored tour end to end — plus a
 coverage audit that fails if any button in `index.html` loses its tour step
 without appearing in that suite's `EXCLUDED` map.
 

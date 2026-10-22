@@ -269,6 +269,13 @@ function setup({ reducedMotion = false, multiplierPatch = null, seedState = null
   const comfortSwatch = reg(makeEl('button', { rect: { top: 300, left: 400, right: 880, bottom: 348, width: 480, height: 48 } }));
   comfortSwatch.setAttribute('data-tour-target', 'comfort-pick');
   body.appendChild(comfortSwatch);
+  // The mouse-effect toggle lives in the app bar beside the two pickers.
+  // The six mouse-effect steps all anchor on it, so the fixture only needs
+  // this one element for the whole segment to resolve.
+  const mouseEffectBtn = reg(makeEl('button', { rect: { top: 20, left: 1200, right: 1244, bottom: 64, width: 44, height: 44 } }));
+  mouseEffectBtn.id = 'mouseEffectBtn';
+  mouseEffectBtn.setAttribute('data-tour-target', 'mouse-effect-toggle');
+  body.appendChild(mouseEffectBtn);
   const sheetOverlay = reg(makeEl('div'));
   sheetOverlay.id = 'sheetOverlay';
   const sheetList = reg(makeEl('div'));
@@ -581,6 +588,7 @@ function setup({ reducedMotion = false, multiplierPatch = null, seedState = null
     fontSwatch,
     comfortBtn,
     comfortSwatch,
+    mouseEffectBtn,
     menuAdminSignin,
     menuAddPhotos,
     menuNewAlbum,
@@ -1373,9 +1381,9 @@ describe('S — the speed multiplier is the single timing source', () => {
 /* ── Integration: the real authored tour ──────────────────── */
 
 describe('T — the real TOUR_STEPS integration', () => {
-  test('T1 — the authored 62-step tour runs end to end on the real targets', () => {
+  test('T1 — the authored 68-step tour runs end to end on the real targets', () => {
     const h = setup();
-    assert.equal(h.X.TOUR_STEPS.length, 62);
+    assert.equal(h.X.TOUR_STEPS.length, 68);
     const tour = h.X.createGuidedTour({ steps: h.X.TOUR_STEPS });
     tour.start();
     // A step's action listener is bound when it reaches
@@ -1399,6 +1407,15 @@ describe('T — the real TOUR_STEPS integration', () => {
       h.adminSearch.dispatch('input');
       h.advance(arm);
     };
+    // The four mouse-effect gesture steps are gated on what the effect
+    // itself reports when the real input happens (mouse-effect.js dispatches
+    // tour:action with that name). The harness supplies the gesture by
+    // dispatching the same event — the engine side of the contract.
+    const gesture = (id, name) => {
+      assert.equal(tour.getCurrentStepId(), id);
+      h.window.dispatchEvent('tour:action', { detail: { name } });
+      h.advance(arm);
+    };
     h.advance(h.X.D.base); // step 1 arms
     // Segment 1 — the shared path (every visitor).
     step('wall-photo', h.photoCard);
@@ -1413,6 +1430,15 @@ describe('T — the real TOUR_STEPS integration', () => {
     step('font-pick', h.fontSwatch);
     step('comfort-open', h.comfortBtn);
     step('comfort-pick', h.comfortSwatch);
+    // The mouse effect: every step is gated on what the effect itself
+    // reports — the state the button produced at either end, and the four
+    // real gestures in between.
+    gesture('mouse-effect-toggle', 'mouse-effect-on');
+    gesture('mouse-effect-move', 'mouse-effect-move');
+    gesture('mouse-effect-cycle', 'mouse-effect-cycle');
+    gesture('mouse-effect-skin', 'mouse-effect-skin');
+    gesture('mouse-effect-letter', 'mouse-effect-letter');
+    gesture('mouse-effect-off', 'mouse-effect-off');
     step('menu-open', h.menuBtn);
     // Segment 2 — the visitor-only sign-in reveal.
     step('menu-admin-signin', h.menuAdminSignin);
@@ -1483,6 +1509,8 @@ describe('T — the real TOUR_STEPS integration', () => {
       'wall-photo', 'viewer-next', 'viewer-prev', 'viewer-close',
       'albums-tab', 'album-open', 'album-photo', 'album-viewer-close',
       'font-open', 'font-pick', 'comfort-open', 'comfort-pick',
+      'mouse-effect-toggle', 'mouse-effect-move', 'mouse-effect-cycle',
+      'mouse-effect-skin', 'mouse-effect-letter', 'mouse-effect-off',
       'menu-open', 'menu-admin-signin', 'admin-modal-cancel',
       'menu-add-photos', 'upload-confirm', 'upload-cancel',
       'fab-add', 'upload-cancel-2', 'pictures-tab',
@@ -1782,21 +1810,22 @@ describe('T — the real TOUR_STEPS integration', () => {
     // user cannot perform.
     assert.ok(visitor.every(s => !s.adminOnly));
     assert.ok(admin.every(s => !s.visitorOnly));
-    assert.equal(visitor.length, 15);
-    assert.equal(admin.length, 60);
+    assert.equal(visitor.length, 21);
+    assert.equal(admin.length, 66);
     // Orders renumber 1..N for the audience's own walk.
     sameDeep(visitor.map(s => s.order), visitor.map((_, i) => i + 1));
     sameDeep(admin.map(s => s.order), admin.map((_, i) => i + 1));
     // The shared path is identical for both audiences — the two display
-    // preferences live in it, so a visitor gets them too.
-    sameDeep(visitor.slice(0, 13).map(s => s.id), admin.slice(0, 13).map(s => s.id));
+    // preferences and the mouse effect live in it, so a visitor gets them
+    // too.
+    sameDeep(visitor.slice(0, 19).map(s => s.id), admin.slice(0, 19).map(s => s.id));
     // Each walk ends on its own completion toast.
     assert.equal(visitor[visitor.length - 1].id, 'admin-modal-cancel');
     assert.equal(admin[admin.length - 1].id, 'menu-sign-out');
     // The authored array itself is never mutated.
-    assert.equal(h.X.TOUR_STEPS.length, 62);
+    assert.equal(h.X.TOUR_STEPS.length, 68);
     assert.equal(h.X.TOUR_STEPS[0].order, 1);
-    assert.equal(h.X.TOUR_STEPS[61].order, 62);
+    assert.equal(h.X.TOUR_STEPS[67].order, 68);
   });
 
   test('T4 — an input step with valueMatches "" counts only an empty box', () => {
@@ -1854,12 +1883,14 @@ describe('T — the real TOUR_STEPS integration', () => {
     sameDeep(
       h.X.TOUR_STEPS.filter(s => s.confirm.kind === 'toast').map(s => s.id),
       ['admin-modal-cancel', 'menu-sign-out']);
-    // The segments: 13 shared, 2 visitor-only, 47 admin-only. The shared
-    // path grew when the two display preferences joined it — a typeface and
-    // an eye-comfort background are a visitor's business, not an admin's.
+    // The segments: 19 shared, 2 visitor-only, 47 admin-only. The shared
+    // path grew twice: first when the two display preferences joined it — a
+    // typeface and an eye-comfort background are a visitor's business, not
+    // an admin's — then when the mouse effect did, which is a flourish
+    // everyone can switch on from the app bar.
     assert.equal(h.X.TOUR_STEPS.filter(s => s.visitorOnly).length, 2);
     assert.equal(h.X.TOUR_STEPS.filter(s => s.adminOnly).length, 47);
-    assert.equal(h.X.TOUR_STEPS.filter(s => !s.adminOnly && !s.visitorOnly).length, 13);
+    assert.equal(h.X.TOUR_STEPS.filter(s => !s.adminOnly && !s.visitorOnly).length, 19);
   });
 });
 
@@ -2266,5 +2297,58 @@ describe('L — the card carries its own navigation', () => {
     assert.ok(!state.completed.includes('s1'),
       'stepping past a step must not count as having done it');
     assert.ok(state.skipped.includes('s1'), 'it is recorded as skipped');
+  });
+
+  /* The mouse-effect steps opt out of L9's rule: their subject is a
+     gesture, and an experienced visitor pressing Next is saying they know
+     it, not declining to learn it. The escape hatch is deliberately not
+     given the same reading — "Skip this step" still means skipped. */
+  const knowingStep = (id, order, targetAttr) =>
+    Object.assign(clickStep(id, order, targetAttr), { nextCountsAsDone: true });
+
+  test('L10 — Next on a nextCountsAsDone step is recorded as performed', () => {
+    const h = setup();
+    const tour = h.X.createGuidedTour({ steps: tourOf(
+      knowingStep('k1', 1, 'tab-albums'),
+      clickStep('k2', 2, 'album-cover'),
+    ) });
+    tour.start();
+    h.advance(h.X.D.base);
+    h.document.querySelector('.tour-card-btn-next').dispatch('click');
+    h.advance(h.X.D.base);
+    assert.equal(tour.getCurrentStepId(), 'k2', 'Next still advances');
+    const saved = h.X.parseTourState(h.store.get('walkthrough.tourState'));
+    assert.ok(saved.completed.includes('k1'), 'the step counts as done');
+    assert.ok(!saved.skipped.includes('k1'), 'and not as a skip');
+  });
+
+  test('L11 — Skip this step still skips, even on a knowing step', () => {
+    const h = setup();
+    const tour = h.X.createGuidedTour({ steps: tourOf(
+      knowingStep('k1', 1, 'tab-albums'),
+      clickStep('k2', 2, 'album-cover'),
+    ) });
+    tour.start();
+    h.advance(h.X.D.base);
+    h.document.querySelectorAll('.tour-card-escapes .tour-escape-link')[0]
+      .dispatch('click'); // "Skip this step"
+    h.advance(h.X.D.base);
+    assert.equal(tour.getCurrentStepId(), 'k2');
+    const saved = h.X.parseTourState(h.store.get('walkthrough.tourState'));
+    assert.ok(!saved.completed.includes('k1'), 'declining is not doing');
+    assert.ok(saved.skipped.includes('k1'), 'it is recorded as skipped');
+  });
+
+  test('L12 — only the mouse-effect steps claim Next as performed', () => {
+    const h = setup();
+    const flagged = h.X.TOUR_STEPS.filter(s => s.nextCountsAsDone).map(s => s.id);
+    sameDeep(flagged, [
+      'mouse-effect-toggle', 'mouse-effect-move', 'mouse-effect-cycle',
+      'mouse-effect-skin', 'mouse-effect-letter', 'mouse-effect-off',
+    ]);
+    // Everything else keeps L9's meaning.
+    assert.equal(
+      h.X.TOUR_STEPS.filter(s => !s.nextCountsAsDone).length,
+      h.X.TOUR_STEPS.length - 6);
   });
 });
