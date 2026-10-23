@@ -2354,7 +2354,7 @@ function initConfirm() {
   el('confirmCancel').addEventListener('click', () => overlayClose('confirmOverlay'));
 }
 
-/* Overlay close routines (shared by the X/Esc/outside handlers and the
+/* Overlay close routines (shared by the X/Esc handlers and the
    back-button popstate path, so both run identical cleanup). */
 const closeUploadModal = () => {
   // A row's panel belongs to this dialog, so if one is somehow still open it
@@ -2625,7 +2625,6 @@ function wireStaticEvents() {
   });
   el('newFolderName').addEventListener('keydown', e => { if (e.key === 'Enter') el('newFolderBtn').click(); });
   el('newAlbumCancel').addEventListener('click', () => overlayClose('newAlbumOverlay'));
-  el('newAlbumOverlay').addEventListener('click', e => { if (e.target.id === 'newAlbumOverlay') overlayClose('newAlbumOverlay'); });
 
   // Selection action bar
   el('selectClose').addEventListener('click', () => { exitBatchSelect(); render(); });
@@ -2636,17 +2635,14 @@ function wireStaticEvents() {
   el('tokenCancel').addEventListener('click', () => overlayClose('adminModalOverlay'));
   el('tokenSubmit').addEventListener('click', trySignIn);
   el('tokenInput').addEventListener('keydown', e => { if (e.key === 'Enter') trySignIn(); });
-  el('adminModalOverlay').addEventListener('click', e => { if (e.target.id === 'adminModalOverlay') overlayClose('adminModalOverlay'); });
 
   // Move (sort) modal
   el('sortCancel').addEventListener('click', () => overlayClose('sortModalOverlay'));
   el('sortConfirm').addEventListener('click', performBatchMove);
-  el('sortModalOverlay').addEventListener('click', e => { if (e.target.id === 'sortModalOverlay') overlayClose('sortModalOverlay'); });
   el('categoryInput').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); performBatchMove(); } });
 
   // Album settings modal
   el('settingsCancel').addEventListener('click', () => overlayClose('settingsModalOverlay'));
-  el('settingsModalOverlay').addEventListener('click', e => { if (e.target.id === 'settingsModalOverlay') overlayClose('settingsModalOverlay'); });
   el('settingsPhase').addEventListener('change', () => { el('settingsPhaseRename').value = el('settingsPhase').value; });
   el('settingsRenameBtn').addEventListener('click', renamePhase);
   el('settingsRemoveBtn').addEventListener('click', removePhase);
@@ -2654,13 +2650,16 @@ function wireStaticEvents() {
   el('settingsRevertBtn').addEventListener('click', revertAllChanges);
   initConfirm();
 
-  // Upload confirm modal. All three ways out read the dismissal flag, and
+  // Upload confirm modal. Both ways out read the dismissal flag, and
   // measured, that is not optional: a panel open in a row makes the dialog
   // taller, the centered card puts its top a little higher, and the press
   // that collapses the panel lands on a *different* element by the time the
   // click is delivered — the copy line's own press was delivered to
-  // #uploadModalOverlay in a browser at 412 wide. So the tap that puts a
-  // panel away must not also cancel the batch, and must not file it either.
+  // #uploadModalOverlay in a browser at 412 wide. The overlay ignores
+  // clicks now, so that particular landing spot hits nothing — but the shift
+  // is a property of the layout rather than of that one width, and neither
+  // button controls where the click comes down. So the tap that puts a panel
+  // away must not also cancel the batch, and must not file it either.
   el('uploadCancel').addEventListener('click', () => {
     if (Date.now() < (state._suppressClickUntil || 0)) return;
     overlayClose('uploadModalOverlay');
@@ -2668,11 +2667,6 @@ function wireStaticEvents() {
   el('uploadConfirm').addEventListener('click', () => {
     if (Date.now() < (state._suppressClickUntil || 0)) return;
     performUploads();
-  });
-  el('uploadModalOverlay').addEventListener('click', e => {
-    if (e.target.id !== 'uploadModalOverlay') return;
-    if (Date.now() < (state._suppressClickUntil || 0)) return;
-    overlayClose('uploadModalOverlay');
   });
   // The rows' own controls: the chip opens the panel, a tile picks.
   el('uploadPickList').addEventListener('click', e => {
@@ -2697,9 +2691,6 @@ function wireStaticEvents() {
   // Classify modal
   el('tagCancel').addEventListener('click', () => overlayClose('tagModalOverlay'));
   el('tagSave').addEventListener('click', saveTagModal);
-  el('tagModalOverlay').addEventListener('click', e => {
-    if (e.target.id === 'tagModalOverlay') overlayClose('tagModalOverlay');
-  });
 
   // Viewer
   el('lightboxClose').addEventListener('click', () => overlayClose('lightbox'));

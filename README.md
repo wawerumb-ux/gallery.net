@@ -512,8 +512,28 @@ A dialog sits over a scrim, and the thing you often need while filling one
 in is the archive behind it. Grab the box's own **title** and it follows
 the pointer, so the gap it leaves can be read through. All seven
 `.modal-overlay` boxes work this way, and the position is dropped the
-moment the box hides — Cancel, the scrim, Esc, or a successful submit — so
-every box reopens where it started rather than where you last dropped it.
+moment the box hides — Cancel, Esc, or a successful submit — so every box
+reopens where it started rather than where you last dropped it.
+
+Clicking the scrim does **not** close the box. It used to, on six of the
+seven, and that was survivable when a dialog stayed where it was opened:
+a miss landed on the box or just off it, and either way the archive behind
+was not the thing you were aiming at. Dragging changes what a click
+outside means. The whole point of pulling a box aside is to read what it
+was covering, and the natural next move is to click that — a photo to
+open, a name to select. Closing the box on that click throws away the
+work the drag just did, and takes the typed field with it. The seventh
+box — the destructive-action confirm — never had the handler, so this
+brings all seven into line rather than carving out an exception.
+
+**Escape** still closes the box, and so does every button on it, so a box is
+never stranded. One exception worth knowing about: while the guided tour is
+running it holds Escape for its own hatch — skip this step, end tour — and
+takes the key off `window` in the capture phase before the gallery ever sees
+it. That is deliberate (`onKeyDown` in `tour/tour.js` says so in as many
+words), and the listener is dropped the moment the tour ends. So on a very
+first walk a box closes with its Cancel; on every visit after that, Escape
+lands where it should.
 
 The handle is the title the dialog already names for screen readers
 (`aria-labelledby`, falling back to its first heading). That is deliberate:

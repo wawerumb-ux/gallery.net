@@ -159,11 +159,12 @@ describe('the upload rows offer a dropdown, not a select', () => {
     assert.match(app, /closest\('\.pick-row\.is-open'\)/);
     assert.match(app, /state\._suppressClickUntil = Date\.now\(\) \+ CLICK_SUPPRESS_MS/);
     // Upload is the control the flag guards most: a tap that only put a panel
-    // away must not file the batch. Cancel and the backdrop read it too —
-    // measured, the press that collapses a panel is delivered to a different
-    // element (see the comment in initUpload).
+    // away must not file the batch. Cancel reads it too — measured, the press
+    // that collapses a panel is delivered to a different element (see the
+    // comment in initUpload). The dialog's own backdrop used to be the third
+    // reader and is gone: a click outside no longer closes a modal.
     const wiring = app.slice(app.indexOf('// Upload confirm modal'), app.indexOf('// The rows'));
-    assert.equal((wiring.match(/_suppressClickUntil/g) || []).length, 3,
+    assert.equal((wiring.match(/_suppressClickUntil/g) || []).length, 2,
       'not every way out of the dialog reads the dismissal flag');
   });
 });
